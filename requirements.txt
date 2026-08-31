@@ -15,3 +15,6 @@ openai==3.3.1
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+# Reliable PDF text extraction and image identification for task artifacts.
+pypdf==6.7.0
+Pillow==12.1.1

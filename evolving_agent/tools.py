@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.documents import DocumentError, extract_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -143,6 +144,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="extract_document",
+                description=(
+                    "Extract readable text from a PDF, DOCX, XLSX, PPTX, or OpenDocument "
+                    "artifact, or report image metadata. Use this instead of read_file for "
+                    "binary documents in workspace/, materials/, or output/. Extraction is bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Document path relative to the workspace root."},
+                        "max_characters": {"type": "integer", "description": "Maximum extracted characters, 100 through 100000 (default 20000)."},
+                        "max_pages": {"type": "integer", "description": "Maximum PDF pages or PPTX slides, 1 through 1000 (default 100)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -191,6 +209,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "extract_document": self._extract_document,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -282,6 +301,20 @@ class WorkspaceTools:
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
 
+    def _extract_document(self, arguments: Mapping[str, Any]) -> str:
+        """Extract text or metadata from a common binary office artifact."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_characters = _bounded_integer(arguments, "max_characters", default=20_000)
+        max_pages = _bounded_integer(arguments, "max_pages", default=100)
+        try:
+            return extract_document(
+                tree.resolve(relative),
+                max_characters=max_characters,
+                max_pages=max_pages,
+            )
+        except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
 
@@ -366,3 +399,11 @@ def _timeout_argument(arguments: Mapping[str, Any]) -> int | None:
     if value <= 0:
         raise ToolFailureError("'timeout_seconds' must be greater than zero.")
     return int(value)
+
+
+def _bounded_integer(arguments: Mapping[str, Any], name: str, *, default: int) -> int:
+    """Return an optional non-boolean integer; detailed ranges are parser-specific."""
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolFailureError(f"{name!r} must be a whole number.")
+    return value
