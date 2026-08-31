@@ -1,0 +1,17 @@
+# Everything this agent needs beyond the standard library, pinned so an image
+# built today is the image that was tested. The official OpenAI client is the
+# whole of it: the agent talks to any endpoint serving that API's responses
+# surface through it, and gives the model its MCP tools in the API's own
+# function-calling format.
+#
+# Adding to this list is a real cost — the image build then needs a package
+# index, which the daemon a candidate is built in may not have — so keep it
+# short.
+openai==3.3.1
+# The same pytest the orchestrator's checker grades with, so a generator can
+# prove its bundle before handing it in — the check must pass on its
+# reference and fail on nothing — and a probe can run a task's tests instead
+# of reasoning about them. Plan 09/run-2 measured what its absence costs:
+# five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
+# because the reference was never run against its own tests.
+pytest==8.4.1
