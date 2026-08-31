@@ -31,6 +31,10 @@ _MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 _MAX_ARCHIVE_MEMBERS = 1_000
 _MAX_ARCHIVE_MEMBER_BYTES = 32 * 1024 * 1024
 _MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024
+_MAX_ARCHIVE_COMPRESSION_RATIO = 1_000
+"""Maximum expanded-to-compressed ratio accepted from an archive stream."""
+_MIN_ARCHIVE_RATIO_INPUT_BYTES = 1_024
+"""Small inputs get this floor so normal tiny files are not rejected by metadata overhead."""
 _ARCHIVE_CHUNK_BYTES = 64 * 1024
 _MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_HTTP_TIMEOUT_SECONDS = 30
@@ -688,6 +692,46 @@ def _safe_member_path(member_name: str) -> str:
     return member_name
 
 
+class _CountingReader:
+    """File-like wrapper which records compressed bytes consumed by tarfile."""
+
+    def __init__(self, raw: BinaryIO) -> None:
+        self._raw = raw
+        self.count = 0
+
+    def read(self, size: int = -1) -> bytes:
+        data = self._raw.read(size)
+        self.count += len(data)
+        return data
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._raw, name)
+
+
+def _validate_zip_member_compression(info: zipfile.ZipInfo, name: str) -> None:
+    """Refuse a ZIP entry whose declared expansion is bomb-like."""
+    if info.file_size and info.compress_size == 0:
+        raise WorkspaceError(f"Archive member {name!r} has no compressed data.")
+    _validate_stream_compression(info.file_size, info.compress_size)
+
+
+def _validate_stream_compression(expanded: int, compressed: int) -> None:
+    """Keep decompression work proportionate to input bytes.
+
+    A small floor avoids treating ZIP/TAR headers as a hostile ratio, while
+    large repetitive payloads cannot consume substantial resources from a
+    tiny archive.
+    """
+    allowed = max(
+        _MIN_ARCHIVE_RATIO_INPUT_BYTES * _MAX_ARCHIVE_COMPRESSION_RATIO,
+        compressed * _MAX_ARCHIVE_COMPRESSION_RATIO,
+    )
+    if expanded > allowed:
+        raise WorkspaceError(
+            f"Archive exceeds the {_MAX_ARCHIVE_COMPRESSION_RATIO}:1 compression-ratio limit."
+        )
+
+
 def _extract_zip(
     archive: object, destination: Workspace, destination_relative: str,
     selected: frozenset[str] | None,
@@ -706,6 +750,7 @@ def _extract_zip(
                 continue
             if info.is_dir() or (info.external_attr >> 16) & 0o170000 == 0o120000:
                 raise WorkspaceError(f"Archive member {name!r} is a link and cannot be extracted.")
+            _validate_zip_member_compression(info, name)
             count, total = _copy_archive_member(
                 destination, destination_relative, name, zipped.open(info), info.file_size, count, total
             )
@@ -718,29 +763,36 @@ def _extract_tar(
 ) -> tuple[int, int]:
     """Extract safe selected TAR entries, including compressed TAR variants."""
     count = total = 0
-    with tarfile.open(archive, mode="r|*") as tarred:
-        for seen, info in enumerate(tarred, start=1):
-            if seen > _MAX_ARCHIVE_MEMBERS:
-                raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit.")
-            name = _safe_member_path(info.name)
-            if selected is not None and name not in selected:
-                continue
-            if info.isdir():
-                continue
-            if not info.isreg():
-                raise WorkspaceError(f"Archive member {name!r} is not a regular file.")
-            reader = tarred.extractfile(info)
-            if reader is None:
-                raise WorkspaceError(f"Archive member {name!r} could not be read.")
-            count, total = _copy_archive_member(
-                destination, destination_relative, name, reader, info.size, count, total
-            )
+    # Tar compression wraps the whole stream, so it has no trustworthy
+    # per-member compressed-size field. Count bytes drawn from that outer
+    # stream while extracting and enforce the same expansion ratio.
+    with open(archive, "rb") as raw:
+        compressed = _CountingReader(raw)
+        with tarfile.open(fileobj=compressed, mode="r|*") as tarred:
+            for seen, info in enumerate(tarred, start=1):
+                if seen > _MAX_ARCHIVE_MEMBERS:
+                    raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit.")
+                name = _safe_member_path(info.name)
+                if selected is not None and name not in selected:
+                    continue
+                if info.isdir():
+                    continue
+                if not info.isreg():
+                    raise WorkspaceError(f"Archive member {name!r} is not a regular file.")
+                reader = tarred.extractfile(info)
+                if reader is None:
+                    raise WorkspaceError(f"Archive member {name!r} could not be read.")
+                count, total = _copy_archive_member(
+                    destination, destination_relative, name, reader, info.size, count, total,
+                    compressed_bytes=compressed,
+                )
     return count, total
 
 
 def _copy_archive_member(
     destination: Workspace, destination_relative: str, member_name: str,
     reader: BinaryIO, expected_size: int, count: int, total: int,
+    *, compressed_bytes: "_CountingReader | None" = None,
 ) -> tuple[int, int]:
     """Copy a bounded member after resolving its target beneath the destination."""
     if count >= _MAX_ARCHIVE_MEMBERS:
@@ -760,6 +812,8 @@ def _copy_archive_member(
                 written += len(chunk)
                 if written > _MAX_ARCHIVE_MEMBER_BYTES or total + written > _MAX_ARCHIVE_EXTRACTED_BYTES:
                     raise WorkspaceError("Archive exceeds the permitted extracted-data limit.")
+                if compressed_bytes is not None:
+                    _validate_stream_compression(total + written, compressed_bytes.count)
                 output.write(chunk)
     except OSError as unwritable:
         raise WorkspaceError(f"Archive member {member_name!r} could not be written: {unwritable}") from unwritable

@@ -1,3 +1,3 @@
-Gap: the agent cannot read the text, tables, and formulas in PDF, DOCX, or XLSX task materials, so it must infer from opaque binary files.
-Change: add a bounded read_document tool backed by pypdf, python-docx, and openpyxl, available for materials/ and output/ paths.
-Priority: this is an unclosed, high-frequency task-input gap noted in the lineage; command execution and archive extraction cannot reliably interpret these formats.
+Gap: Archive extraction capped expanded bytes but accepted highly compressed ZIP or compressed TAR payloads that can waste disproportionate CPU and disk work.
+Change: Enforce a 1,000:1 expansion-ratio limit from ZIP member metadata and from bytes consumed by the outer TAR stream during extraction.
+Priority: This closes the archive-bomb resource-exhaustion gap noted by the lineage while preserving normal ZIP/TAR extraction and its existing size/member limits.
