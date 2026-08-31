@@ -33,6 +33,12 @@ them: the task's input files under `materials/` (read-only) and the place its
 deliverables go under `output/`; the same tools reach both by path prefix, and
 a probe is told which files it was given and where to put what it delivers.
 
+`inspect_document` handles common binary attachments directly: DOCX, PPTX, and
+XLSX package text; PDF embedded text and page OCR; and image OCR. This lets a
+probe inspect evidence supplied under `materials/` without extracting an
+attachment into the writable tree. Its previews are bounded like other file
+inspection results.
+
 Requests use `/v1/responses` with `store: false`. The session therefore carries
 its own model output and trims history when necessary. The implementation is
 container-portable and does not depend on the orchestrator that normally runs
@@ -88,35 +94,36 @@ AGENT_WORKSPACE=/tmp/agent-scratch python main.py
 
 ## Configuration
 
-| Variable            | Meaning                                           |
-| ------------------- | ------------------------------------------------- |
-| `AGENT_MODE`        | `improve` or `probe`                              |
-| `AGENT_TASK`        | Improvement request or question                   |
-| `AGENT_WORKSPACE`   | Writable workspace (default `/workspace`)         |
-| `AGENT_SOURCE_ROOT` | Source copied into an empty improvement workspace |
-| `AGENT_MATERIALS`   | Read-only input files a task refers to, readable under `materials/` |
-| `AGENT_OUTPUT`      | Where a task's deliverables are left (`output/`) and collected from |
-| `OPENAI_API_KEY`    | Endpoint credential, when required                |
-| `OPENAI_BASE_URL`   | Responses-compatible endpoint                     |
-| `OPENAI_MODEL`      | Model name; the orchestrator sets it, and the default (`gpt-5.6-terra`) applies only when nothing does |
+| Variable            | Meaning                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `AGENT_MODE`        | `improve` or `probe`                                    |
+| `AGENT_TASK`        | Improvement request or question                         |
+| `AGENT_WORKSPACE`   | Writable workspace (default `/workspace`)               |
+| `AGENT_SOURCE_ROOT` | Source copied into an empty improvement workspace       |
+| `AGENT_MATERIALS`   | Read-only input files, readable under `materials/`      |
+| `AGENT_OUTPUT`      | Deliverable directory, writable under `output/`         |
+| `OPENAI_API_KEY`    | Endpoint credential, when required                      |
+| `OPENAI_BASE_URL`   | Responses-compatible endpoint                           |
+| `OPENAI_MODEL`      | Model name; defaults to `gpt-5.6-terra` when unspecified |
 
 The endpoint must implement `/v1/responses` and function tools. Dependencies
 are pinned in `requirements.txt`; runtime budgets live in
-`evolving_agent/settings.py`.
+evolving_agent/settings.py.
 
 ## Layout
 
-| Path                           | Purpose                                  |
-| ------------------------------ | ---------------------------------------- |
-| `main.py`                      | Environment-driven entry point           |
-| `RULES.md`                     | Immutable runtime and iteration contract |
-| `evolving_agent/prompts.py`    | Role and improvement instructions        |
-| `evolving_agent/modes.py`      | Improvement and probe workflows          |
-| `evolving_agent/session.py`    | Model/tool loop and history              |
-| `evolving_agent/mcp_server.py` | MCP workspace tools                      |
-| `evolving_agent/model.py`      | Responses API client                     |
-| `evolving_agent/workspace.py`  | Contained filesystem operations          |
-| `evolving_agent/successor.py`  | Next-iteration validation                |
+| Path                           | Purpose                                      |
+| ------------------------------ | -------------------------------------------- |
+| `main.py`                      | Environment-driven entry point               |
+| `RULES.md`                     | Immutable runtime and iteration contract     |
+| `evolving_agent/prompts.py`    | Role and improvement instructions            |
+| `evolving_agent/modes.py`      | Improvement and probe workflows              |
+| `evolving_agent/session.py`    | Model/tool loop and history                  |
+| `evolving_agent/mcp_server.py` | MCP workspace tools                          |
+| `evolving_agent/tools.py`      | Shared tool registry and handlers            |
+| `evolving_agent/documents.py`  | Bounded attachment text/OCR extraction       |
+| `evolving_agent/workspace.py`  | Contained filesystem operations               |
+| `evolving_agent/successor.py`  | Next-iteration validation                    |
 
 The MCP server can also run over stdio:
 

@@ -17,6 +17,7 @@ from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
+from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -129,6 +130,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_document",
+                description=(
+                    "Extract readable evidence from one PDF page, image, or DOCX/PPTX/XLSX "
+                    "attachment. PDF embedded text is extracted directly and scanned pages "
+                    "are OCRed; set page to inspect another PDF page. Results are bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path in the workspace or materials/."},
+                        "page": {"type": "integer", "description": "One-based PDF page number (default 1)."},
+                        "ocr": {"type": "boolean", "description": "OCR a PDF page even when it has embedded text."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="write_file",
                 description=(
                     "Write one file, replacing it if it exists and creating "
@@ -213,6 +231,7 @@ class WorkspaceTools:
             "list_files": self._list_files,
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
+            "inspect_document": self._inspect_document,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -225,7 +244,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -267,6 +286,22 @@ class WorkspaceTools:
         if requested is not None and (not isinstance(requested, str) or not requested):
             raise ToolFailureError("'member' must be a non-empty string when supplied.")
         return inspect_archive(tree.resolve(relative), requested)
+
+    def _inspect_document(self, arguments: Mapping[str, Any]) -> str:
+        """Extract a bounded page of an attachment without changing it."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        page = arguments.get("page", 1)
+        if not isinstance(page, int) or isinstance(page, bool):
+            raise ToolFailureError("'page' must be an integer when supplied.")
+        ocr = arguments.get("ocr", False)
+        if not isinstance(ocr, bool):
+            raise ToolFailureError("'ocr' must be true or false when supplied.")
+
+        def run(command: list[str]) -> tuple[int | None, str, str]:
+            result = self._commands.run(command)
+            return result.exit_code, result.stdout, result.stderr
+
+        return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

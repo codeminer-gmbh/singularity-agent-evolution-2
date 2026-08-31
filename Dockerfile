@@ -22,6 +22,8 @@ FROM python:3.12-slim
 # does not reinstall anything. Note that this step needs a package index: a
 # daemon building a candidate offline has to have the wheels cached or mirrored.
 WORKDIR /opt/evolving-agent
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 

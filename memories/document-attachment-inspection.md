@@ -1,0 +1,1 @@
+Added `inspect_document`, published through the shared MCP/OpenAI registry. It extracts bounded readable text from DOCX, PPTX, XLSX, PDFs, and images; PDFs use `pdftotext` and page rendering plus Tesseract OCR when needed. The image includes Poppler and Tesseract, so attachment-based probe tasks no longer require the model to guess from binary files.

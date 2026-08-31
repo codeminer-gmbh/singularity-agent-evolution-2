@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect raw BZIP2 or XZ compressed evidence bundles, so a hard task with source or logs inside them is unreadable.
-Change: Extend the bounded, read-only archive inspection tool with BZIP2 and XZ single-stream support.
-Priority: This makes common opaque task materials directly available to the model without extraction or an unbounded command run.
+Gap: the agent cannot read the text, tables, or scanned pages inside PDF, image, and common Office task attachments.
+Change: add a bounded inspect_document tool backed by Poppler/Tesseract plus safe OOXML parsing.
+Priority: prior rounds closed archive and dataset inspection, while document evidence remains entirely opaque to the model.
