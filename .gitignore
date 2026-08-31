@@ -1,0 +1,35 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging and build output
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test, type-checker, and linter caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# `memories/` is deliberately not ignored: it carries useful knowledge into
+# the next iteration.

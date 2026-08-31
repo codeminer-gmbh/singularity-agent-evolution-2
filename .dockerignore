@@ -1,0 +1,12 @@
+# Keep interpreter bytecode out of the agent image, and out of the tree a
+# successor is copied from: it is not source, and everything in the workspace
+# is published as though it were.
+#
+# This file is applied by the orchestrator, not only by a daemon. The service
+# assembles the build context itself (app/services/source_tree.py) because the
+# daemon it builds on has a filesystem of its own and never sees this
+# directory — and the same walk produces the manifest the seed iteration is
+# recorded under, so what is excluded here is excluded from both. A hand-run
+# `docker build agent/` reads it the ordinary way and gets the same tree.
+**/__pycache__/
+**/*.py[cod]
