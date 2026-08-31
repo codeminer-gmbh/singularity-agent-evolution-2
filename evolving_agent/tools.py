@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from evolving_agent.archives import ArchiveError, extract_archive, format_inventory
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentExtractionError, extract_document_text
 from evolving_agent.images import ImageExtractionError, extract_image_text
@@ -142,6 +143,38 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="archive_contents",
+                description=(
+                    "Inventory a ZIP or TAR-family archive from the workspace, materials/, "
+                    "or output/. Returns safe extractable file paths and sizes; use "
+                    "extract_archive to copy files out."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to a ZIP or TAR archive."}
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_archive",
+                description=(
+                    "Safely extract all files, or one exact member, from a ZIP or TAR-family "
+                    "archive into a destination directory in the workspace or output/. "
+                    "Inspect it first with archive_contents. Materials/ is read-only."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to the source archive."},
+                        "destination": {"type": "string", "description": "Destination directory in workspace/ or output/."},
+                        "member": {"type": "string", "description": "Optional exact archive file path to extract."},
+                    },
+                    "required": ["path", "destination"],
+                },
+            ),
+            ToolDefinition(
                 name="write_file",
                 description=(
                     "Write one file, replacing it if it exists and creating "
@@ -244,6 +277,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "extract_document_text": self._extract_document_text,
             "extract_image_text": self._extract_image_text,
+            "archive_contents": self._archive_contents,
+            "extract_archive": self._extract_archive,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "fetch_url": self._fetch_url,
@@ -309,6 +344,33 @@ class WorkspaceTools:
             return extract_image_text(tree.resolve(relative))
         except ImageExtractionError as refused:
             raise ToolFailureError(str(refused)) from refused
+
+    def _archive_contents(self, arguments: Mapping[str, Any]) -> str:
+        """List the safe, regular files held by an archive."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        try:
+            return format_inventory(tree.resolve(relative))
+        except ArchiveError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Copy archive files into a writable contained destination."""
+        source_tree, source_relative = self._located(_text_argument(arguments, "path"))
+        destination_name = _text_argument(arguments, "destination")
+        destination_tree, destination_relative = self._located(destination_name, writing=True)
+        member = arguments.get("member")
+        if member is not None and (not isinstance(member, str) or not member.strip()):
+            raise ToolFailureError("'member' must be a non-blank archive path when supplied.")
+        try:
+            items = extract_archive(
+                source_tree.resolve(source_relative),
+                destination_tree.resolve(destination_relative),
+                member=member,
+            )
+        except ArchiveError as refused:
+            raise ToolFailureError(str(refused)) from refused
+        noun = "file" if len(items) == 1 else "files"
+        return f"Extracted {len(items)} {noun} from {source_relative} to {destination_name}."
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

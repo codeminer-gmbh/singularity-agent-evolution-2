@@ -1,3 +1,3 @@
-Gap: the agent cannot read text embedded in screenshot, photographed, or scanned-PDF task materials.
-Change: add a bounded OCR tool for raster images and rendered PDF pages, published through the existing tool registry.
-Evidence: ledger shows web research is the only prior gain; image-only inputs remain an unclosed, directly testable materials workflow.
+Gap: The agent cannot reliably inspect task inputs packaged as ZIP/TAR archives, a common hard-task delivery format, without manually guessing shell commands and paths.
+Change: Add a bounded archive inventory/extraction MCP tool that reads archives from materials/ and safely writes selected/all members to output/ or workspace.
+Evidence: Existing document and image extraction already cover individual opaque inputs, while the current registry lacks archive handling; an executable archive-to-output workflow can directly distinguish this path.
