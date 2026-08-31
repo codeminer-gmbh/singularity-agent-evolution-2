@@ -1,3 +1,3 @@
-Limitation: tasks whose only evidence is a photographed receipt, scanned form, or image-only PDF cannot be read by `extract_document`, blocking a faithful extracted answer or data-driven deliverable.
-Change/check: add bounded local OCR for PNG/JPEG/TIFF/WebP and textless PDF pages, then verify that a generated image-only PDF and PNG both extract their known fixture phrase.
-Evidence: ledger shows the office-document addition tied on code-data reconciliation and inherited memories favor differentiated input coverage; OCR creates a distinct visual-document boundary rather than repeating office-text extraction.
+Limitation: a probe given a ZIP bundle of heterogeneous evidence (for example invoices plus CSVs) cannot inspect its members through the document tool, blocking a consolidated answer or deliverable based on the bundle.
+Change/check: add safe, bounded archive manifest/text extraction for ZIP and TAR-family inputs through `extract_document`; verify a ZIP containing TXT, CSV, and a nested document yields member names and known member text without writing outside a temporary directory.
+Evidence: the only runtime-capability attempt added office/OCR extraction and tied; archive containers are a distinct task input boundary, while the inherited plan is stale because README already documents OCR as shipped.

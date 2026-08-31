@@ -12,7 +12,9 @@ import csv
 import io
 import json
 import subprocess
+import tarfile
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -29,11 +31,16 @@ import pytesseract
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
-_SUPPORTED = frozenset({"pdf", "docx", "xlsx", "pptx", "odt", "png", "jpg", "jpeg", "tif", "tiff", "webp"})
+_SUPPORTED = frozenset({"pdf", "docx", "xlsx", "pptx", "odt", "png", "jpg", "jpeg", "tif", "tiff", "webp", "zip", "tar", "tgz", "tar.gz", "tar.bz2", "tar.xz"})
+_ARCHIVE_FORMATS = frozenset({"zip", "tar", "tgz", "tar.gz", "tar.bz2", "tar.xz"})
+_TEXT_MEMBER_SUFFIXES = frozenset({".txt", ".md", ".rst", ".csv", ".tsv", ".json", ".jsonl", ".xml", ".html", ".htm", ".log", ".yaml", ".yml"})
 _IMAGE_FORMATS = frozenset({"png", "jpg", "jpeg", "tif", "tiff", "webp"})
 _MAX_EXTRACTED_CHARACTERS = 60_000
 _MAX_OCR_PAGES = 12
 _MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
+_MAX_ARCHIVE_MEMBERS = 60
+_MAX_ARCHIVE_UNPACKED_BYTES = 50 * 1024 * 1024
+_MAX_ARCHIVE_MEMBER_BYTES = 12 * 1024 * 1024
 
 
 class DocumentError(Exception):
@@ -42,11 +49,20 @@ class DocumentError(Exception):
 
 def document_format(path: str, supplied: str | None = None) -> str:
     """Return and validate a document format from an explicit value or suffix."""
-    candidate = (supplied or Path(path).suffix.removeprefix(".")).lower().strip()
+    candidate = (supplied or _format_from_path(path)).lower().strip()
     if candidate not in _SUPPORTED:
         choices = ", ".join(sorted(_SUPPORTED))
         raise DocumentError(f"Unsupported document format {candidate!r}; use one of {choices}.")
     return candidate
+
+
+def _format_from_path(path: str) -> str:
+    """Recognize compound archive suffixes before falling back to the last suffix."""
+    lowered = path.lower().strip()
+    for suffix in (".tar.gz", ".tar.bz2", ".tar.xz"):
+        if lowered.endswith(suffix):
+            return suffix.removeprefix(".")
+    return Path(path).suffix.removeprefix(".")
 
 
 def extract(path: Path, kind: str) -> str:
@@ -54,7 +70,9 @@ def extract(path: Path, kind: str) -> str:
     try:
         if path.stat().st_size > _MAX_DOCUMENT_BYTES:
             raise DocumentError(f"{path.name!r} is too large to extract safely (limit: 50 MiB).")
-        if kind == "pdf":
+        if kind in _ARCHIVE_FORMATS:
+            result = _extract_archive(path, kind)
+        elif kind == "pdf":
             result = _extract_pdf(path)
         elif kind in _IMAGE_FORMATS:
             result = _extract_image(path)
@@ -73,6 +91,8 @@ def extract(path: Path, kind: str) -> str:
 
 def create(path: Path, kind: str, content: str, title: str = "") -> None:
     """Create one document from text (or CSV/JSON rows for a spreadsheet)."""
+    if kind in _ARCHIVE_FORMATS:
+        raise DocumentError(f"Archives are readable inputs, not create_document formats: {kind}.")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         if kind == "pdf":
@@ -87,6 +107,73 @@ def create(path: Path, kind: str, content: str, title: str = "") -> None:
             _create_odt(path, content, title)
     except (OSError, ValueError, TypeError) as failure:
         raise DocumentError(f"Could not create {path.name!r} as {kind}: {failure}") from failure
+
+
+
+def _extract_archive(path: Path, kind: str) -> str:
+    """Return a bounded manifest plus readable members of an archive.
+
+    Members are never extracted to their declared paths: this avoids archive path
+    traversal entirely while still allowing office parsers to consume a temporary
+    file with the member's suffix.
+    """
+    try:
+        if kind == "zip":
+            with zipfile.ZipFile(path) as archive:
+                members = [(item.filename, item.file_size, lambda item=item: archive.read(item))
+                           for item in archive.infolist() if not item.is_dir()]
+                return _render_archive_members(path.name, members)
+        with tarfile.open(path, mode="r:*") as archive:
+            members = []
+            for item in archive.getmembers():
+                if not item.isfile():
+                    continue
+                def read_item(item: tarfile.TarInfo = item) -> bytes:
+                    stream = archive.extractfile(item)
+                    return b"" if stream is None else stream.read()
+                members.append((item.name, item.size, read_item))
+            return _render_archive_members(path.name, members)
+    except (OSError, tarfile.TarError, zipfile.BadZipFile) as failure:
+        raise DocumentError(f"Could not read {path.name!r} as an archive: {failure}") from failure
+
+
+def _render_archive_members(archive_name: str, members: list[tuple[str, int, Any]]) -> str:
+    """Read supported archive members within count and decompression budgets."""
+    parts = [f"# Archive: {archive_name}"]
+    total = 0
+    for number, (name, size, read_member) in enumerate(members, 1):
+        if number > _MAX_ARCHIVE_MEMBERS:
+            parts.append(f"[member limit reached: first {_MAX_ARCHIVE_MEMBERS} files shown]")
+            break
+        if size < 0 or size > _MAX_ARCHIVE_MEMBER_BYTES or total + size > _MAX_ARCHIVE_UNPACKED_BYTES:
+            parts.append(f"## {name}\n[skipped: exceeds archive extraction size budget]")
+            continue
+        total += size
+        try:
+            payload = read_member()
+            if len(payload) > _MAX_ARCHIVE_MEMBER_BYTES:
+                parts.append(f"## {name}\n[skipped: exceeds archive extraction size budget]")
+                continue
+            parts.append(f"## {name}\n{_extract_archive_member(name, payload)}")
+        except (OSError, ValueError, DocumentError) as failure:
+            parts.append(f"## {name}\n[unreadable member: {failure}]")
+    return "\n\n".join(parts) if len(parts) > 1 else f"# Archive: {archive_name}\n[Archive contains no files]"
+
+
+def _extract_archive_member(name: str, payload: bytes) -> str:
+    """Decode a textual member or delegate an office member to its extractor."""
+    suffix = Path(name).suffix.lower()
+    if suffix in _TEXT_MEMBER_SUFFIXES:
+        return payload[:_MAX_DOCUMENT_BYTES].decode("utf-8", errors="replace") or "[empty text file]"
+    kind = _format_from_path(name)
+    if kind not in _SUPPORTED:
+        return f"[binary or unsupported member ({suffix or 'no extension'})]"
+    with tempfile.TemporaryDirectory(prefix="agent-archive-") as directory:
+        member_path = Path(directory) / f"member.{kind.replace('.', '_')}"
+        # Keep a meaningful final suffix for libraries which inspect it.
+        member_path = member_path.with_suffix("." + kind.split(".")[-1])
+        member_path.write_bytes(payload)
+        return extract(member_path, kind)
 
 
 def _extract_pdf(path: Path) -> str:

@@ -146,8 +146,8 @@ class WorkspaceTools:
             ToolDefinition(
                 name="extract_document",
                 description=(
-                    "Extract text, tables, sheets, slide text, or OCR text from PDF, DOCX, "
-                    "XLSX, PPTX, ODT, PNG, JPEG, TIFF, or WebP. Textless PDF pages "
+                    "Extract text, tables, sheets, slide text, OCR text, or archive members from PDF, DOCX, "
+                    "XLSX, PPTX, ODT, PNG, JPEG, TIFF, WebP, ZIP, or TAR archives. Textless PDF pages "
                     "and raster images are OCRed locally. The format defaults to the file extension. "
                     "The path may be under materials/ or output/."
                 ),
@@ -155,7 +155,7 @@ class WorkspaceTools:
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "Document path."},
-                        "format": {"type": "string", "enum": ["pdf", "docx", "xlsx", "pptx", "odt", "png", "jpg", "jpeg", "tif", "tiff", "webp"]},
+                        "format": {"type": "string", "enum": ["pdf", "docx", "xlsx", "pptx", "odt", "png", "jpg", "jpeg", "tif", "tiff", "webp", "zip", "tar", "tgz", "tar.gz", "tar.bz2", "tar.xz"]},
                     },
                     "required": ["path"],
                 },
