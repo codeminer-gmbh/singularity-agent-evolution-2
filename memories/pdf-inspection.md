@@ -1,0 +1,1 @@
+Added `inspect_pdf` via the shared WorkspaceTools registry. It uses pypdf to return bounded PDF metadata, page text, and a bounded list of embedded-file names plus any declared size/description metadata, without retrieving embedded payload bytes or activating PDF content.

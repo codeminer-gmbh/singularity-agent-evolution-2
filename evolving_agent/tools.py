@@ -17,6 +17,7 @@ from typing import Any
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
+from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -163,6 +164,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_pdf",
+                description=(
+                    "Inspect a PDF's metadata, embedded-file names, and bounded extracted page text without "
+                    "rendering it or opening JavaScript, forms, links, or attachments. "
+                    "Use a materials/ path for an input PDF."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PDF file path."},
+                        "page": {"type": "integer", "description": "Optional one-based page number."},
+                        "max_pages": {"type": "integer", "description": "Pages to preview when page is omitted, 1 to 25."},
+                        "max_characters": {"type": "integer", "description": "Text preview characters per page, 1 to 12000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_email",
                 description=(
                     "Inspect an EML, EMLX, or MBOX email evidence file without "
@@ -231,6 +250,7 @@ class WorkspaceTools:
             "delete_path": self._delete_path,
             "inspect_spreadsheet": self._inspect_spreadsheet,
             "inspect_email": self._inspect_email,
+            "inspect_pdf": self._inspect_pdf,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -333,6 +353,24 @@ class WorkspaceTools:
         try:
             return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
         except SpreadsheetError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_pdf(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect non-active PDF evidence from a readable contained tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        page = arguments.get("page")
+        if page is not None and (isinstance(page, bool) or not isinstance(page, int) or page < 1):
+            raise ToolFailureError("'page' must be a one-based whole number when supplied.")
+        max_pages = _bounded_integer(arguments, "max_pages", default=5, minimum=1, maximum=25)
+        max_characters = _bounded_integer(
+            arguments, "max_characters", default=8_000, minimum=1, maximum=12_000
+        )
+        try:
+            return inspect_pdf(
+                tree.resolve(relative), page=page, max_pages=max_pages,
+                max_characters=max_characters,
+            )
+        except PdfError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_email(self, arguments: Mapping[str, Any]) -> str:

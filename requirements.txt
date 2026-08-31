@@ -8,6 +8,8 @@
 # index, which the daemon a candidate is built in may not have — so keep it
 # short.
 openai==3.3.1
+# Parses PDF object streams for bounded text/metadata evidence inspection.
+pypdf==5.9.0
 # The same pytest the orchestrator's checker grades with, so a generator can
 # prove its bundle before handing it in — the check must pass on its
 # reference and fail on nothing — and a probe can run a task's tests instead
