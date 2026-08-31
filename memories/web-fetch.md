@@ -1,0 +1,1 @@
+Added `fetch_url`, published through the existing MCP registry. It fetches HTTP(S) URLs with bounded timeout and response size, returns metadata plus visible HTML text or formatted JSON, and rejects invalid URL and limit inputs.

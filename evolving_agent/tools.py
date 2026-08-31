@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.web import WebFetchError, fetch
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -143,6 +144,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="fetch_url",
+                description=(
+                    "Fetch an HTTP or HTTPS page for research. Returns its final "
+                    "URL, status, content type, and readable text (HTML is converted to "
+                    "visible text; JSON is formatted). Response size and request time are bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Absolute http:// or https:// URL."},
+                        "timeout_seconds": {"type": "integer", "description": "Optional request timeout, from 1 to 45 seconds."},
+                        "max_characters": {"type": "integer", "description": "Optional returned-text limit, from 100 to 80000."},
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -191,6 +209,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "fetch_url": self._fetch_url,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -282,6 +301,18 @@ class WorkspaceTools:
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
 
+    def _fetch_url(self, arguments: Mapping[str, Any]) -> str:
+        """Fetch one web document as bounded, readable text."""
+        url = _text_argument(arguments, "url")
+        timeout = _bounded_integer(arguments, "timeout_seconds", default=20, minimum=1, maximum=45)
+        characters = _bounded_integer(arguments, "max_characters", default=24_000, minimum=100, maximum=80_000)
+        try:
+            page = fetch(url, timeout_seconds=timeout, max_characters=characters)
+        except WebFetchError as refused:
+            raise ToolFailureError(str(refused)) from refused
+        suffix = " [truncated]" if page.truncated else ""
+        return f"URL: {page.url}\nStatus: {page.status}\nContent-Type: {page.content_type}{suffix}\n\n{page.text}"
+
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
 
@@ -329,6 +360,16 @@ def _text_argument(
         raise ToolFailureError(f"{name!r} is required and must be a string.")
     if not allow_empty and not value.strip():
         raise ToolFailureError(f"{name!r} must not be blank.")
+    return value
+
+
+def _bounded_integer(
+    arguments: Mapping[str, Any], name: str, *, default: int, minimum: int, maximum: int
+) -> int:
+    """Read an optional ordinary integer constrained to a useful tool range."""
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ToolFailureError(f"{name!r} must be an integer from {minimum} to {maximum}.")
     return value
 
 
