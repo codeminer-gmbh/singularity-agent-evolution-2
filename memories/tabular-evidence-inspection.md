@@ -1,0 +1,1 @@
+Added `inspect_tabular`, published through the shared tool/MCP registry. It reads CSV, TSV, JSON, JSONL, and NDJSON directly with DuckDB, returns bounded typed schemas or bounded read-only SQL results from a sole `data` view, and rejects external scans or state-changing SQL. It was verified against CSV, TSV, JSONL, unsafe-scan refusal, and a `materials/` registry call.

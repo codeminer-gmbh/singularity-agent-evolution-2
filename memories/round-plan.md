@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect Parquet/Arrow evidence attachments, a common large structured-data format that its text and SQLite tools cannot query.
-Change: Add bounded read-only Parquet inspection with schema summaries and filtered SQL-style evidence queries via DuckDB.
-Why: Prior rounds closed document, image, archive, and SQLite gaps; Parquet is the unclosed complementary evidence format for hard data-analysis tasks.
+Gap: The agent cannot inspect common CSV, TSV, JSONL, or JSON data attachments with schema and SQL aggregation; hard evidence tasks often use these rather than SQLite or Parquet.
+Change: Add a bounded read-only `inspect_tabular` tool built on the installed DuckDB relation APIs and expose it through the MCP registry.
+Choice: This extends the already proven attachment-inspection pattern without a new dependency, while archives, documents, SQLite, Parquet, and OCR are already covered.
