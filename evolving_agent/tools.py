@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -106,6 +107,28 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_archive",
+                description=(
+                    "List readable members of a ZIP or TAR (including compressed TAR) "
+                    "archive, or inspect a GZIP, BZIP2, or XZ compressed stream. Return "
+                    "a bounded UTF-8 preview of one exact member without extracting to disk."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Archive path relative to the workspace or materials/.",
+                        },
+                        "member": {
+                            "type": "string",
+                            "description": "Exact member name to preview; omit to list members.",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="write_file",
                 description=(
                     "Write one file, replacing it if it exists and creating "
@@ -189,6 +212,7 @@ class WorkspaceTools:
         handlers = {
             "list_files": self._list_files,
             "read_file": self._read_file,
+            "inspect_archive": self._inspect_archive,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -201,7 +225,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except WorkspaceError as refused:
+        except (WorkspaceError, ArchiveError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -235,6 +259,14 @@ class WorkspaceTools:
         """Return one file's text, from whichever tree the path names."""
         tree, relative = self._located(_text_argument(arguments, "path"))
         return tree.read_text(relative)
+
+    def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect an archive in a readable tree without extracting it to disk."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        requested = arguments.get("member")
+        if requested is not None and (not isinstance(requested, str) or not requested):
+            raise ToolFailureError("'member' must be a non-empty string when supplied.")
+        return inspect_archive(tree.resolve(relative), requested)
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

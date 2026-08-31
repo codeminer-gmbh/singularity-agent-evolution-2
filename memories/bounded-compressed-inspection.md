@@ -1,0 +1,1 @@
+`inspect_archive` now recognizes raw BZIP2 and XZ streams as well as ZIP, TAR, and GZIP. It lists their one logical payload and returns a 256 KB bounded UTF-8 preview without extracting data to disk; malformed stream errors are returned as ArchiveError. The tool description exposes these formats to the model.
