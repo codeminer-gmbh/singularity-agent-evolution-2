@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from evolving_agent.archives import ArchiveError, extract_archive, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, extract_document
 from evolving_agent.web import WebFetchError, fetch_url, search_web
@@ -162,6 +163,38 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_archive",
+                description=(
+                    "List the members of a ZIP, TAR, or GZIP archive, including bounded "
+                    "nested archive listings. Use it to inspect bundled task inputs before extraction."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Archive path relative to the workspace root."},
+                        "max_entries": {"type": "integer", "description": "Maximum top-level members shown, 1 through 1000 (default 200)."},
+                        "max_depth": {"type": "integer", "description": "Nested archive levels to show, 0 through 3 (default 2)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_archive",
+                description=(
+                    "Safely unpack regular files from a ZIP, TAR, or GZIP archive into a workspace "
+                    "or output/ directory. Archive links and paths that escape the destination are refused."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Archive path relative to the workspace root."},
+                        "destination": {"type": "string", "description": "Existing or new destination directory, such as unpacked or output/unpacked."},
+                        "members": {"type": "array", "items": {"type": "string"}, "description": "Optional exact archive member names to extract."},
+                    },
+                    "required": ["path", "destination"],
+                },
+            ),
+            ToolDefinition(
                 name="fetch_url",
                 description=(
                     "Fetch an HTTP(S) web page or JSON API and return decoded, "
@@ -245,6 +278,8 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "extract_document": self._extract_document,
+            "inspect_archive": self._inspect_archive,
+            "extract_archive": self._extract_archive,
             "fetch_url": self._fetch_url,
             "search_web": self._search_web,
             "run_command": self._run_command,
@@ -350,6 +385,29 @@ class WorkspaceTools:
                 max_pages=max_pages,
             )
         except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:
+        """List a bounded archive manifest without changing any tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_entries = _bounded_integer(arguments, "max_entries", default=200)
+        max_depth = _bounded_integer(arguments, "max_depth", default=2)
+        try:
+            return inspect_archive(tree.resolve(relative), max_entries=max_entries, max_depth=max_depth)
+        except ArchiveError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Unpack an archive into a writable contained destination."""
+        source_tree, source_relative = self._located(_text_argument(arguments, "path"))
+        destination_name = _text_argument(arguments, "destination")
+        destination_tree, destination_relative = self._located(destination_name, writing=True)
+        value = arguments.get("members")
+        if value is not None and (not isinstance(value, list) or not all(isinstance(item, str) for item in value)):
+            raise ToolFailureError("'members' must be a list of archive member names.")
+        try:
+            return extract_archive(source_tree.resolve(source_relative), destination_tree.resolve(destination_relative), members=value)
+        except ArchiveError as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _fetch_url(self, arguments: Mapping[str, Any]) -> str:
