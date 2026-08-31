@@ -1,0 +1,1 @@
+`read_document` now reads `.epub` files without a new dependency. It follows the EPUB OPF spine to return XHTML chapters in reading order, strips script/style content, and enforces package-member, declared expanded-size, chapter-count, and chapter-size limits before returning bounded text. The tool description advertises EPUB support.
