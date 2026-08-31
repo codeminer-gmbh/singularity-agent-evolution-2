@@ -1,0 +1,1 @@
+Added `inspect_parquet` using pinned DuckDB. It reports Parquet typed schema and bounded query rows through a temporary in-memory `data` view, with queries restricted to read-only access to that evidence view. The shared registry exposes it for workspace and `materials/` paths.

@@ -8,6 +8,9 @@
 # index, which the daemon a candidate is built in may not have — so keep it
 # short.
 openai==3.3.1
+# DuckDB provides a safe, in-process Parquet reader and SQL engine for evidence
+# attachments without needing Java, a service, or an extraction directory.
+duckdb==1.2.2
 # The same pytest the orchestrator's checker grades with, so a generator can
 # prove its bundle before handing it in — the check must pass on its
 # reference and fail on nothing — and a probe can run a task's tests instead

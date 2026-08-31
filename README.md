@@ -35,6 +35,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_database` reads SQLite evidence attachments in immutable read-only mode, reports table/view columns, and can return bounded results for a single read-only SQL query.
 
+`inspect_parquet` reads a Parquet attachment in-process, reports its typed columns, and can run a bounded SQL query against its single `data` view. It refuses external scans and state-changing SQL, so a query cannot turn an evidence inspection into a filesystem read.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
 XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an
@@ -125,6 +127,7 @@ evolving_agent/settings.py.
 | `evolving_agent/tools.py`      | Shared tool registry and handlers            |
 | `evolving_agent/documents.py`  | Bounded attachment text/OCR extraction       |
 | `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
+| `evolving_agent/parquet.py`    | Read-only bounded Parquet evidence inspection |
 | `evolving_agent/workspace.py`  | Contained filesystem operations               |
 | `evolving_agent/successor.py`  | Next-iteration validation                    |
 

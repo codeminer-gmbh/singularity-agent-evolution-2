@@ -19,6 +19,7 @@ from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.databases import DatabaseError, inspect_database
+from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -164,6 +165,22 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_parquet",
+                description=(
+                    "Inspect a Parquet evidence attachment without modifying it. Returns its columns and types, "
+                    "or executes one bounded read-only SELECT, WITH, or EXPLAIN query against its data view."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Parquet path in the workspace or materials/."},
+                        "query": {"type": "string", "description": "Optional single read-only SQL query against data."},
+                        "max_rows": {"type": "integer", "description": "Maximum returned rows, from 1 through 1000 (default 200)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="write_file",
                 description=(
                     "Write one file, replacing it if it exists and creating "
@@ -250,6 +267,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "inspect_document": self._inspect_document,
             "inspect_database": self._inspect_database,
+            "inspect_parquet": self._inspect_parquet,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -262,7 +280,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, DatabaseError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, DatabaseError, ParquetError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -331,6 +349,17 @@ class WorkspaceTools:
         if not isinstance(max_rows, int) or isinstance(max_rows, bool):
             raise ToolFailureError("'max_rows' must be an integer when supplied.")
         return inspect_database(tree.resolve(relative), query, max_rows)
+
+    def _inspect_parquet(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect a Parquet schema or run a bounded query against its data view."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        query = arguments.get("query")
+        if query is not None and not isinstance(query, str):
+            raise ToolFailureError("'query' must be a string when supplied.")
+        max_rows = arguments.get("max_rows", 200)
+        if not isinstance(max_rows, int) or isinstance(max_rows, bool):
+            raise ToolFailureError("'max_rows' must be an integer when supplied.")
+        return inspect_parquet(tree.resolve(relative), query, max_rows)
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

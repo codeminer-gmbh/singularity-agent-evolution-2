@@ -2,7 +2,7 @@
 #
 # The agent's image, which each iteration may evolve while preserving RULES.md.
 #
-# It is an ordinary container: a Python base, one pinned dependency, the source,
+# It is an ordinary container: a Python base, pinned dependencies, the source,
 # and an entrypoint that reads its environment. Nothing in it knows about the
 # orchestrator that usually starts it, so `docker run` with the same variables
 # does the same thing on any machine.
