@@ -21,6 +21,9 @@ _MAX_MEMBER_BYTES = 30 * 1024 * 1024
 _OCR_TIMEOUT_SECONDS = 45
 _PDF_RENDER_TIMEOUT_SECONDS = 30
 _MAX_PDF_OCR_PAGES = 10
+_MAX_RENDER_PAGES = 20
+_RENDER_TIMEOUT_SECONDS = 90
+_RENDER_MAX_DIMENSION = 2_000
 
 
 class DocumentError(Exception):
@@ -68,6 +71,57 @@ def extract_document(path: Path, *, max_characters: int = 20_000, max_pages: int
             "ODT/ODS/ODP, PNG, JPEG, GIF, WebP, TIFF, BMP."
         )
     return _bounded(f"{kind} extraction: {path.name}\n\n{body}", max_characters)
+
+
+def render_pdf(path: Path, destination: Path, *, max_pages: int = _MAX_RENDER_PAGES) -> str:
+    """Rasterize PDF pages into portable PNG evidence files.
+
+    Text extraction is deliberately not used here: callers need the rendered
+    page when meaning lives in a chart, spatial layout, signature, or image.
+    The output is capped both by page count and by its longest pixel dimension.
+    """
+    if not path.is_file():
+        raise DocumentError(f"{path.name!r} is not a file.")
+    if path.stat().st_size > _MAX_FILE_BYTES:
+        raise DocumentError(f"{path.name!r} is larger than the 100 MiB document limit.")
+    if path.suffix.lower() != ".pdf":
+        raise DocumentError("render_pdf supports PDF files only.")
+    if max_pages < 1 or max_pages > _MAX_RENDER_PAGES:
+        raise DocumentError(f"max_pages must be between 1 and {_MAX_RENDER_PAGES}.")
+    try:
+        from pypdf import PdfReader
+        page_count = len(PdfReader(path).pages)
+    except Exception as error:
+        raise DocumentError(f"Could not read PDF: {error}") from error
+    if not page_count:
+        raise DocumentError("The PDF has no pages.")
+    pages = min(page_count, max_pages)
+    try:
+        destination.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise DocumentError(f"Could not create render destination: {error}") from error
+    if not destination.is_dir():
+        raise DocumentError("Render destination must be a directory.")
+    prefix = destination / "page"
+    try:
+        rendered = subprocess.run(
+            ["pdftoppm", "-f", "1", "-l", str(pages), "-png", "-scale-to", str(_RENDER_MAX_DIMENSION), str(path), str(prefix)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace", timeout=_RENDER_TIMEOUT_SECONDS, check=False,
+        )
+    except FileNotFoundError as error:
+        raise DocumentError("PDF rendering is unavailable because Poppler is not installed.") from error
+    except subprocess.TimeoutExpired as error:
+        raise DocumentError("PDF rendering timed out after 90 seconds.") from error
+    if rendered.returncode:
+        detail = rendered.stderr.strip() or "unknown Poppler error"
+        raise DocumentError(f"Could not render PDF: {detail}")
+    files = [destination / f"page-{number}.png" for number in range(1, pages + 1)]
+    missing = [file.name for file in files if not file.is_file()]
+    if missing:
+        raise DocumentError("PDF renderer did not produce expected files: " + ", ".join(missing))
+    suffix = "" if page_count <= pages else f" (limited from {page_count} total pages)"
+    return "Rendered " + ", ".join(file.name for file in files) + f" to {destination.name}/{suffix}"
 
 
 def _safe_zip(path: Path) -> zipfile.ZipFile:

@@ -44,7 +44,9 @@ run bounded commands, observe their results, and repeat until it returns a
 final response. Two further trees sit beside the workspace when a run is given
 them: the task's input files under `materials/` (read-only) and the place its
 deliverables go under `output/`; the same tools reach both by path prefix, and
-a probe is told which files it was given and where to put what it delivers.
+a probe is told which files it was given and where to put what it delivers. PDF text/OCR
+extraction is complemented by `render_pdf`, which leaves bounded PNG page images when
+visual layout, charts, or embedded imagery matter.
 
 Requests use `/v1/responses` with `store: false`. The session therefore carries
 its own model output and trims history when necessary. The implementation is
@@ -130,6 +132,7 @@ are pinned in `requirements.txt`; runtime budgets live in
 | `evolving_agent/model.py`      | Responses API client                     |
 | `evolving_agent/workspace.py`  | Contained filesystem operations          |
 | `evolving_agent/archives.py`   | Bounded safe ZIP/TAR/GZIP inspection and extraction |
+| `evolving_agent/documents.py`  | Text/OCR extraction and visual PDF rendering         |
 | `evolving_agent/successor.py`  | Next-iteration validation                |
 
 The MCP server can also run over stdio:

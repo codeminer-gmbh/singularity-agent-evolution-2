@@ -17,7 +17,7 @@ from typing import Any
 
 from evolving_agent.archives import ArchiveError, extract_archive, inspect_archive
 from evolving_agent.commands import CommandRunner
-from evolving_agent.documents import DocumentError, extract_document
+from evolving_agent.documents import DocumentError, extract_document, render_pdf
 from evolving_agent.web import WebFetchError, fetch_url, search_web
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -163,6 +163,22 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="render_pdf",
+                description=(
+                    "Render PDF pages as PNG images for inspecting visual layout, charts, diagrams, "
+                    "or image-only evidence. Writes bounded page images to a workspace or output/ directory."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PDF path relative to the workspace root."},
+                        "destination": {"type": "string", "description": "Directory for PNG pages, such as output/pdf-pages."},
+                        "max_pages": {"type": "integer", "description": "Pages to render, 1 through 20 (default 20)."},
+                    },
+                    "required": ["path", "destination"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_archive",
                 description=(
                     "List the members of a ZIP, TAR, or GZIP archive, including bounded "
@@ -278,6 +294,7 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "extract_document": self._extract_document,
+            "render_pdf": self._render_pdf,
             "inspect_archive": self._inspect_archive,
             "extract_archive": self._extract_archive,
             "fetch_url": self._fetch_url,
@@ -382,6 +399,21 @@ class WorkspaceTools:
             return extract_document(
                 tree.resolve(relative),
                 max_characters=max_characters,
+                max_pages=max_pages,
+            )
+        except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _render_pdf(self, arguments: Mapping[str, Any]) -> str:
+        """Render a PDF into page PNGs in a writable contained directory."""
+        source_tree, source_relative = self._located(_text_argument(arguments, "path"))
+        destination_name = _text_argument(arguments, "destination")
+        destination_tree, destination_relative = self._located(destination_name, writing=True)
+        max_pages = _bounded_integer(arguments, "max_pages", default=20)
+        try:
+            return render_pdf(
+                source_tree.resolve(source_relative),
+                destination_tree.resolve(destination_relative),
                 max_pages=max_pages,
             )
         except DocumentError as refused:
