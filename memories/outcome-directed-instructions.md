@@ -1,0 +1,1 @@
+Improvement instructions now use a supplied ledger as outcome evidence, distinguish promotion gates from wins/losses/ties, and require a task-shaped predecessor-versus-successor check in both the audit and final claim. README and the memories guide document the same policy; rejected-version notes remain historical claims rather than inherited facts.

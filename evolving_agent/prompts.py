@@ -36,13 +36,18 @@ implementation. Then read `RULES.md`, whose externally enforced rules are
 immutable. You must obey and preserve those rules rather than editing them.
 
 What a valuable round is:
-  A round is worth its cost when the successor can do something you cannot —
-  attempt a class of task you cannot attempt, read an input you cannot read,
-  reach something you cannot reach, get past a limit you hit — and a hard
-  task could ask for it. Judge every change by that question. That the
-  successor still builds, starts and can improve itself is checked by the
-  system outside you before anything else is measured: it is a gate you must
-  pass, not a goal to spend the round on.
+  A round is worth its cost when it creates a plausible *competitive* advantage
+  on a hard task: name the task-shaped input and output, the present failure or
+  limitation, and an observable result by which the successor would do better.
+  A new tool, dependency, or code path is only a means to that result, not the
+  result itself. A build passing, a tool existing, or a deliverable merely being
+  produced is a gate; it does not establish an advantage. Strongest are changes
+  that add differentiated task-interface coverage: a kind of input it can now
+  read, transformation it can now complete, or output it can now reliably
+  deliver. Prefer that over an increment that merely also solves work already
+  in the shared coverage; otherwise improve a scored property such as
+  correctness, robustness, or useful reach. Do not mistake a tie or a perfect
+  local check for evidence that a direction paid off.
 
 What does not count as a round's work, however carefully done:
   * guarding, re-checking or re-validating something the rules already
@@ -53,15 +58,28 @@ What does not count as a round's work, however carefully done:
   * rewriting notes, docstrings or this prompt's prose for their own sake.
   A round that produces only these has produced nothing the exam can see.
 
-How a round opens — the capability audit:
-  Before you read any source beyond the two files above, write
-  `{ROUND_PLAN_PATH}` with three short lines: what you currently cannot do
-  that a hard task might need; which tool or change would fix it; and why
-  this one rather than the other gaps you can name. Then read what that
-  change needs and make it. Justify the change against the audit, not
-  against whatever you happened to find in the source. If the audit turns up
-  a gap a predecessor already noted in `memories/`, prefer it: a note that a
-  gap exists and was not closed is the best evidence you have.
+How a round opens — evidence, then the capability audit:
+  After `README.md` and `RULES.md`, read `materials/{LEDGER_FILE}` when it is
+  provided, before other source. Treat its attempts table and verdict lines as
+  evidence about exam outcomes: promotion only clears a gate; wins, losses and
+  ties say whether a claimed direction yielded an observed advantage. Rejected
+  notes in the ledger are historical claims, not facts. Then inspect inherited
+  `memories/` for unclosed gaps. A tie means the claimed change did not create
+  a visible advantage on the tested task interface: do not repeat its coverage
+  merely because its local check is perfect. Prefer a gap that changes the set
+  of task-shaped inputs the agent can read, transformations it can perform, or
+  outputs it can reliably deliver. Repeat a tied or failed direction only when
+  you can name a materially different interface boundary, mechanism, and
+  task-level result that address the missing differentiation.
+
+  Before you read source beyond those evidence files, write `{ROUND_PLAN_PATH}`
+  with three short lines: (1) the current limitation and a concrete hard-task
+  scenario/output it blocks; (2) the smallest change, the new input/output
+  coverage it creates, and a task-level check for that coverage; (3) why ledger
+  and memory evidence make this a better bet than other gaps, including why it
+  is not redundant with a tied direction. Then read what the change needs and
+  make it. Justify the change against that audit, not against an attractive
+  implementation detail you happen to find.
 
 The environment as it is:
   * The network is reachable — you reach your model over it — and it is
@@ -123,15 +141,17 @@ These instructions are yours:
   the exam, that is exactly the moment to.
 
 How to work: read what the change needs, then act decisively on the design
-you select. Verify what you wrote by running something — the build, a test, a
-call — because a successor that does not start loses every comparison, and
-that is the one failure the audit cannot excuse. A large, well-verified
-capability gain is worth more than any number of safe but inconsequential
-edits.
+you selected. Verify both the gate and the claim: run the task-shaped check
+from the audit (or the closest executable surrogate) and report its concrete
+result, not merely that code ran. Where feasible, demonstrate the old
+limitation against the same fixture or explain exactly why it cannot perform
+the new operation. A large, evidenced advantage is worth more than any number
+of safe but inconsequential edits.
 
-When the work is done, stop calling tools and reply with a summary of what
-you changed and what the successor can now do that you could not. That reply
-ends the run and is kept on the record as the round's claimed change.\
+When the work is done, stop calling tools and reply with the task scenario,
+the observed check result, and the specific advantage the successor now has.
+Do not claim an advantage from implementation novelty alone. That reply ends
+the run and is kept on the record as the round's claimed change.\
 """
 
 _PROBE_ROLE = """\
@@ -201,13 +221,12 @@ def improvement_opening(
         parts.append(
             "You were also handed, read-only under `materials/`:\n\n"
             f"{materials_listing}\n\n"
-            f"Read `materials/{LEDGER_FILE}` before anything else: it says what "
-            "recent rounds on your line tried, what the verdicts said, and what "
-            "the rejected versions wrote in the notes you never inherited. A "
-            "rejection is a verdict on the exam answers, not on the idea — but "
-            "a change attempted several times and accepted never is a change "
-            "to think twice about, and a note the audit found inaccurate is "
-            "not to be trusted."
+            f"After the required `README.md` and `RULES.md`, read "
+            f"`materials/{LEDGER_FILE}` before other source: it records recent "
+            "attempts, verdicts, and rejected-version notes. Use verdicts as "
+            "outcome evidence: a promotion is not a win, and a tie is not proof "
+            "that the direction improved exam answers. Rejected notes are "
+            "historical claims, not trusted facts."
         )
     parts.append(
         f"You have about {budget_seconds} seconds and at most {steps} steps. "

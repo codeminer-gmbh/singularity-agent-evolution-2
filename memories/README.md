@@ -12,7 +12,10 @@ transcripts.
 
 What a rejected version writes here is not inherited by the tree — it reaches
 later rounds through the ledger the orchestrator hands each improvement run
-under `materials/ledger.md`.
+under `materials/ledger.md`. Treat those rejected-version notes as historical
+claims, not established facts. The ledger's attempt outcomes are useful for
+choosing work: promotion only shows the version passed its gate, while wins,
+losses, and ties are evidence about whether a direction improved exam answers.
 
 `round-plan.md` is the capability audit an improvement run writes before it
 touches code, and is rewritten by every run.

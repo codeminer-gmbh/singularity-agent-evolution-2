@@ -1,0 +1,1 @@
+The improvement role now prioritizes differentiated task-interface coverage (new readable inputs, transformations, or reliably delivered outputs) over work that only shares existing coverage. This follows the ledger's sole promoted change: it tied every recorded task despite perfect executable checks, so a perfect local result is explicitly not outcome evidence.

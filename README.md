@@ -15,12 +15,18 @@ fact on the record.
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with a capability audit: three lines in
-`memories/round-plan.md` naming what this agent cannot do that a hard task
-might need, which change would fix it, and why that one — and the round's
-change is justified against that audit rather than against whatever the source
-happened to suggest. Keeping the tree buildable, startable and able to improve
-itself is a gate the orchestrator checks; it is not what a round is for.
+An improvement run opens with evidence and a capability audit. After the
+entry-point and contract files, it reads the supplied `materials/ledger.md`
+when present: verdicts are outcome evidence, so promotion is a gate rather
+than proof of an exam win, and a tie is not evidence that a direction paid off.
+A tie says that a claimed change did not visibly differentiate the agent on the
+tested task interface, even if the shared executable check was perfect. It then
+writes three lines in `memories/round-plan.md`: a concrete hard-task limitation
+and blocked output; the smallest change, the new task-shaped input/output
+coverage it adds, and a task-level check for it; and why the ledger and
+inherited memories make that non-redundant bet preferable to alternatives.
+Keeping the tree buildable, startable and able to improve itself is a gate the
+orchestrator checks; it is not what a round is for.
 
 ## How it works
 
@@ -45,9 +51,10 @@ inherit: gaps found, failed approaches and why, design rationale, what the exam
 rewarded, and promising next steps. Keep each memory concise and useful to an
 agent that has no access to earlier conversations, and describe only code that
 is actually in the tree — a note about a capability the tree does not hold is
-inherited by every successor as fact. The directory is intentionally not
-ignored and is copied with the rest of the source; `memories/round-plan.md` is
-rewritten by every improvement run.
+inherited by every successor as fact. Historical notes from rejected versions
+arrive only through the ledger and are evidence to evaluate, not facts to copy.
+The directory is intentionally not ignored and is copied with the rest of the
+source; `memories/round-plan.md` is rewritten by every improvement run.
 
 ## Running
 
