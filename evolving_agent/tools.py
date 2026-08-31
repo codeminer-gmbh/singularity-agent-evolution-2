@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create as create_document, document_format, extract as extract_document
 from evolving_agent.workspace import Workspace, WorkspaceError
+from evolving_agent.visual import VisualError, extract_visual_text
 
 _MAX_LISTING_CHARACTERS = 8_000
 
@@ -160,6 +161,32 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="ocr_visual",
+                description=(
+                    "Read text from a screenshot, photograph, scanned PDF, or common image "
+                    "file using OCR. Returns page/frame labels and image metadata. Use this "
+                    "when extract_document reports no text in a scanned PDF. The path may be "
+                    "under materials/ or output/."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Image or PDF path."},
+                        "max_pages": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "description": "Maximum PDF pages or animated-image frames to OCR (default 12).",
+                        },
+                        "language": {
+                            "type": "string",
+                            "description": "Installed Tesseract language code, default eng.",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="create_document",
                 description=(
                     "Create a PDF, DOCX, XLSX, PPTX, or ODT deliverable. For PDF/DOCX "
@@ -228,6 +255,7 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "extract_document": self._extract_document,
+            "ocr_visual": self._ocr_visual,
             "create_document": self._create_document,
             "run_command": self._run_command,
         }
@@ -333,6 +361,22 @@ class WorkspaceTools:
         try:
             return extract_document(resolved, document_format(path, supplied))
         except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _ocr_visual(self, arguments: Mapping[str, Any]) -> str:
+        """Return OCR text from a raster image or scanned PDF."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        resolved = tree.resolve(relative)
+        if not resolved.is_file():
+            raise ToolFailureError(f"{path!r} is not a file.")
+        max_pages = arguments.get("max_pages")
+        language = arguments.get("language", "eng")
+        if not isinstance(language, str):
+            raise ToolFailureError("'language' must be a string when supplied.")
+        try:
+            return extract_visual_text(resolved, max_pages=max_pages, language=language)
+        except VisualError as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _create_document(self, arguments: Mapping[str, Any]) -> str:
