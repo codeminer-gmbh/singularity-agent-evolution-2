@@ -15,6 +15,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import tarfile
 import zipfile
+import zlib
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
@@ -26,6 +30,10 @@ _MAX_ARCHIVE_MEMBERS = 1_000
 _MAX_ARCHIVE_MEMBER_BYTES = 32 * 1024 * 1024
 _MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024
 _ARCHIVE_CHUNK_BYTES = 64 * 1024
+_MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024
+_MAX_HTTP_TIMEOUT_SECONDS = 30
+_MAX_HTTP_REDIRECTS = 5
+_HTTP_CHUNK_BYTES = 64 * 1024
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -165,6 +173,28 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="http_fetch",
+                description=(
+                    "Fetch a live HTTP or HTTPS URL with a bounded GET request. "
+                    "Returns the final URL, status, response headers, and decoded text "
+                    "or JSON body. Supports optional request headers, redirects, and limits."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "HTTP or HTTPS URL to fetch."},
+                        "headers": {
+                            "type": "object",
+                            "additionalProperties": {"type": "string"},
+                            "description": "Optional request headers, for example Accept."
+                        },
+                        "timeout_seconds": {"type": "integer", "description": "Network timeout, from 1 to 30 seconds."},
+                        "max_bytes": {"type": "integer", "description": "Maximum response bytes to read, from 1 to 2097152."}
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
                 name="delete_path",
                 description="Remove one file or directory from the workspace.",
                 input_schema={
@@ -185,7 +215,7 @@ class WorkspaceTools:
                     "code and output. There is no shell: give the program and "
                     'its arguments as a list, e.g. ["python", "-m", '
                     '"unittest", "discover"]. The container has no network '
-                    "unless the deployment granted one."
+                    "Command networking depends on the deployment; use http_fetch for bounded HTTP or HTTPS requests."
                 ),
                 input_schema={
                     "type": "object",
@@ -227,6 +257,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "extract_archive": self._extract_archive,
+            "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
         }
@@ -309,6 +340,41 @@ class WorkspaceTools:
             raise ToolFailureError(f"Could not extract {archive_path!r}: {unusable}") from unusable
         return f"Extracted {count} files ({total} bytes) to {destination_path}."
 
+    def _http_fetch(self, arguments: Mapping[str, Any]) -> str:
+        """Fetch a web resource without delegating networking to a shell command."""
+        url = _http_url_argument(arguments)
+        headers = _http_headers_argument(arguments)
+        timeout = _http_bound_argument(arguments, "timeout_seconds", _MAX_HTTP_TIMEOUT_SECONDS, 20)
+        maximum = _http_bound_argument(arguments, "max_bytes", _MAX_HTTP_RESPONSE_BYTES, _MAX_HTTP_RESPONSE_BYTES)
+        opener = build_opener(_NoRedirect())
+        for _ in range(_MAX_HTTP_REDIRECTS + 1):
+            request = Request(
+                url,
+                headers={"User-Agent": "evolving-agent/1.0", "Accept-Encoding": "gzip, deflate", **headers},
+            )
+            try:
+                response = opener.open(request, timeout=timeout)
+            except HTTPError as error:
+                if error.code not in (301, 302, 303, 307, 308):
+                    body = _read_http_body(error, maximum)
+                    return _format_http_response(
+                        error.geturl(), error.code, error.headers, _decode_http_body(body, error.headers, maximum)
+                    )
+                location = error.headers.get("Location")
+                if not location:
+                    raise ToolFailureError(f"HTTP {error.code} response has no Location header.") from error
+                url = _http_url(urljoin(url, location))
+                continue
+            except (URLError, OSError, ValueError) as unavailable:
+                raise ToolFailureError(f"Could not fetch {url!r}: {unavailable}") from unavailable
+            with response:
+                body = _read_http_body(response, maximum)
+                return _format_http_response(
+                    response.geturl(), response.status, response.headers,
+                    _decode_http_body(body, response.headers, maximum),
+                )
+        raise ToolFailureError(f"Too many redirects (maximum {_MAX_HTTP_REDIRECTS}) while fetching {url!r}.")
+
     def _delete_path(self, arguments: Mapping[str, Any]) -> str:
         """Remove one path and report that it is gone."""
         path = _text_argument(arguments, "path")
@@ -376,6 +442,109 @@ class WorkspaceTools:
                 f"--- stderr ---\n{result.stderr}",
             )
         )
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    """Expose redirects to the fetcher so every destination is revalidated."""
+
+    def redirect_request(self, request: Request, fp: object, code: int, msg: str, headers: object, newurl: str) -> None:
+        del request, fp, code, msg, headers, newurl
+        return None
+
+
+def _http_url_argument(arguments: Mapping[str, Any]) -> str:
+    """Return a syntactically usable web URL."""
+    return _http_url(_text_argument(arguments, "url"))
+
+
+def _http_url(value: str) -> str:
+    parsed = urlsplit(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+        raise ToolFailureError("'url' must be an absolute HTTP or HTTPS URL without embedded credentials.")
+    return value.strip()
+
+
+def _http_headers_argument(arguments: Mapping[str, Any]) -> dict[str, str]:
+    """Return bounded optional request headers."""
+    value = arguments.get("headers", {})
+    if not isinstance(value, Mapping) or len(value) > 20:
+        raise ToolFailureError("'headers' must be an object with at most 20 string headers.")
+    headers: dict[str, str] = {}
+    for name, header_value in value.items():
+        if not isinstance(name, str) or not isinstance(header_value, str) or not name or len(name) > 128 or len(header_value) > 4096 or "\r" in name + header_value or "\n" in name + header_value:
+            raise ToolFailureError("Every request header must be a short single-line string.")
+        headers[name] = header_value
+    return headers
+
+
+def _http_bound_argument(arguments: Mapping[str, Any], name: str, ceiling: int, default: int) -> int:
+    """Read one positive bounded HTTP integer option."""
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= ceiling:
+        raise ToolFailureError(f"{name!r} must be a whole number from 1 to {ceiling}.")
+    return value
+
+
+def _read_http_body(response: Any, maximum: int) -> bytes:
+    """Read at most the requested response budget, refusing an oversized body."""
+    declared = response.headers.get("Content-Length")
+    if declared and declared.isdigit() and int(declared) > maximum:
+        raise ToolFailureError(f"Response declares {declared} bytes, above the {maximum}-byte limit.")
+    body = bytearray()
+    while chunk := response.read(min(_HTTP_CHUNK_BYTES, maximum - len(body) + 1)):
+        body.extend(chunk)
+        if len(body) > maximum:
+            raise ToolFailureError(f"Response exceeds the {maximum}-byte limit.")
+    return bytes(body)
+
+
+def _decode_http_body(body: bytes, headers: Any, maximum: int) -> bytes:
+    """Decode supported HTTP content encodings without permitting a zip bomb."""
+    encoding = headers.get("Content-Encoding", "").strip().lower()
+    if not encoding or encoding == "identity":
+        return body
+    if encoding == "gzip":
+        return _bounded_zlib_decode(body, 16 + zlib.MAX_WBITS, maximum)
+    if encoding == "deflate":
+        # Servers disagree over whether deflate means a zlib wrapper or raw DEFLATE.
+        try:
+            return _bounded_zlib_decode(body, zlib.MAX_WBITS, maximum)
+        except zlib.error:
+            return _bounded_zlib_decode(body, -zlib.MAX_WBITS, maximum)
+    raise ToolFailureError(
+        f"Response uses unsupported Content-Encoding {encoding!r}; request identity encoding."
+    )
+
+
+def _bounded_zlib_decode(body: bytes, wbits: int, maximum: int) -> bytes:
+    """Inflate incrementally, refusing decoded data beyond the tool's budget."""
+    decoder = zlib.decompressobj(wbits)
+    output = bytearray()
+    remaining = body
+    while remaining:
+        chunk = decoder.decompress(remaining, maximum - len(output) + 1)
+        output.extend(chunk)
+        if len(output) > maximum:
+            raise ToolFailureError(f"Decoded response exceeds the {maximum}-byte limit.")
+        remaining = decoder.unconsumed_tail
+    output.extend(decoder.flush(maximum - len(output) + 1))
+    if len(output) > maximum:
+        raise ToolFailureError(f"Decoded response exceeds the {maximum}-byte limit.")
+    if not decoder.eof:
+        raise ToolFailureError("Compressed response ended before its stream was complete.")
+    return bytes(output)
+
+
+def _format_http_response(url: str, status: int, headers: Any, body: bytes) -> str:
+    """Render a bounded fetched response as useful model-readable text."""
+    content_type = headers.get("Content-Type", "")
+    charset = headers.get_content_charset() if hasattr(headers, "get_content_charset") else None
+    try:
+        text = body.decode(charset or "utf-8")
+    except (LookupError, UnicodeDecodeError):
+        text = body.decode("utf-8", errors="replace")
+    shown_headers = "\n".join(f"{name}: {value}" for name, value in list(headers.items())[:20])
+    return f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\nHeaders:\n{shown_headers}\n\n{text}"
 
 
 def _text_argument(
