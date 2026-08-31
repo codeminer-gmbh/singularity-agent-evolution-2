@@ -8,6 +8,9 @@
 # index, which the daemon a candidate is built in may not have — so keep it
 # short.
 openai==3.3.1
+# Text extraction from supplied PDFs; Office Open XML is handled with the
+# standard-library ZIP/XML readers in evolving_agent.documents.
+pypdf==5.9.0
 # The same pytest the orchestrator's checker grades with, so a generator can
 # prove its bundle before handing it in — the check must pass on its
 # reference and fail on nothing — and a probe can run a task's tests instead
@@ -15,3 +18,8 @@ openai==3.3.1
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+
+# OCR of scanned task materials and image-based PDFs.
+Pillow==11.3.0
+pytesseract==0.3.13
+PyMuPDF==1.26.7

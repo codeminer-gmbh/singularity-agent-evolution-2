@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.documents import DocumentExtractionError, extract_document_text
+from evolving_agent.images import ImageExtractionError, extract_image_text
 from evolving_agent.web import WebFetchError, fetch
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -102,6 +104,39 @@ class WorkspaceTools:
                             "type": "string",
                             "description": "Path relative to the workspace root.",
                         }
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_document_text",
+                description=(
+                    "Extract readable, bounded text from one PDF, DOCX, XLSX, or PPTX "
+                    "file in the workspace, materials/, or output/. Spreadsheets retain "
+                    "rows as pipe-separated cells and presentations/PDFs label slides/pages."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Path to a PDF, DOCX, XLSX, or PPTX document.",
+                        }
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_image_text",
+                description=(
+                    "OCR readable text from a PNG, JPEG, TIFF, BMP, WebP, or scanned PDF "
+                    "in the workspace, materials/, or output/. PDF pages are labeled; input, "
+                    "page count, image dimensions, and returned text are bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to an image or PDF."}
                     },
                     "required": ["path"],
                 },
@@ -207,6 +242,8 @@ class WorkspaceTools:
         handlers = {
             "list_files": self._list_files,
             "read_file": self._read_file,
+            "extract_document_text": self._extract_document_text,
+            "extract_image_text": self._extract_image_text,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "fetch_url": self._fetch_url,
@@ -254,6 +291,24 @@ class WorkspaceTools:
         """Return one file's text, from whichever tree the path names."""
         tree, relative = self._located(_text_argument(arguments, "path"))
         return tree.read_text(relative)
+
+    def _extract_document_text(self, arguments: Mapping[str, Any]) -> str:
+        """Extract structured text from a supplied PDF or Office document."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return extract_document_text(tree.resolve(relative))
+        except DocumentExtractionError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _extract_image_text(self, arguments: Mapping[str, Any]) -> str:
+        """OCR a raster image or a scanned PDF from a permitted tree."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return extract_image_text(tree.resolve(relative))
+        except ImageExtractionError as refused:
+            raise ToolFailureError(str(refused)) from refused
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

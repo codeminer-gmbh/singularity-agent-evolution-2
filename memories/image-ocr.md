@@ -1,0 +1,1 @@
+Added `extract_image_text` to the agent tool registry. It accepts contained PNG/JPEG/TIFF/BMP/WebP paths and PDFs, rasterizes PDFs page-by-page, applies bounded Tesseract OCR, and labels returned pages. The image stack is pinned in requirements and Tesseract is installed by the Docker image. A registry-level materials image test recovered `INVOICE TOTAL: $482.75` exactly.
