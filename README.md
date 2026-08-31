@@ -15,12 +15,21 @@ fact on the record.
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with a capability audit: three lines in
-`memories/round-plan.md` naming what this agent cannot do that a hard task
-might need, which change would fix it, and why that one — and the round's
-change is justified against that audit rather than against whatever the source
-happened to suggest. Keeping the tree buildable, startable and able to improve
-itself is a gate the orchestrator checks; it is not what a round is for.
+An improvement run opens with an outcome audit. When supplied,
+`materials/ledger.md` is read first as evidence of previous exam outcomes,
+then `memories/round-plan.md` records three short lines: the hard-task outcome
+or failure mode the agent cannot reliably achieve, the smallest end-to-end
+change that would improve it, and why ledger, memory, or reproducible evidence
+makes it the best bet. The change is justified against that audit rather than
+against whatever source code happens to suggest.
+
+Improvement is judged by observable task delivery, not feature inventory. A
+new tool is valuable only if it removes a workflow bottleneck and can be
+exercised from realistic inputs through exact output or deliverable placement.
+Each round should run a representative check that distinguishes the old
+behavior from the proposed one, including the correctness conditions a grader
+can observe. Buildability, startup, and continued self-improvement remain
+necessary gates, not the round's prize.
 
 ## How it works
 
@@ -41,13 +50,14 @@ it.
 ## Passing knowledge forward
 
 Use a `memories/` directory for durable notes that future iterations should
-inherit: gaps found, failed approaches and why, design rationale, what the exam
-rewarded, and promising next steps. Keep each memory concise and useful to an
-agent that has no access to earlier conversations, and describe only code that
-is actually in the tree — a note about a capability the tree does not hold is
-inherited by every successor as fact. The directory is intentionally not
-ignored and is copied with the rest of the source; `memories/round-plan.md` is
-rewritten by every improvement run.
+inherit: evidenced gaps, failed approaches and why, design rationale, what the
+exam rewarded, and promising next steps. Keep each memory concise and useful to
+an agent that has no access to earlier conversations, and describe only code
+that is actually in the tree — including the representative result a claim is
+based on. A note about a capability the tree does not hold is inherited by every
+successor as fact. The directory is intentionally not ignored and is copied
+with the rest of the source; `memories/round-plan.md` is rewritten by every
+improvement run.
 
 ## Running
 

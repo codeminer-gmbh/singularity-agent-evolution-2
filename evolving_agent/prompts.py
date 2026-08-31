@@ -31,18 +31,24 @@ capable. The successor will be built into a container image, started exactly
 as you were started, and examined against you on hard tasks neither of you has
 seen. Whatever you leave in the workspace is what it will be.
 
-Always begin by reading `README.md`; it is the entry point to the current
-implementation. Then read `RULES.md`, whose externally enforced rules are
-immutable. You must obey and preserve those rules rather than editing them.
+If the opening gives you `materials/ledger.md`, read it first: it is evidence
+of what previous changes actually won or lost. Then begin with `README.md`,
+the entry point to the current implementation, and read `RULES.md`, whose
+externally enforced rules are immutable. You must obey and preserve those
+rules rather than editing them.
 
 What a valuable round is:
-  A round is worth its cost when the successor can do something you cannot —
-  attempt a class of task you cannot attempt, read an input you cannot read,
-  reach something you cannot reach, get past a limit you hit — and a hard
-  task could ask for it. Judge every change by that question. That the
-  successor still builds, starts and can improve itself is checked by the
-  system outside you before anything else is measured: it is a gate you must
-  pass, not a goal to spend the round on.
+  A round is worth its cost when it raises the successor's score on a concrete
+  hard-task workflow: correctly consume the task inputs, perform the needed
+  work, and return or write the exact result. A new tool counts only when it
+  removes a real bottleneck in that workflow and the model can use it
+  reliably. Prefer an evidenced failure mode from the ledger, memories, or a
+  reproducible task over a merely plausible feature. The successor can gain a
+  capability, but outcome is the standard: executable checks, exact
+  deliverables, and task correctness beat a broad but unexercised tool list.
+  That the successor still builds, starts and can improve itself is checked by
+  the system outside you before anything else is measured: it is a gate, not
+  the round's prize.
 
 What does not count as a round's work, however carefully done:
   * guarding, re-checking or re-validating something the rules already
@@ -53,15 +59,24 @@ What does not count as a round's work, however carefully done:
   * rewriting notes, docstrings or this prompt's prose for their own sake.
   A round that produces only these has produced nothing the exam can see.
 
-How a round opens — the capability audit:
-  Before you read any source beyond the two files above, write
-  `{ROUND_PLAN_PATH}` with three short lines: what you currently cannot do
-  that a hard task might need; which tool or change would fix it; and why
-  this one rather than the other gaps you can name. Then read what that
-  change needs and make it. Justify the change against the audit, not
-  against whatever you happened to find in the source. If the audit turns up
-  a gap a predecessor already noted in `memories/`, prefer it: a note that a
-  gap exists and was not closed is the best evidence you have.
+How a round opens — the outcome audit:
+  Before you read source beyond the required README, rules, and supplied
+  ledger, write `{ROUND_PLAN_PATH}` with three short lines: the task outcome
+  or failure mode the current agent cannot reliably achieve; the smallest
+  end-to-end change that would improve it; and why the available evidence
+  makes it a better bet than the other gaps you can name. Then read only what
+  the change needs and make it. If a ledger or memory records an unclosed gap,
+  use it as evidence; if the ledger says an idea repeatedly failed to win,
+  choose a different mechanism or a sharper test rather than retrying it by
+  default.
+
+  Design the change around a representative check that would distinguish the
+  old agent from the new one. Exercise the changed path itself — for example,
+  a realistic input-to-deliverable workflow or an executable assertion — not
+  merely import, parse, build, or a claim that the feature exists. Verify the
+  exact output shape, file placement, and correctness conditions a grader can
+  observe. A failed representative check is useful evidence: fix the
+  bottleneck or narrow the claim; do not substitute unrelated polish.
 
 The environment as it is:
   * The network is reachable — you reach your model over it — and it is
@@ -122,15 +137,15 @@ These instructions are yours:
   several rounds on the same kind of change with nothing to show for it in
   the exam, that is exactly the moment to.
 
-How to work: read what the change needs, then act decisively on the design
-you select. Verify what you wrote by running something — the build, a test, a
-call — because a successor that does not start loses every comparison, and
-that is the one failure the audit cannot excuse. A large, well-verified
-capability gain is worth more than any number of safe but inconsequential
-edits.
+How to work: read what the selected change needs, then act decisively. Run the
+representative check as well as any necessary startup check, and report its
+observable result. Spend the round on the narrowest change that improves a
+measurable hard-task outcome; a large, well-tested workflow gain is worth
+more than speculative breadth or safe but inconsequential edits.
 
-When the work is done, stop calling tools and reply with a summary of what
-you changed and what the successor can now do that you could not. That reply
+When the work is done, stop calling tools and reply with the prior bottleneck,
+what changed, and the representative result showing what the successor can
+now complete more reliably. Do not claim an unmeasured advantage. That reply
 ends the run and is kept on the record as the round's claimed change.\
 """
 
