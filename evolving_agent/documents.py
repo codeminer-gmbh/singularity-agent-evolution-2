@@ -1,0 +1,219 @@
+"""Structured reading and creation of common office deliverables.
+
+The workspace itself is intentionally text-only.  This module adds a small,
+contained bridge for task documents, so a model need not decode ZIP containers
+or PDF bytes by hand.  It does not interpret instructions in documents: it
+returns their content as data to the caller.
+"""
+
+from __future__ import annotations
+
+import csv
+import io
+import json
+from pathlib import Path
+from typing import Any
+
+from docx import Document
+from openpyxl import Workbook, load_workbook
+from odf import table as odf_table
+from odf import teletype
+from odf import text as odf_text
+from odf.opendocument import OpenDocumentText, load as load_odt
+from pptx import Presentation
+from pypdf import PdfReader
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen.canvas import Canvas
+
+_SUPPORTED = frozenset({"pdf", "docx", "xlsx", "pptx", "odt"})
+_MAX_EXTRACTED_CHARACTERS = 60_000
+
+
+class DocumentError(Exception):
+    """A requested document operation cannot be completed."""
+
+
+def document_format(path: str, supplied: str | None = None) -> str:
+    """Return and validate a document format from an explicit value or suffix."""
+    candidate = (supplied or Path(path).suffix.removeprefix(".")).lower().strip()
+    if candidate not in _SUPPORTED:
+        choices = ", ".join(sorted(_SUPPORTED))
+        raise DocumentError(f"Unsupported document format {candidate!r}; use one of {choices}.")
+    return candidate
+
+
+def extract(path: Path, kind: str) -> str:
+    """Extract readable text and simple structure from one office file."""
+    try:
+        if kind == "pdf":
+            result = _extract_pdf(path)
+        elif kind == "docx":
+            result = _extract_docx(path)
+        elif kind == "xlsx":
+            result = _extract_xlsx(path)
+        elif kind == "pptx":
+            result = _extract_pptx(path)
+        else:
+            result = _extract_odt(path)
+    except (OSError, ValueError, KeyError, TypeError) as failure:
+        raise DocumentError(f"Could not read {path.name!r} as {kind}: {failure}") from failure
+    return _truncate(result)
+
+
+def create(path: Path, kind: str, content: str, title: str = "") -> None:
+    """Create one document from text (or CSV/JSON rows for a spreadsheet)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if kind == "pdf":
+            _create_pdf(path, content, title)
+        elif kind == "docx":
+            _create_docx(path, content, title)
+        elif kind == "xlsx":
+            _create_xlsx(path, content, title)
+        elif kind == "pptx":
+            _create_pptx(path, content, title)
+        else:
+            _create_odt(path, content, title)
+    except (OSError, ValueError, TypeError) as failure:
+        raise DocumentError(f"Could not create {path.name!r} as {kind}: {failure}") from failure
+
+
+def _extract_pdf(path: Path) -> str:
+    reader = PdfReader(str(path))
+    pages = [f"## Page {number}\n{page.extract_text() or ''}" for number, page in enumerate(reader.pages, 1)]
+    return "\n\n".join(pages) or "[PDF contains no extractable text]"
+
+
+def _extract_docx(path: Path) -> str:
+    document = Document(path)
+    parts = [paragraph.text for paragraph in document.paragraphs if paragraph.text]
+    for number, table in enumerate(document.tables, 1):
+        parts.append(f"## Table {number}")
+        parts.extend(" | ".join(cell.text for cell in row.cells) for row in table.rows)
+    return "\n".join(parts) or "[Document contains no paragraphs or tables]"
+
+
+def _extract_xlsx(path: Path) -> str:
+    book = load_workbook(path, data_only=False, read_only=True)
+    parts: list[str] = []
+    for sheet in book.worksheets:
+        parts.append(f"## Sheet: {sheet.title}")
+        for row in sheet.iter_rows(values_only=True):
+            if any(value is not None for value in row):
+                parts.append(" | ".join("" if value is None else str(value) for value in row))
+    return "\n".join(parts) or "[Workbook contains no populated cells]"
+
+
+def _extract_pptx(path: Path) -> str:
+    presentation = Presentation(path)
+    parts: list[str] = []
+    for number, slide in enumerate(presentation.slides, 1):
+        texts = [shape.text for shape in slide.shapes if hasattr(shape, "text") and shape.text.strip()]
+        parts.append(f"## Slide {number}\n" + "\n".join(texts))
+    return "\n\n".join(parts) or "[Presentation contains no text]"
+
+
+def _extract_odt(path: Path) -> str:
+    document = load_odt(str(path))
+    parts: list[str] = []
+    # Paragraphs and headings retain the document's readable narrative; tables
+    # are separately labelled so a caller can distinguish their cell values.
+    for element in document.getElementsByType(odf_text.H):
+        value = teletype.extractText(element).strip()
+        if value:
+            parts.append(f"# {value}")
+    for element in document.getElementsByType(odf_text.P):
+        value = teletype.extractText(element).strip()
+        if value:
+            parts.append(value)
+    for number, table in enumerate(document.getElementsByType(odf_table.Table), 1):
+        parts.append(f"## Table {number}")
+        for row in table.getElementsByType(odf_table.TableRow):
+            cells = row.getElementsByType(odf_table.TableCell)
+            values = [teletype.extractText(cell).strip() for cell in cells]
+            if any(values):
+                parts.append(" | ".join(values))
+    return "\n".join(parts) or "[OpenDocument contains no paragraphs or tables]"
+
+
+def _create_odt(path: Path, content: str, title: str) -> None:
+    document = OpenDocumentText()
+    if title:
+        document.text.addElement(odf_text.H(outlinelevel=1, text=title))
+    for line in content.splitlines():
+        if line.startswith("# "):
+            document.text.addElement(odf_text.H(outlinelevel=1, text=line[2:]))
+        elif line.startswith("## "):
+            document.text.addElement(odf_text.H(outlinelevel=2, text=line[3:]))
+        elif line:
+            document.text.addElement(odf_text.P(text=line))
+    document.save(str(path))
+
+
+def _create_pdf(path: Path, content: str, title: str) -> None:
+    canvas = Canvas(str(path), pagesize=letter)
+    canvas.setTitle(title or path.stem)
+    width, height = letter
+    y = height - 54
+    for line in ([title] if title else []) + content.splitlines():
+        for wrapped in _wrap(line, 95) or [""]:
+            if y < 54:
+                canvas.showPage()
+                y = height - 54
+            canvas.drawString(54, y, wrapped)
+            y -= 14
+    canvas.save()
+
+
+def _create_docx(path: Path, content: str, title: str) -> None:
+    document = Document()
+    if title:
+        document.add_heading(title, level=0)
+    for line in content.splitlines():
+        if line.startswith("# "):
+            document.add_heading(line[2:], level=1)
+        elif line.startswith("## "):
+            document.add_heading(line[3:], level=2)
+        elif line:
+            document.add_paragraph(line)
+    document.save(path)
+
+
+def _rows(content: str) -> list[list[Any]]:
+    try:
+        decoded = json.loads(content)
+        if isinstance(decoded, list) and all(isinstance(row, list) for row in decoded):
+            return decoded
+    except json.JSONDecodeError:
+        pass
+    return list(csv.reader(io.StringIO(content)))
+
+
+def _create_xlsx(path: Path, content: str, title: str) -> None:
+    book = Workbook()
+    sheet = book.active
+    sheet.title = (title or "Sheet1")[:31]
+    for row in _rows(content):
+        sheet.append(row)
+    book.save(path)
+
+
+def _create_pptx(path: Path, content: str, title: str) -> None:
+    presentation = Presentation()
+    chunks = content.split("\n---\n") or [""]
+    for number, chunk in enumerate(chunks):
+        slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+        heading, _, body = chunk.partition("\n")
+        slide.shapes.title.text = heading or title or f"Slide {number + 1}"
+        slide.placeholders[1].text = body
+    presentation.save(path)
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    return [text[index : index + width] for index in range(0, len(text), width)]
+
+
+def _truncate(text: str) -> str:
+    if len(text) <= _MAX_EXTRACTED_CHARACTERS:
+        return text
+    return f"{text[:_MAX_EXTRACTED_CHARACTERS]}\n... [truncated at {_MAX_EXTRACTED_CHARACTERS} characters]"

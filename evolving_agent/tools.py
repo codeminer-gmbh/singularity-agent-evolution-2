@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.documents import DocumentError, create as create_document, document_format, extract as extract_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -143,6 +144,41 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="extract_document",
+                description=(
+                    "Extract text, tables, sheets, or slide text from a PDF, DOCX, "
+                    "XLSX, or PPTX file. The format defaults to the file extension. "
+                    "The path may be under materials/ or output/."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Document path."},
+                        "format": {"type": "string", "enum": ["pdf", "docx", "xlsx", "pptx", "odt"]},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="create_document",
+                description=(
+                    "Create a PDF, DOCX, XLSX, PPTX, or ODT deliverable. For PDF/DOCX "
+                    "content is plain text (DOCX recognizes # and ## headings); for "
+                    "XLSX it is CSV or a JSON array of row arrays; for PPTX separate "
+                    "slides with a line containing ---, with each slide's first line its title."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Writable document path, usually output/..."},
+                        "format": {"type": "string", "enum": ["pdf", "docx", "xlsx", "pptx", "odt"]},
+                        "content": {"type": "string", "description": "Document content in the format-specific form."},
+                        "title": {"type": "string", "description": "Optional document title or spreadsheet sheet name."},
+                    },
+                    "required": ["path", "content"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -191,6 +227,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "extract_document": self._extract_document,
+            "create_document": self._create_document,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -281,6 +319,40 @@ class WorkspaceTools:
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
+
+    def _extract_document(self, arguments: Mapping[str, Any]) -> str:
+        """Extract readable, structured content from a common document."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        resolved = tree.resolve(relative)
+        if not resolved.is_file():
+            raise ToolFailureError(f"{path!r} is not a file.")
+        supplied = arguments.get("format")
+        if supplied is not None and not isinstance(supplied, str):
+            raise ToolFailureError("'format' must be a string when supplied.")
+        try:
+            return extract_document(resolved, document_format(path, supplied))
+        except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _create_document(self, arguments: Mapping[str, Any]) -> str:
+        """Create a binary office deliverable in a writable tree."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path, writing=True)
+        supplied = arguments.get("format")
+        if supplied is not None and not isinstance(supplied, str):
+            raise ToolFailureError("'format' must be a string when supplied.")
+        title = arguments.get("title", "")
+        if not isinstance(title, str):
+            raise ToolFailureError("'title' must be a string when supplied.")
+        try:
+            create_document(
+                tree.resolve(relative), document_format(path, supplied),
+                _text_argument(arguments, "content", allow_empty=True), title,
+            )
+        except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+        return f"Created {path}."
 
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
