@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, extract_document
 from evolving_agent.workspace import Workspace, WorkspaceError
+from evolving_agent.web import WebFetchError, fetch_url
 
 _MAX_LISTING_CHARACTERS = 8_000
 
@@ -161,6 +162,28 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="fetch_url",
+                description=(
+                    "Fetch one HTTP(S) URL for research. Returns source URL, "
+                    "content type, and readable page text (HTML markup is removed) or "
+                    "verbatim textual API data. Downloads and returned text are bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "Absolute HTTP or HTTPS URL to retrieve.",
+                        },
+                        "max_characters": {
+                            "type": "integer",
+                            "description": "Returned character limit, 100 through 100000 (default 20000).",
+                        },
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -210,6 +233,7 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "extract_document": self._extract_document,
+            "fetch_url": self._fetch_url,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -313,6 +337,18 @@ class WorkspaceTools:
                 max_pages=max_pages,
             )
         except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _fetch_url(self, arguments: Mapping[str, Any]) -> str:
+        """Retrieve bounded readable text from an HTTP(S) resource."""
+        try:
+            return fetch_url(
+                _text_argument(arguments, "url"),
+                max_characters=_bounded_integer(
+                    arguments, "max_characters", default=20_000
+                ),
+            )
+        except WebFetchError as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _run_command(self, arguments: Mapping[str, Any]) -> str:

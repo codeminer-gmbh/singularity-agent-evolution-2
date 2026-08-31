@@ -1,3 +1,3 @@
-Gap: the agent cannot reliably inspect text embedded in common binary task artifacts such as PDFs, Office files, or images.
-Change: publish a bounded extract_document tool backed by PDF/image libraries and safe ZIP/XML extraction for office formats.
-Priority: artifact-reading is a distinct hard-task capability and enables analysis before coding, unlike another iteration on ordinary text or command tools.
+Gap: The agent cannot directly retrieve, inspect, or cite a public web page/API, so research tasks waste steps trying unavailable shell/network tooling.
+Change: Add a bounded fetch_url tool that downloads HTTP(S) resources and returns decoded text or readable HTML text with source metadata.
+Priority: Document extraction is already closed; first-class web retrieval is a distinct high-value input channel for research and current-information tasks.
