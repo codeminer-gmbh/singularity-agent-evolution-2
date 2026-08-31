@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create as create_document, document_format, extract as extract_document
 from evolving_agent.workspace import Workspace, WorkspaceError
+from evolving_agent.web import WebError, fetch as fetch_web_page
 
 _MAX_LISTING_CHARACTERS = 8_000
 
@@ -180,6 +181,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="fetch_web_page",
+                description=(
+                    "Retrieve a public HTTP(S) web page or API response as readable "
+                    "data. HTML is reduced to visible text, JSON is formatted, and "
+                    "text is bounded; scripts are never executed. Returns final URL, "
+                    "HTTP status, content type, and extracted content."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Absolute http:// or https:// URL to retrieve."},
+                        "timeout_seconds": {"type": "integer", "description": "Optional request timeout from 1 to 45 seconds."},
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -230,6 +248,7 @@ class WorkspaceTools:
             "delete_path": self._delete_path,
             "extract_document": self._extract_document,
             "create_document": self._create_document,
+            "fetch_web_page": self._fetch_web_page,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -354,6 +373,16 @@ class WorkspaceTools:
         except DocumentError as refused:
             raise ToolFailureError(str(refused)) from refused
         return f"Created {path}."
+
+    def _fetch_web_page(self, arguments: Mapping[str, Any]) -> str:
+        """Retrieve one HTTP(S) resource as bounded, untrusted readable data."""
+        timeout = arguments.get("timeout_seconds")
+        if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, int)):
+            raise ToolFailureError("'timeout_seconds' must be an integer when supplied.")
+        try:
+            return fetch_web_page(_text_argument(arguments, "url"), timeout)
+        except WebError as refused:
+            raise ToolFailureError(str(refused)) from refused
 
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.

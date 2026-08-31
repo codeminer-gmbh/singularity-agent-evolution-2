@@ -1,3 +1,3 @@
-Limitation: a probe given a ZIP bundle of heterogeneous evidence (for example invoices plus CSVs) cannot inspect its members through the document tool, blocking a consolidated answer or deliverable based on the bundle.
-Change/check: add safe, bounded archive manifest/text extraction for ZIP and TAR-family inputs through `extract_document`; verify a ZIP containing TXT, CSV, and a nested document yields member names and known member text without writing outside a temporary directory.
-Evidence: the only runtime-capability attempt added office/OCR extraction and tied; archive containers are a distinct task input boundary, while the inherited plan is stale because README already documents OCR as shipped.
+Limitation: a task asking for findings grounded in a URL (for example, extract a current public API result and save a brief) has no web input path, so the agent cannot obtain the source text.
+Change/check: add `fetch_web_page` for bounded HTTP(S) HTML/JSON/text retrieval, visible-text/JSON conversion, and source metadata; verify a served HTML fixture excludes scripts and a JSON fixture is formatted through the published tool.
+Evidence: ledger shows the document/archive direction tied on code-deliverable exams, while no listed predecessor offers URL retrieval; this is a distinct task input boundary rather than repeating extraction coverage.
