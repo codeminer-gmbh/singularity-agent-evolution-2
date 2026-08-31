@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {"name": "shell", "description": "Run a command in a scratch workspace."},
+    {"name": "read_file", "description": "Read a file the task points at."},
+    {"name": "write_file", "description": "Write or edit files, including deliverables."},
+    {"name": "apply_patch", "description": "Apply a structured edit to files."}
+  ],
+  "notes": "The Codex CLI's own toolset; this tree is an adapter around `codex exec`, sharing no code with the lineage it judges."
+}
