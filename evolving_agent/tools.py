@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
+from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -132,7 +133,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_document",
                 description=(
-                    "Extract readable evidence from one PDF page, image, or DOCX/PPTX/XLSX "
+                    "Extract readable evidence from one PDF page, image, DOCX/PPTX/XLSX, or EPUB chapter "
                     "attachment. PDF embedded text is extracted directly and scanned pages "
                     "are OCRed; set page to inspect another PDF page. Results are bounded."
                 ),
@@ -140,8 +141,24 @@ class WorkspaceTools:
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "Path in the workspace or materials/."},
-                        "page": {"type": "integer", "description": "One-based PDF page number (default 1)."},
+                        "page": {"type": "integer", "description": "One-based PDF page or EPUB spine chapter (default 1)."},
                         "ocr": {"type": "boolean", "description": "OCR a PDF page even when it has embedded text."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_database",
+                description=(
+                    "Inspect a SQLite database attachment without modifying it. Returns table/view schema, "
+                    "or executes one bounded read-only SELECT, WITH, or EXPLAIN query and returns JSON rows."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "SQLite database path in the workspace or materials/."},
+                        "query": {"type": "string", "description": "Optional single read-only SQL query."},
+                        "max_rows": {"type": "integer", "description": "Maximum returned rows, from 1 through 1000 (default 200)."},
                     },
                     "required": ["path"],
                 },
@@ -232,6 +249,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
             "inspect_document": self._inspect_document,
+            "inspect_database": self._inspect_database,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -244,7 +262,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, DatabaseError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -302,6 +320,17 @@ class WorkspaceTools:
             return result.exit_code, result.stdout, result.stderr
 
         return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
+
+    def _inspect_database(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect SQLite schema or run a bounded read-only evidence query."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        query = arguments.get("query")
+        if query is not None and not isinstance(query, str):
+            raise ToolFailureError("'query' must be a string when supplied.")
+        max_rows = arguments.get("max_rows", 200)
+        if not isinstance(max_rows, int) or isinstance(max_rows, bool):
+            raise ToolFailureError("'max_rows' must be an integer when supplied.")
+        return inspect_database(tree.resolve(relative), query, max_rows)
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import posixpath
 import re
 import tempfile
 import xml.etree.ElementTree as element_tree
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 MAX_TEXT_CHARACTERS = 24_000
+MAX_EPUB_MEMBER_BYTES = 1_000_000
 """Enough evidence for a model, without one attachment consuming a turn."""
 
 
@@ -39,8 +41,10 @@ def inspect_document(
         return _image(path, run)
     if suffix in {".docx", ".pptx", ".xlsx"}:
         return _ooxml(path, suffix)
+    if suffix == ".epub":
+        return _epub(path, page)
     raise DocumentError(
-        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, and DOCX/PPTX/XLSX."
+        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, DOCX/PPTX/XLSX, and EPUB."
     )
 
 
@@ -101,6 +105,65 @@ def _ooxml(path: Path, suffix: str) -> str:
     if not text.strip():
         raise DocumentError("No readable text was found in this Office document.")
     return f"{suffix[1:].upper()} extracted text ({path.name})\n---\n{_bounded(text)}"
+
+
+def _epub(path: Path, chapter: int) -> str:
+    """Extract one spine chapter from an EPUB without unpacking its ZIP package."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            container = _epub_xml(archive, "META-INF/container.xml")
+            rootfile = next((node.attrib.get("full-path") for node in container.iter() if node.tag.endswith("rootfile")), None)
+            if not rootfile or not _safe_epub_name(rootfile):
+                raise DocumentError("EPUB container has no safe package document path.")
+            package = _epub_xml(archive, rootfile)
+            base = posixpath.dirname(rootfile)
+            manifest = {
+                item.attrib.get("id"): _epub_join(base, item.attrib.get("href", ""))
+                for item in package.iter() if item.tag.endswith("item")
+            }
+            spine = [manifest.get(item.attrib.get("idref")) for item in package.iter() if item.tag.endswith("itemref")]
+            chapters = [name for name in spine if name]
+            if not chapters:
+                raise DocumentError("EPUB package contains no readable spine chapters.")
+            if chapter > len(chapters):
+                raise DocumentError(f"The EPUB has {len(chapters)} spine chapter(s); chapter {chapter} does not exist.")
+            name = chapters[chapter - 1]
+            text = _xml_text(_epub_bytes(archive, name))
+    except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
+        raise DocumentError(f"Could not read EPUB: {error}") from error
+    if not text.strip():
+        raise DocumentError(f"No readable text was found in EPUB chapter {chapter}.")
+    return f"EPUB chapter {chapter} of {len(chapters)} ({path.name}: {name})\n---\n{_bounded(text)}"
+
+
+def _epub_xml(archive: zipfile.ZipFile, name: str) -> element_tree.Element:
+    return element_tree.fromstring(_epub_bytes(archive, name))
+
+
+def _epub_bytes(archive: zipfile.ZipFile, name: str) -> bytes:
+    if not _safe_epub_name(name):
+        raise DocumentError("EPUB refers to an unsafe package member.")
+    try:
+        info = archive.getinfo(name)
+    except KeyError as error:
+        raise DocumentError(f"EPUB member {name!r} is missing.") from error
+    if info.is_dir() or info.file_size > MAX_EPUB_MEMBER_BYTES:
+        raise DocumentError(f"EPUB member {name!r} exceeds the {MAX_EPUB_MEMBER_BYTES}-byte inspection limit.")
+    with archive.open(info) as source:
+        data = source.read(MAX_EPUB_MEMBER_BYTES + 1)
+    if len(data) > MAX_EPUB_MEMBER_BYTES:
+        raise DocumentError(f"EPUB member {name!r} exceeds the {MAX_EPUB_MEMBER_BYTES}-byte inspection limit.")
+    return data
+
+
+def _epub_join(base: str, href: str) -> str | None:
+    name = posixpath.normpath(posixpath.join(base, href.split("#", 1)[0]))
+    within_package = not base or name.startswith(base + "/")
+    return name if within_package and _safe_epub_name(name) else None
+
+
+def _safe_epub_name(name: str) -> bool:
+    return bool(name) and not name.startswith("/") and "\x00" not in name and not any(part == ".." for part in name.split("/"))
 
 
 def _xml_text(data: bytes) -> str:

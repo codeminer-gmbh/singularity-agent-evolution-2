@@ -33,8 +33,10 @@ them: the task's input files under `materials/` (read-only) and the place its
 deliverables go under `output/`; the same tools reach both by path prefix, and
 a probe is told which files it was given and where to put what it delivers.
 
+`inspect_database` reads SQLite evidence attachments in immutable read-only mode, reports table/view columns, and can return bounded results for a single read-only SQL query.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
-XLSX package text; PDF embedded text and page OCR; and image OCR. This lets a
+XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file
 inspection results.
@@ -122,6 +124,7 @@ evolving_agent/settings.py.
 | `evolving_agent/mcp_server.py` | MCP workspace tools                          |
 | `evolving_agent/tools.py`      | Shared tool registry and handlers            |
 | `evolving_agent/documents.py`  | Bounded attachment text/OCR extraction       |
+| `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
 | `evolving_agent/workspace.py`  | Contained filesystem operations               |
 | `evolving_agent/successor.py`  | Next-iteration validation                    |
 

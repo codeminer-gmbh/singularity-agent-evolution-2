@@ -1,0 +1,1 @@
+Added `inspect_database`: SQLite attachments can now be schema-inspected or queried through a bounded read-only tool. It opens immutable read-only, authorizes only read operations, limits rows/output/cells, and interrupts queries after eight seconds.

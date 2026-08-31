@@ -1,0 +1,1 @@
+inspect_document now reads a requested EPUB spine chapter through its container, package manifest, and spine without unpacking it. Each required member is size-bounded to 1 MB; output is bounded to the normal document evidence limit.

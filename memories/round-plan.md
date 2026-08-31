@@ -1,3 +1,3 @@
-Gap: the agent cannot read the text, tables, or scanned pages inside PDF, image, and common Office task attachments.
-Change: add a bounded inspect_document tool backed by Poppler/Tesseract plus safe OOXML parsing.
-Priority: prior rounds closed archive and dataset inspection, while document evidence remains entirely opaque to the model.
+Gap: The agent cannot inspect Parquet/Arrow evidence attachments, a common large structured-data format that text and SQLite tools cannot query.
+Change: Add a bounded read-only Parquet inspection tool supporting schema summaries and filtered SQL-style evidence queries through DuckDB.
+Why: Prior rounds closed document, image, archive, and SQLite gaps; Parquet is an unclosed complementary evidence format that enables hard data-analysis tasks without materializing files.
