@@ -1,0 +1,1 @@
+Added `inspect_spreadsheet`, exposed through the shared WorkspaceTools/MCP/OpenAI registry. It safely treats CSV, TSV, XLSX, and ODS as data only, returning a bounded sheet-aware JSON preview without running formulas, macros, or links. It supports task input paths under `materials/` as well as workspace files.

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -143,6 +144,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_spreadsheet",
+                description=(
+                    "Inspect a CSV, TSV, XLSX, or ODS spreadsheet without executing "
+                    "macros, formulas, or links. Returns sheet names and a bounded JSON "
+                    "table preview. Use a materials/ path for an input workbook."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Spreadsheet path."},
+                        "sheet": {"type": "string", "description": "Optional exact sheet name."},
+                        "max_rows": {"type": "integer", "description": "Preview rows, 1 to 500."},
+                        "max_columns": {"type": "integer", "description": "Preview columns, 1 to 100."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -191,6 +210,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "inspect_spreadsheet": self._inspect_spreadsheet,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -282,6 +302,19 @@ class WorkspaceTools:
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
 
+    def _inspect_spreadsheet(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect a bounded spreadsheet preview from any readable tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        sheet = arguments.get("sheet")
+        if sheet is not None and (not isinstance(sheet, str) or not sheet.strip()):
+            raise ToolFailureError("'sheet' must be a non-blank string when supplied.")
+        max_rows = _bounded_integer(arguments, "max_rows", default=100, minimum=1, maximum=500)
+        max_columns = _bounded_integer(arguments, "max_columns", default=30, minimum=1, maximum=100)
+        try:
+            return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
+        except SpreadsheetError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
 
@@ -366,3 +399,13 @@ def _timeout_argument(arguments: Mapping[str, Any]) -> int | None:
     if value <= 0:
         raise ToolFailureError("'timeout_seconds' must be greater than zero.")
     return int(value)
+
+
+def _bounded_integer(
+    arguments: Mapping[str, Any], name: str, *, default: int, minimum: int, maximum: int
+) -> int:
+    """Return an optional integer constrained to an explicit safe range."""
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ToolFailureError(f"{name!r} must be a whole number from {minimum} to {maximum}.")
+    return value
