@@ -39,6 +39,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_tabular` provides the same bounded typed-schema and single-`data`-view SQL workflow for CSV, TSV, JSON, JSONL, and NDJSON attachments.
 
+`inspect_archive` lists and previews one bounded member of 7z, ZIP, TAR, GZIP, BZIP2, and XZ evidence bundles without extracting their contents to the writable workspace.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
 XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an

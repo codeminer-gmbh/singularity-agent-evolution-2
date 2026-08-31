@@ -1,0 +1,1 @@
+`inspect_archive` now recognizes 7z magic bytes and uses pinned `py7zr` to list regular entries or bounded-preview one exact entry in memory. It rejects directories/symlinks and entries declared over 256 KB; its tool schema advertises 7z alongside the existing archive formats.

@@ -1,4 +1,4 @@
-"""Bounded read-only inspection of ZIP, TAR, GZIP, BZIP2, and XZ evidence bundles."""
+"""Bounded read-only inspection of common compressed evidence bundles."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import gzip
 import lzma
 import tarfile
 import zipfile
+
+import py7zr
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,15 +41,17 @@ def inspect_archive(path: Path, member: str | None = None) -> str:
             return _zip(path, member)
         if tarfile.is_tarfile(path):
             return _tar(path, member)
+        if _has_magic(path, b"\x37\x7a\xbc\xaf\x27\x1c"):
+            return _seven_zip(path, member)
         if _has_magic(path, b"\x1f\x8b"):
             return _single_stream(path, member, "GZIP", ".gz", gzip.open)
         if _has_magic(path, b"BZh"):
             return _single_stream(path, member, "BZIP2", ".bz2", bz2.open)
         if _has_magic(path, b"\xfd7zXZ\x00"):
             return _single_stream(path, member, "XZ", ".xz", lzma.open)
-    except (OSError, EOFError, zipfile.BadZipFile, tarfile.TarError, lzma.LZMAError) as error:
+    except (OSError, EOFError, zipfile.BadZipFile, tarfile.TarError, lzma.LZMAError, py7zr.exceptions.ArchiveError, py7zr.exceptions.PasswordRequired) as error:
         raise ArchiveError(f"Could not inspect archive: {error}") from error
-    raise ArchiveError("Supported archive formats are ZIP, TAR (including compressed TAR), GZIP, BZIP2, and XZ.")
+    raise ArchiveError("Supported archive formats are 7z, ZIP, TAR (including compressed TAR), GZIP, BZIP2, and XZ.")
 
 
 def _zip(path: Path, requested: str | None) -> str:
@@ -81,6 +85,29 @@ def _tar(path: Path, requested: str | None) -> str:
             raise ArchiveError(f"Could not open regular member {requested!r}.")
         with source:
             return _preview(requested, source.read(MAX_MEMBER_BYTES + 1))
+
+
+def _seven_zip(path: Path, requested: str | None) -> str:
+    """List or bounded-read a 7z member without materializing it on disk."""
+    with py7zr.SevenZipFile(path, mode="r") as archive:
+        entries = archive.list()
+        readable = [
+            entry for entry in entries
+            if not entry.is_directory and not getattr(entry, "is_symlink", False)
+        ]
+        members = [ArchiveMember(entry.filename, entry.uncompressed) for entry in readable]
+        if requested is None:
+            return _listing("7Z", members)
+        entry = next((item for item in readable if item.filename == requested), None)
+        if entry is None:
+            raise ArchiveError(f"No readable regular member named {requested!r}.")
+        _check_size(entry.uncompressed, requested)
+        # py7zr's read API returns in-memory streams; the declared-size guard
+        # above prevents it from materializing an unbounded member.
+        streams = archive.read([requested])
+        if streams is None or requested not in streams:
+            raise ArchiveError(f"Could not open regular member {requested!r}.")
+        return _preview(requested, streams[requested].read(MAX_MEMBER_BYTES + 1))
 
 
 def _single_stream(
