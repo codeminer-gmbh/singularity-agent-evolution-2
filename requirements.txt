@@ -15,3 +15,9 @@ openai==3.3.1
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+# Text extraction for binary task attachments.  These parsers cover the most
+# common office formats without requiring a local GUI suite or OCR service.
+pypdf==5.9.0
+python-docx==1.2.0
+openpyxl==3.1.5
+python-pptx==1.0.2

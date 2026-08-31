@@ -15,16 +15,109 @@ import urllib.request
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Final
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
 _MAX_TIMEOUT: Final = 45
 _DEFAULT_TIMEOUT: Final = 20
 _DEFAULT_CHARACTERS: Final = 24_000
 _MAX_CHARACTERS: Final = 80_000
+_MAX_SEARCH_RESULTS: Final = 10
+_MAX_SEARCH_QUERY_CHARACTERS: Final = 500
 
 
 class WebFetchError(Exception):
     """A URL could not be fetched as a bounded readable document."""
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    """One independently discoverable web result."""
+
+    title: str
+    url: str
+    snippet: str = ""
+
+
+class _SearchExtractor(HTMLParser):
+    """Extract result links from DuckDuckGo's deliberately simple HTML view."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.results: list[SearchResult] = []
+        self._href: str | None = None
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a":
+            return
+        values = dict(attrs)
+        classes = set((values.get("class") or "").split())
+        href = values.get("href")
+        if href and ({"result__a", "result-link"} & classes):
+            self._href, self._parts = href, []
+
+    def handle_data(self, data: str) -> None:
+        if self._href is not None:
+            self._parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "a" or self._href is None:
+            return
+        title = " ".join("".join(self._parts).split())
+        url = _search_target(self._href)
+        if title and url:
+            self.results.append(SearchResult(title=title, url=url))
+        self._href, self._parts = None, []
+
+
+def _search_target(href: str) -> str | None:
+    """Turn a DuckDuckGo redirect (or direct link) into an HTTP(S) target."""
+    if href.startswith("//"):
+        href = "https:" + href
+    parsed = urlparse(href)
+    if parsed.netloc.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        target = parse_qs(parsed.query).get("uddg", [""])[0]
+        href = unquote(target)
+        parsed = urlparse(href)
+    return href if parsed.scheme in {"http", "https"} and parsed.netloc else None
+
+
+def search(query: str, *, max_results: int = 5, timeout_seconds: int = _DEFAULT_TIMEOUT) -> list[SearchResult]:
+    """Find public pages matching ``query`` without requiring an API key.
+
+    DuckDuckGo's HTML endpoint is used because it returns ordinary server-rendered
+    links, unlike a browser-only search UI.  Search is intentionally bounded;
+    callers fetch the small number of sources they decide are relevant.
+    """
+    if not isinstance(query, str) or not query.strip():
+        raise WebFetchError("query must be a non-blank string.")
+    if len(query) > _MAX_SEARCH_QUERY_CHARACTERS:
+        raise WebFetchError(f"query must be at most {_MAX_SEARCH_QUERY_CHARACTERS} characters.")
+    if isinstance(max_results, bool) or not isinstance(max_results, int) or not 1 <= max_results <= _MAX_SEARCH_RESULTS:
+        raise WebFetchError(f"max_results must be an integer from 1 to {_MAX_SEARCH_RESULTS}.")
+    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= _MAX_TIMEOUT:
+        raise WebFetchError(f"timeout_seconds must be an integer from 1 to {_MAX_TIMEOUT}.")
+    url = "https://html.duckduckgo.com/html/?q=" + quote_plus(query.strip())
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; evolving-agent/1.0)", "Accept": "text/html"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            source = response.read(1_000_000).decode(response.headers.get_content_charset() or "utf-8", errors="replace")
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, socket.timeout) as failure:
+        raise WebFetchError(f"Could not search the web: {failure}") from failure
+    parser = _SearchExtractor()
+    parser.feed(source)
+    parser.close()
+    unique: list[SearchResult] = []
+    seen: set[str] = set()
+    for result in parser.results:
+        if result.url not in seen:
+            unique.append(result)
+            seen.add(result.url)
+        if len(unique) >= max_results:
+            break
+    if not unique:
+        raise WebFetchError("The search service returned no readable results; try a more specific query.")
+    return unique
 
 
 @dataclass(frozen=True)

@@ -16,7 +16,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
-from evolving_agent.web import WebFetchError, fetch
+from evolving_agent.documents import DocumentError, extract_text
+from evolving_agent.web import WebFetchError, fetch, search
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -144,6 +145,40 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="read_document",
+                description=(
+                    "Extract text from a PDF, DOCX, XLSX, PPTX, ODT, ODS, or ODP file in the "
+                    "workspace, materials/, or output/. Use this for supplied office "
+                    "documents that read_file cannot decode. Tables and spreadsheet "
+                    "rows are represented as text; image-only content is not OCRed."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Relative path to a .pdf, .docx, .xlsx, .pptx, .odt, .ods, or .odp file."},
+                        "max_characters": {"type": "integer", "description": "Optional extraction limit from 100 to 80000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="search_web",
+                description=(
+                    "Search the public web for pages relevant to a query. Returns a "
+                    "small numbered list of titles and direct URLs; use fetch_url "
+                    "to read sources you select. No search API key is required."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Words or a question to search for."},
+                        "max_results": {"type": "integer", "description": "Optional number of results, from 1 to 10."},
+                        "timeout_seconds": {"type": "integer", "description": "Optional request timeout, from 1 to 45 seconds."},
+                    },
+                    "required": ["query"],
+                },
+            ),
+            ToolDefinition(
                 name="fetch_url",
                 description=(
                     "Fetch an HTTP or HTTPS page for research. Returns its final "
@@ -209,6 +244,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "read_document": self._read_document,
+            "search_web": self._search_web,
             "fetch_url": self._fetch_url,
             "run_command": self._run_command,
         }
@@ -300,6 +337,30 @@ class WorkspaceTools:
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
+
+    def _read_document(self, arguments: Mapping[str, Any]) -> str:
+        """Extract bounded text from a contained PDF or Office attachment."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        maximum = _bounded_integer(arguments, "max_characters", default=80_000, minimum=100, maximum=80_000)
+        try:
+            return extract_text(tree.resolve(relative), max_characters=maximum)
+        except DocumentError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _search_web(self, arguments: Mapping[str, Any]) -> str:
+        """Find source URLs for a research question before fetching them."""
+        query = _text_argument(arguments, "query")
+        maximum = _bounded_integer(arguments, "max_results", default=5, minimum=1, maximum=10)
+        timeout = _bounded_integer(arguments, "timeout_seconds", default=20, minimum=1, maximum=45)
+        try:
+            results = search(query, max_results=maximum, timeout_seconds=timeout)
+        except WebFetchError as refused:
+            raise ToolFailureError(str(refused)) from refused
+        return "\n".join(
+            f"{index}. {result.title}\n   {result.url}"
+            for index, result in enumerate(results, start=1)
+        )
 
     def _fetch_url(self, arguments: Mapping[str, Any]) -> str:
         """Fetch one web document as bounded, readable text."""
