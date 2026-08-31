@@ -31,7 +31,10 @@ run bounded commands, observe their results, and repeat until it returns a
 final response. Two further trees sit beside the workspace when a run is given
 them: the task's input files under `materials/` (read-only) and the place its
 deliverables go under `output/`; the same tools reach both by path prefix, and
-a probe is told which files it was given and where to put what it delivers.
+a probe is told which files it was given and where to put what it delivers. In addition
+to general file reading, dedicated inspectors provide bounded, structured spreadsheet
+and email evidence: EML, EMLX, and MBOX messages yield decoded headers, text previews,
+and attachment metadata without opening attachments or executing HTML.
 
 Requests use `/v1/responses` with `store: false`. The session therefore carries
 its own model output and trims history when necessary. The implementation is

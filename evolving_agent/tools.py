@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -162,6 +163,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_email",
+                description=(
+                    "Inspect EML, EMLX, or MBOX email evidence without opening "
+                    "attachments or executing HTML. Returns decoded headers, safe text "
+                    "body previews, and attachment metadata. Use a materials/ path for input."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Email or mailbox path."},
+                        "max_messages": {"type": "integer", "description": "Messages to return, 1 to 100."},
+                        "body_characters": {"type": "integer", "description": "Characters per body preview, 0 to 6000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -211,6 +229,7 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "inspect_spreadsheet": self._inspect_spreadsheet,
+            "inspect_email": self._inspect_email,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -313,6 +332,16 @@ class WorkspaceTools:
         try:
             return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
         except SpreadsheetError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_email(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect email evidence from any readable tree without opening content."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_messages = _bounded_integer(arguments, "max_messages", default=20, minimum=1, maximum=100)
+        body_characters = _bounded_integer(arguments, "body_characters", default=2000, minimum=0, maximum=6000)
+        try:
+            return inspect_email(tree.resolve(relative), max_messages=max_messages, body_characters=body_characters)
+        except EmailError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
