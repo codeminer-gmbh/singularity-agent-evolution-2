@@ -13,12 +13,19 @@ unhandled exception ends the run.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+import tarfile
+import zipfile
+from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
+_MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
+_MAX_ARCHIVE_MEMBERS = 1_000
+_MAX_ARCHIVE_MEMBER_BYTES = 32 * 1024 * 1024
+_MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024
+_ARCHIVE_CHUNK_BYTES = 64 * 1024
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -129,6 +136,35 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="extract_archive",
+                description=(
+                    "Extract regular files from a ZIP or TAR-family archive into "
+                    "a directory in the workspace or output/. The archive may be "
+                    "read from the workspace, materials/, or output/. Extraction is "
+                    "bounded and rejects links and member paths that could escape the "
+                    "destination. Omit members to extract every regular file."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "archive_path": {
+                            "type": "string",
+                            "description": "ZIP or TAR archive to read.",
+                        },
+                        "destination": {
+                            "type": "string",
+                            "description": "Directory under the workspace or output/ to receive files.",
+                        },
+                        "members": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional exact archive member names to extract.",
+                        },
+                    },
+                    "required": ["archive_path", "destination"],
+                },
+            ),
+            ToolDefinition(
                 name="delete_path",
                 description="Remove one file or directory from the workspace.",
                 input_schema={
@@ -190,6 +226,7 @@ class WorkspaceTools:
             "list_files": self._list_files,
             "read_file": self._read_file,
             "write_file": self._write_file,
+            "extract_archive": self._extract_archive,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
         }
@@ -244,6 +281,33 @@ class WorkspaceTools:
             relative, _text_argument(arguments, "content", allow_empty=True)
         )
         return f"Wrote {written} bytes to {path}."
+
+    def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Extract selected safe regular files from one archive."""
+        archive_path = _text_argument(arguments, "archive_path")
+        source, source_relative = self._located(archive_path)
+        destination_path = _text_argument(arguments, "destination")
+        destination, destination_relative = self._located(destination_path, writing=True)
+        selected = _members_argument(arguments)
+        try:
+            archive = source.resolve(source_relative)
+            if not archive.is_file():
+                raise WorkspaceError(f"{archive_path!r} is not an archive file.")
+            if archive.stat().st_size > _MAX_ARCHIVE_BYTES:
+                raise WorkspaceError(
+                    f"{archive_path!r} exceeds the {_MAX_ARCHIVE_BYTES}-byte archive limit."
+                )
+            destination_root = destination.resolve(destination_relative)
+            destination_root.mkdir(parents=True, exist_ok=True)
+            if not destination_root.is_dir():
+                raise WorkspaceError(f"{destination_path!r} is not a directory.")
+            if zipfile.is_zipfile(archive):
+                count, total = _extract_zip(archive, destination, destination_relative, selected)
+            else:
+                count, total = _extract_tar(archive, destination, destination_relative, selected)
+        except (OSError, tarfile.TarError, zipfile.BadZipFile) as unusable:
+            raise ToolFailureError(f"Could not extract {archive_path!r}: {unusable}") from unusable
+        return f"Extracted {count} files ({total} bytes) to {destination_path}."
 
     def _delete_path(self, arguments: Mapping[str, Any]) -> str:
         """Remove one path and report that it is gone."""
@@ -366,3 +430,102 @@ def _timeout_argument(arguments: Mapping[str, Any]) -> int | None:
     if value <= 0:
         raise ToolFailureError("'timeout_seconds' must be greater than zero.")
     return int(value)
+
+
+def _members_argument(arguments: Mapping[str, Any]) -> frozenset[str] | None:
+    """Return optional exact archive member names after validating their shape."""
+    value = arguments.get("members")
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        raise ToolFailureError("'members' must be an array of non-blank member names.")
+    return frozenset(value)
+
+
+def _safe_member_path(member_name: str) -> str:
+    """Return a member name that is safe to place below an extraction root."""
+    if not member_name or "\\" in member_name:
+        raise WorkspaceError(f"Archive member {member_name!r} has an unsafe path.")
+    # Workspace.resolve is also applied at write time, but reject traversal here
+    # before a partially extracted archive can be left behind.
+    if member_name.startswith("/") or ".." in member_name.split("/"):
+        raise WorkspaceError(f"Archive member {member_name!r} has an unsafe path.")
+    return member_name
+
+
+def _extract_zip(
+    archive: object, destination: Workspace, destination_relative: str,
+    selected: frozenset[str] | None,
+) -> tuple[int, int]:
+    """Extract safe selected ZIP entries, enforcing declared and streamed limits."""
+    count = total = 0
+    with zipfile.ZipFile(archive) as zipped:
+        entries = zipped.infolist()
+        if len(entries) > _MAX_ARCHIVE_MEMBERS:
+            raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit.")
+        for info in entries:
+            name = _safe_member_path(info.filename)
+            if selected is not None and name not in selected:
+                continue
+            if info.is_dir():
+                continue
+            if info.is_dir() or (info.external_attr >> 16) & 0o170000 == 0o120000:
+                raise WorkspaceError(f"Archive member {name!r} is a link and cannot be extracted.")
+            count, total = _copy_archive_member(
+                destination, destination_relative, name, zipped.open(info), info.file_size, count, total
+            )
+    return count, total
+
+
+def _extract_tar(
+    archive: object, destination: Workspace, destination_relative: str,
+    selected: frozenset[str] | None,
+) -> tuple[int, int]:
+    """Extract safe selected TAR entries, including compressed TAR variants."""
+    count = total = 0
+    with tarfile.open(archive, mode="r|*") as tarred:
+        for seen, info in enumerate(tarred, start=1):
+            if seen > _MAX_ARCHIVE_MEMBERS:
+                raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit.")
+            name = _safe_member_path(info.name)
+            if selected is not None and name not in selected:
+                continue
+            if info.isdir():
+                continue
+            if not info.isreg():
+                raise WorkspaceError(f"Archive member {name!r} is not a regular file.")
+            reader = tarred.extractfile(info)
+            if reader is None:
+                raise WorkspaceError(f"Archive member {name!r} could not be read.")
+            count, total = _copy_archive_member(
+                destination, destination_relative, name, reader, info.size, count, total
+            )
+    return count, total
+
+
+def _copy_archive_member(
+    destination: Workspace, destination_relative: str, member_name: str,
+    reader: BinaryIO, expected_size: int, count: int, total: int,
+) -> tuple[int, int]:
+    """Copy a bounded member after resolving its target beneath the destination."""
+    if count >= _MAX_ARCHIVE_MEMBERS:
+        raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-file extraction limit.")
+    if expected_size > _MAX_ARCHIVE_MEMBER_BYTES or total + expected_size > _MAX_ARCHIVE_EXTRACTED_BYTES:
+        raise WorkspaceError("Archive exceeds the permitted extracted-data limit.")
+    relative = f"{destination_relative.rstrip('/')}/{member_name}"
+    target = destination.resolve(relative)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Re-resolve after creating parents, so an existing symlink cannot turn
+        # a member path into a write outside the chosen tree.
+        target = destination.resolve(relative)
+        written = 0
+        with reader, target.open("wb") as output:
+            while chunk := reader.read(_ARCHIVE_CHUNK_BYTES):
+                written += len(chunk)
+                if written > _MAX_ARCHIVE_MEMBER_BYTES or total + written > _MAX_ARCHIVE_EXTRACTED_BYTES:
+                    raise WorkspaceError("Archive exceeds the permitted extracted-data limit.")
+                output.write(chunk)
+    except OSError as unwritable:
+        raise WorkspaceError(f"Archive member {member_name!r} could not be written: {unwritable}") from unwritable
+    return count + 1, total + written
