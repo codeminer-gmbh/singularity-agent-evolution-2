@@ -15,3 +15,8 @@ openai==3.3.1
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+# Native parsers let the model read the PDFs and Office files that frequently
+# arrive as task materials rather than merely inspect their binary bytes.
+pypdf==5.9.0
+python-docx==1.2.0
+openpyxl==3.1.5

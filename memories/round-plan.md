@@ -1,3 +1,3 @@
-Gap: Live web pages commonly arrive compressed, but the HTTP fetch tool exposes their raw bytes as unreadable replacement text.
-Change: Teach http_fetch to request and safely decode gzip or deflate content within the existing output budget.
-Priority: This completes the new live-research input path for ordinary modern web servers, rather than adding another local-file parser.
+Gap: the agent cannot read the text, tables, and formulas in PDF, DOCX, or XLSX task materials, so it must infer from opaque binary files.
+Change: add a bounded read_document tool backed by pypdf, python-docx, and openpyxl, available for materials/ and output/ paths.
+Priority: this is an unclosed, high-frequency task-input gap noted in the lineage; command execution and archive extraction cannot reliably interpret these formats.

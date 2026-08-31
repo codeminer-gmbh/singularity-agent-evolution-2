@@ -22,6 +22,8 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
+from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
+from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, read_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -144,6 +146,44 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="read_document",
+                description=(
+                    "Extract text and tables from a PDF, Word DOCX, or Excel XLSX "
+                    "file. Paths may be under materials/ or output/. Output is bounded; "
+                    "use max_characters to request a smaller excerpt."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Document path relative to the workspace root."},
+                        "max_characters": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": MAX_TEXT_CHARACTERS,
+                            "description": "Maximum extracted characters (default 120000).",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="query_sqlite",
+                description=(
+                    "Run a read-only SELECT, WITH, or EXPLAIN query against a SQLite "
+                    "database (.db, .sqlite, .sqlite3). Paths may be under materials/ "
+                    "or output/. Results are bounded and returned as TSV."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "SQLite database path relative to the workspace root."},
+                        "query": {"type": "string", "description": "One read-only SQL query."},
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_QUERY_ROWS, "description": "Maximum result rows (default 200)."},
+                    },
+                    "required": ["path", "query"],
+                },
+            ),
+            ToolDefinition(
                 name="extract_archive",
                 description=(
                     "Extract regular files from a ZIP or TAR-family archive into "
@@ -256,6 +296,8 @@ class WorkspaceTools:
             "list_files": self._list_files,
             "read_file": self._read_file,
             "write_file": self._write_file,
+            "read_document": self._read_document,
+            "query_sqlite": self._query_sqlite,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -312,6 +354,30 @@ class WorkspaceTools:
             relative, _text_argument(arguments, "content", allow_empty=True)
         )
         return f"Wrote {written} bytes to {path}."
+
+    def _read_document(self, arguments: Mapping[str, Any]) -> str:
+        """Extract bounded readable content from a supported office document."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        maximum = arguments.get("max_characters", MAX_TEXT_CHARACTERS)
+        # Keep argument diagnostics consistent with the rest of this tool surface.
+        if isinstance(maximum, bool) or not isinstance(maximum, int):
+            raise ToolFailureError("max_characters must be an integer.")
+        try:
+            return read_document(tree.resolve(relative), max_characters=maximum)
+        except DocumentError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _query_sqlite(self, arguments: Mapping[str, Any]) -> str:
+        """Run a bounded read-only query against a task SQLite database."""
+        path = _text_argument(arguments, "path")
+        query = _text_argument(arguments, "query")
+        tree, relative = self._located(path)
+        maximum = arguments.get("max_rows", 200)
+        try:
+            return query_sqlite(tree.resolve(relative), query, max_rows=maximum)
+        except DatabaseError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
         """Extract selected safe regular files from one archive."""
