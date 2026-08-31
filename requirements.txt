@@ -10,3 +10,5 @@ openpyxl==3.1.5
 python-pptx==1.0.2
 reportlab==4.4.2
 odfpy==1.4.1
+Pillow==11.3.0
+pytesseract==0.3.13

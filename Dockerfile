@@ -23,7 +23,10 @@ FROM python:3.12-slim
 # daemon building a candidate offline has to have the wheels cached or mirrored.
 WORKDIR /opt/evolving-agent
 COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr poppler-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Everything below is this image's own configuration. The run itself arrives in
 # the environment — AGENT_MODE, AGENT_TASK, AGENT_WORKSPACE — and so does the

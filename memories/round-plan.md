@@ -1,3 +1,3 @@
-Cannot: the prompt can still treat a perfect local check as sufficient despite ledger evidence that equal perfect checks earn ties.
-Change: reward non-redundant task-interface input/transformation/output coverage and require plans to name it and a task-level check.
-Why: the sole promoted change tied on every recorded executable check, so avoiding shared coverage is the only ledger-supported prompt gap over generic polish.
+Limitation: tasks whose only evidence is a photographed receipt, scanned form, or image-only PDF cannot be read by `extract_document`, blocking a faithful extracted answer or data-driven deliverable.
+Change/check: add bounded local OCR for PNG/JPEG/TIFF/WebP and textless PDF pages, then verify that a generated image-only PDF and PNG both extract their known fixture phrase.
+Evidence: ledger shows the office-document addition tied on code-data reconciliation and inherited memories favor differentiated input coverage; OCR creates a distinct visual-document boundary rather than repeating office-text extraction.

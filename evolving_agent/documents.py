@@ -11,6 +11,8 @@ from __future__ import annotations
 import csv
 import io
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +23,17 @@ from odf import teletype
 from odf import text as odf_text
 from odf.opendocument import OpenDocumentText, load as load_odt
 from pptx import Presentation
+from PIL import Image
 from pypdf import PdfReader
+import pytesseract
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 
-_SUPPORTED = frozenset({"pdf", "docx", "xlsx", "pptx", "odt"})
+_SUPPORTED = frozenset({"pdf", "docx", "xlsx", "pptx", "odt", "png", "jpg", "jpeg", "tif", "tiff", "webp"})
+_IMAGE_FORMATS = frozenset({"png", "jpg", "jpeg", "tif", "tiff", "webp"})
 _MAX_EXTRACTED_CHARACTERS = 60_000
+_MAX_OCR_PAGES = 12
+_MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
 
 
 class DocumentError(Exception):
@@ -45,8 +52,12 @@ def document_format(path: str, supplied: str | None = None) -> str:
 def extract(path: Path, kind: str) -> str:
     """Extract readable text and simple structure from one office file."""
     try:
+        if path.stat().st_size > _MAX_DOCUMENT_BYTES:
+            raise DocumentError(f"{path.name!r} is too large to extract safely (limit: 50 MiB).")
         if kind == "pdf":
             result = _extract_pdf(path)
+        elif kind in _IMAGE_FORMATS:
+            result = _extract_image(path)
         elif kind == "docx":
             result = _extract_docx(path)
         elif kind == "xlsx":
@@ -55,7 +66,7 @@ def extract(path: Path, kind: str) -> str:
             result = _extract_pptx(path)
         else:
             result = _extract_odt(path)
-    except (OSError, ValueError, KeyError, TypeError) as failure:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as failure:
         raise DocumentError(f"Could not read {path.name!r} as {kind}: {failure}") from failure
     return _truncate(result)
 
@@ -79,9 +90,46 @@ def create(path: Path, kind: str, content: str, title: str = "") -> None:
 
 
 def _extract_pdf(path: Path) -> str:
+    """Read native PDF text, OCRing only pages whose text layer is empty."""
     reader = PdfReader(str(path))
-    pages = [f"## Page {number}\n{page.extract_text() or ''}" for number, page in enumerate(reader.pages, 1)]
-    return "\n\n".join(pages) or "[PDF contains no extractable text]"
+    parts: list[str] = []
+    for number, page in enumerate(reader.pages, 1):
+        native = (page.extract_text() or "").strip()
+        # OCR is deliberately a fallback: native PDF text is more accurate and
+        # avoids needless rasterization of ordinary, digitally-created files.
+        if len(native) < 20 and number <= _MAX_OCR_PAGES:
+            ocr = _ocr_pdf_page(path, number)
+            if ocr:
+                native = f"[OCR]\n{ocr}"
+        parts.append(f"## Page {number}\n{native}")
+    if len(reader.pages) > _MAX_OCR_PAGES:
+        parts.append(f"[OCR limited to the first {_MAX_OCR_PAGES} scanned pages]")
+    return "\n\n".join(parts) or "[PDF contains no extractable text]"
+
+
+def _extract_image(path: Path) -> str:
+    """OCR a supported raster image without treating its embedded text as instructions."""
+    with Image.open(path) as image:
+        image.load()
+        # Avoid pathological image dimensions consuming the agent's task budget.
+        if image.width * image.height > 40_000_000:
+            raise DocumentError("Image has more than 40 million pixels.")
+        text = pytesseract.image_to_string(image).strip()
+    return text or "[Image contains no text recognized by OCR]"
+
+
+def _ocr_pdf_page(path: Path, page_number: int) -> str:
+    """Rasterize one scan page at readable resolution, then feed it to Tesseract."""
+    with tempfile.TemporaryDirectory(prefix="agent-ocr-") as directory:
+        rendered = Path(directory) / "page"
+        subprocess.run(
+            ["pdftoppm", "-f", str(page_number), "-l", str(page_number), "-r", "200", "-png", "-singlefile", str(path), str(rendered)],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=45,
+        )
+        image_path = rendered.with_suffix(".png")
+        if not image_path.is_file():
+            return ""
+        return _extract_image(image_path)
 
 
 def _extract_docx(path: Path) -> str:

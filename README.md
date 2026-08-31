@@ -31,7 +31,9 @@ orchestrator checks; it is not what a round is for.
 ## How it works
 
 The MCP server publishes file and command tools together with their JSON
-schemas. Those schemas become OpenAI Responses API function definitions, so
+schemas. `extract_document` also reads raster evidence: PNG/JPEG/TIFF/WebP images
+and textless PDF pages are OCRed locally, while ordinary PDF text layers retain
+their native extraction. Those schemas become OpenAI Responses API function definitions, so
 there is only one tool registry. The model can inspect and edit its workspace,
 run bounded commands, observe their results, and repeat until it returns a
 final response. Two further trees sit beside the workspace when a run is given
