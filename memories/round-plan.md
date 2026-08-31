@@ -1,3 +1,3 @@
-Gap: `fetch_url` can inspect a URL already known, but cannot discover relevant sources for an unfamiliar research question.
-Change: publish a bounded `search_web` tool that queries DuckDuckGo HTML and returns clean result titles, direct URLs, and snippets.
-Evidence: the ledger covers document extraction only; current network retrieval closes direct access but hard research tasks still need source discovery before fetching.
+Gap: Existing image OCR cannot read a scanned PDF, because PDF extraction returns only embedded text.
+Change: OCR PDF pages with no extractable text by rasterizing them locally through Poppler and passing the validated renders to Tesseract under a total budget.
+Evidence: Image OCR was already implemented (so the prior plan was stale); scanned PDFs remain a common supplied-artifact workflow that this extractor cannot complete.

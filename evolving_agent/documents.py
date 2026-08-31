@@ -8,6 +8,8 @@ libraries.  This module only reads a caller-provided, already-contained path.
 from __future__ import annotations
 
 import re
+import subprocess
+import tempfile
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -16,6 +18,9 @@ from xml.etree import ElementTree as ET
 _MAX_FILE_BYTES = 100 * 1024 * 1024
 _MAX_ARCHIVE_MEMBERS = 2_000
 _MAX_MEMBER_BYTES = 30 * 1024 * 1024
+_OCR_TIMEOUT_SECONDS = 45
+_PDF_RENDER_TIMEOUT_SECONDS = 30
+_MAX_PDF_OCR_PAGES = 10
 
 
 class DocumentError(Exception):
@@ -153,10 +158,41 @@ def _pdf(path: Path, max_pages: int) -> str:
         raise DocumentError("PDF support is unavailable because pypdf is not installed.") from error
     try:
         reader = PdfReader(path)
-        pages = [f"## Page {number}\n{page.extract_text() or '[No extractable text]'}" for number, page in enumerate(reader.pages[:max_pages], 1)]
+        extracted = [(number, page.extract_text() or "") for number, page in enumerate(reader.pages[:max_pages], 1)]
     except Exception as error:
         raise DocumentError(f"Could not read PDF: {error}") from error
-    return "\n\n".join(pages) or "[The PDF has no pages.]"
+
+    output = []
+    ocr_remaining = _MAX_PDF_OCR_PAGES
+    for number, text in extracted:
+        if not text.strip() and ocr_remaining:
+            text = _ocr_pdf_page(path, number)
+            ocr_remaining -= 1
+        elif not text.strip():
+            text = "[No extractable text; OCR page limit reached.]"
+        output.append(f"## Page {number}\n{text.strip() or '[No readable text was found on this page.]'}")
+    return "\n\n".join(output) or "[The PDF has no pages.]"
+
+
+def _ocr_pdf_page(path: Path, page_number: int) -> str:
+    """Rasterize one known PDF page in a private directory, then OCR it."""
+    with tempfile.TemporaryDirectory(prefix="agent-pdf-ocr-") as directory:
+        prefix = Path(directory) / "page"
+        try:
+            rendered = subprocess.run(
+                ["pdftoppm", "-f", str(page_number), "-l", str(page_number), "-r", "200", "-png", "-singlefile", str(path), str(prefix)],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                text=True, encoding="utf-8", errors="replace", timeout=_PDF_RENDER_TIMEOUT_SECONDS, check=False,
+            )
+        except FileNotFoundError as error:
+            raise DocumentError("Scanned-PDF OCR is unavailable because Poppler is not installed.") from error
+        except subprocess.TimeoutExpired as error:
+            raise DocumentError(f"PDF rendering exceeded the {_PDF_RENDER_TIMEOUT_SECONDS}-second limit.") from error
+        image = prefix.with_suffix(".png")
+        if rendered.returncode or not image.is_file():
+            detail = rendered.stderr.strip() or f"exit status {rendered.returncode}"
+            raise DocumentError(f"Could not render PDF page for OCR: {detail}")
+        return _ocr_image(image)
 
 
 def _image(path: Path) -> str:
@@ -169,9 +205,32 @@ def _image(path: Path) -> str:
             details = [f"format: {image.format}", f"dimensions: {image.width} x {image.height}", f"mode: {image.mode}", f"frames: {getattr(image, 'n_frames', 1)}"]
             if image.info.get("dpi"):
                 details.append(f"dpi: {image.info['dpi']}")
-            return "\n".join(details)
     except Exception as error:
         raise DocumentError(f"Could not read image: {error}") from error
+
+    details.append("OCR text:")
+    text = _ocr_image(path)
+    details.append(text or "[No readable text was found in this image.]")
+    return "\n".join(details)
+
+
+def _ocr_image(path: Path) -> str:
+    """Recognize a validated raster image with the image-packaged engine."""
+    try:
+        completed = subprocess.run(
+            ["tesseract", str(path), "stdout", "--psm", "3"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace", timeout=_OCR_TIMEOUT_SECONDS, check=False,
+        )
+    except FileNotFoundError as error:
+        raise DocumentError("Image OCR is unavailable because Tesseract is not installed.") from error
+    except subprocess.TimeoutExpired as error:
+        raise DocumentError(f"Image OCR exceeded the {_OCR_TIMEOUT_SECONDS}-second limit.") from error
+    text = completed.stdout.strip()
+    if completed.returncode and not text:
+        detail = completed.stderr.strip() or f"exit status {completed.returncode}"
+        raise DocumentError(f"Could not OCR image: {detail}")
+    return text
 
 
 def _bounded(text: str, maximum: int) -> str:

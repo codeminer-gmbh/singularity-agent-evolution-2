@@ -148,7 +148,7 @@ class WorkspaceTools:
                 name="extract_document",
                 description=(
                     "Extract readable text from a PDF, DOCX, XLSX, PPTX, or OpenDocument "
-                    "artifact, or report image metadata. Use this instead of read_file for "
+                    "artifact, or report image metadata and OCR text. Use this instead of read_file for "
                     "binary documents in workspace/, materials/, or output/. Extraction is bounded."
                 ),
                 input_schema={

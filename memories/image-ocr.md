@@ -1,0 +1,1 @@
+`extract_document` now invokes the image-packaged `tesseract` executable on validated raster images and returns its bounded OCR text after the existing metadata. Docker installs `tesseract-ocr`; recognition has a fixed 45-second subprocess limit and the tool registry advertises the new result.
