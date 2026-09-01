@@ -1,3 +1,3 @@
-Gap: Apple Mail EMLX evidence can include a plist trailer that a generic RFC email parser wrongly treats as message content.
-Change: honor EMLX's leading byte-count record and parse only the declared RFC 5322 payload.
-Priority: this closes a correctness gap for a common mail-export format, beyond existing generic documents and archives.
+Gap: The old audit favors any named capability and an unclosed memory, so it can repeat speculative tool work rather than improve task outcomes.
+Change: Make the prompt require ledger-informed expected-score ranking, an evidence-bearing audit, and a distinct mechanism after unrewarded attempts.
+Why: Ledger cycles 35 and 32 show promoted attachment work largely tied on objective checks, while its audits flag inaccurate notes; promotion and memory alone are weak selection evidence.
