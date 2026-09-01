@@ -1,3 +1,3 @@
-Gap: The old audit favors any named capability and an unclosed memory, so it can repeat speculative tool work rather than improve task outcomes.
-Change: Make the prompt require ledger-informed expected-score ranking, an evidence-bearing audit, and a distinct mechanism after unrewarded attempts.
-Why: Ledger cycles 35 and 32 show promoted attachment work largely tied on objective checks, while its audits flag inaccurate notes; promotion and memory alone are weak selection evidence.
+Limitation: The agent can fetch a known public URL but cannot discover relevant sources when a hard research task supplies only a question or topic.
+Change: Add a bounded `search_web` tool that queries DuckDuckGo HTML and returns normalized title, URL, and snippet results, then expose it through the shared registry and prompts.
+Evidence: The ledger lists public-web retrieval but no discovery/search mechanism among inherited or recent attempts; recent attachment-inspection additions mostly tied, so source discovery is a distinct, broad complementary gap.
