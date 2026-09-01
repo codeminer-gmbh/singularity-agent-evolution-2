@@ -1,3 +1,3 @@
-Gap: the agent cannot safely inspect large or quoted CSV/TSV datasets as records; read_file only exposes raw bounded text.
-Change: add a streaming delimited-data inspector with dialect detection, header/schema inference, and bounded row previews.
-Why: tabular task materials are common and this closes a separate input-format gap not covered by existing document, database, Parquet, OCR, or vector-geodata tools.
+Gap: The agent can extract XLSX text but cannot read OpenDocument spreadsheets (.ods), a common office-workbook format a hard task may supply.
+Change: Extend bounded document extraction with safe ODS table parsing and expose .ods in the existing read_document capability.
+Why: Recent lineage already closed archive, OCR, delimited, Parquet, and vector-data gaps; ODS is a distinct, widely used structured input format absent from the supported extractor.

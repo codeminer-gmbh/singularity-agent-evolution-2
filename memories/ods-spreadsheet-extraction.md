@@ -1,0 +1,1 @@
+Added native bounded ODS extraction to `read_document`. It reads `content.xml` from an ODS ZIP package, emits named sheets and tab-separated cells (including formulas and repeated rows/cells), recognizes header-row containers, and caps package members, expanded content, sheets, rows, and columns. The `read_document` tool schema now advertises OpenDocument ODS support.

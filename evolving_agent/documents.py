@@ -29,6 +29,8 @@ MAX_ROWS_PER_SHEET = 5_000
 MAX_COLUMNS_PER_SHEET = 100
 MAX_TEXT_CHARACTERS = 120_000
 MAX_EBOOK_MEMBERS = 10_000
+MAX_ODS_MEMBERS = 10_000
+MAX_ODS_CONTENT_BYTES = 128 * 1024 * 1024
 MAX_EBOOK_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 MAX_EBOOK_CHAPTERS = 1_000
 MAX_EBOOK_CHAPTER_BYTES = 8 * 1024 * 1024
@@ -44,7 +46,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, PPTX, or EPUB document.
+    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, or EPUB document.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -65,6 +67,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".pdf": _pdf_text,
         ".docx": _docx_text,
         ".xlsx": _xlsx_text,
+        ".ods": _ods_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
     }
@@ -72,7 +75,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), and EPUB (.epub)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), and EPUB (.epub)."
         )
     try:
         text = extractor(path)
@@ -214,6 +217,97 @@ def _xlsx_text(path: Path) -> str:
         return "\n".join(chunks)
     finally:
         workbook.close()
+
+
+_ODS_OFFICE = "{urn:oasis:names:tc:opendocument:xmlns:office:1.0}"
+_ODS_TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
+_ODS_TEXT = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+
+
+def _ods_text(path: Path) -> str:
+    """Extract displayed cells from an OpenDocument spreadsheet without expanding it unchecked."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ODS_MEMBERS:
+                raise DocumentError(f"OpenDocument spreadsheet has {len(infos)} package members; limit is {MAX_ODS_MEMBERS}.")
+            content = next((info for info in infos if info.filename == "content.xml"), None)
+            if content is None:
+                raise DocumentError("OpenDocument spreadsheet has no content.xml member.")
+            if content.file_size > MAX_ODS_CONTENT_BYTES:
+                raise DocumentError(f"OpenDocument spreadsheet content expands to {content.file_size} bytes; limit is {MAX_ODS_CONTENT_BYTES}.")
+            xml = archive.read(content)
+    except DocumentError:
+        raise
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
+        raise DocumentError(f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}") from error
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as error:
+        raise DocumentError(f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}") from error
+
+    chunks: list[str] = []
+    tables = root.findall(f".//{_ODS_TABLE}table")
+    if len(tables) > MAX_SHEETS:
+        raise DocumentError(f"OpenDocument spreadsheet has {len(tables)} sheets; limit is {MAX_SHEETS}.")
+    for table in tables:
+        name = table.get(f"{_ODS_TABLE}name", "Untitled")
+        chunks.append(f"--- Sheet: {name} ---")
+        row_count = 0
+        rows = table.findall(f".//{_ODS_TABLE}table-row")
+        for row_index, row in enumerate(rows):
+            repeat_rows = _ods_repeat(row, "number-rows-repeated")
+            available = MAX_ROWS_PER_SHEET - row_count
+            emitted = min(repeat_rows, available)
+            for _ in range(emitted):
+                row_count += 1
+                values = _ods_row_values(row)
+                if values:
+                    chunks.append("\t".join(values))
+            if emitted < repeat_rows or row_index + 1 < len(rows) and row_count >= MAX_ROWS_PER_SHEET:
+                chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
+                break
+    return "\n".join(chunks)
+
+
+def _ods_repeat(element: ET.Element, name: str) -> int:
+    """Read an ODS repetition count, treating invalid counts as one cell or row."""
+    value = element.get(f"{_ODS_TABLE}{name}", "1")
+    try:
+        return max(1, int(value))
+    except ValueError:
+        return 1
+
+
+def _ods_row_values(row: ET.Element) -> list[str]:
+    values: list[str] = []
+    cells = list(row)
+    for cell in cells:
+        if cell.tag not in {f"{_ODS_TABLE}table-cell", f"{_ODS_TABLE}covered-table-cell"}:
+            continue
+        repeat = _ods_repeat(cell, "number-columns-repeated")
+        text = "".join(cell.itertext()).strip()
+        if not text:
+            text = _ods_cell_value(cell)
+        available = MAX_COLUMNS_PER_SHEET - len(values)
+        if available <= 0:
+            break
+        values.extend([text] * min(repeat, available))
+    while values and not values[-1]:
+        values.pop()
+    return values
+
+
+def _ods_cell_value(cell: ET.Element) -> str:
+    # Keep formulas visible just as the XLSX reader does (data_only=False).
+    formula = cell.get(f"{_ODS_TABLE}formula")
+    if formula:
+        return formula
+    for attribute in ("string-value", "date-value", "time-value", "boolean-value", "value"):
+        value = cell.get(f"{_ODS_OFFICE}{attribute}")
+        if value is not None:
+            return value
+    return ""
 
 
 def _pptx_text(path: Path) -> str:
