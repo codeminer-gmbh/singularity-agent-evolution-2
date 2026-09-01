@@ -25,6 +25,7 @@ from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
+from evolving_agent.web import WebError, fetch_url
 
 _MAX_LISTING_CHARACTERS = 8_000
 
@@ -148,6 +149,23 @@ class WorkspaceTools:
                         }
                     },
                     "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="fetch_url",
+                description=(
+                    "Retrieve a remote HTTP or HTTPS page, text, or JSON response as bounded "
+                    "evidence. Follows at most five redirects, does not execute JavaScript, "
+                    "and returns URL, status, content type, and body text."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Absolute HTTP or HTTPS URL to retrieve."},
+                        "max_characters": {"type": "integer", "description": "Body preview characters, 1 to 20000 (default 12000)."},
+                        "timeout_seconds": {"type": "integer", "description": "Request timeout in seconds, 1 to 45 (default 20)."},
+                    },
+                    "required": ["url"],
                 },
             ),
             ToolDefinition(
@@ -352,6 +370,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "fetch_url": self._fetch_url,
             "inspect_spreadsheet": self._inspect_spreadsheet,
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
@@ -449,6 +468,22 @@ class WorkspaceTools:
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
+
+    def _fetch_url(self, arguments: Mapping[str, Any]) -> str:
+        """Retrieve bounded remote web evidence without executing it."""
+        maximum = _bounded_integer(
+            arguments, "max_characters", default=12_000, minimum=1, maximum=20_000
+        )
+        timeout = _bounded_integer(
+            arguments, "timeout_seconds", default=20, minimum=1, maximum=45
+        )
+        try:
+            return fetch_url(
+                _text_argument(arguments, "url"), max_characters=maximum,
+                timeout_seconds=timeout,
+            )
+        except WebError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_spreadsheet(self, arguments: Mapping[str, Any]) -> str:
         """Inspect a bounded spreadsheet preview from any readable tree."""
