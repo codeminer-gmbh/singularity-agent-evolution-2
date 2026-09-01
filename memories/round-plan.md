@@ -1,3 +1,3 @@
-Cannot inspect audio/video evidence: captions, stream properties, and text in recorded slides are opaque to the agent.
-Add a bounded FFmpeg/FFprobe media-inspection tool with subtitle extraction and optional frame OCR.
-This closes an unaddressed attachment class; existing notes already cover archives, documents, databases, Parquet, and tabular data.
+Gap: Apple Mail EMLX evidence can include a plist trailer that a generic RFC email parser wrongly treats as message content.
+Change: honor EMLX's leading byte-count record and parse only the declared RFC 5322 payload.
+Priority: this closes a correctness gap for a common mail-export format, beyond existing generic documents and archives.

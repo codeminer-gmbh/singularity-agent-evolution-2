@@ -1,0 +1,1 @@
+`evolving_agent/email.py` now honors Apple Mail EMLX's leading decimal byte count before RFC parsing. It strips the count line and bounds parsing to the declared message bytes, so an appended plist metadata trailer cannot contaminate extracted body evidence. Invalid or truncated count prefixes safely leave the parser with the available payload.

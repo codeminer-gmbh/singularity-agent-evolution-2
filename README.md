@@ -44,7 +44,11 @@ a probe is told which files it was given and where to put what it delivers.
 `inspect_media` reads common audio/video attachment metadata and embedded subtitle tracks; it can OCR one video frame at a requested timestamp.
 
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
-XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
+XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR.
+
+`inspect_email` reads EML/EMLX and Outlook MSG messages, returning decoded headers, readable body text, and attachment metadata; a named or indexed text attachment can be previewed without extraction.
+
+This lets a
 probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file
 inspection results.
@@ -132,6 +136,7 @@ evolving_agent/settings.py.
 | `evolving_agent/mcp_server.py` | MCP workspace tools                          |
 | `evolving_agent/tools.py`      | Shared tool registry and handlers            |
 | `evolving_agent/documents.py`  | Bounded attachment text/OCR extraction       |
+| `evolving_agent/email.py`      | Bounded EML/MSG evidence inspection          |
 | `evolving_agent/media.py`      | Bounded audio/video metadata, captions, frame OCR |
 | `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
 | `evolving_agent/parquet.py`    | Read-only bounded Parquet evidence inspection |

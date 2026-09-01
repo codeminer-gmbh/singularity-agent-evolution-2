@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
+from evolving_agent.email import EmailError, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.media import MediaError, inspect_media
@@ -167,6 +168,22 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_email",
+                description=(
+                    "Inspect an EML/EMLX or Outlook MSG email evidence attachment without modifying it. "
+                    "Returns headers, readable body, and attachment metadata; set attachment to an "
+                    "index or exact filename to preview one text attachment."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Email path in the workspace or materials/."},
+                        "attachment": {"type": "string", "description": "Optional attachment index or exact filename to preview."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_database",
                 description=(
                     "Inspect a SQLite database attachment without modifying it. Returns table/view schema, "
@@ -300,6 +317,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
             "inspect_document": self._inspect_document,
+            "inspect_email": self._inspect_email,
             "inspect_media": self._inspect_media,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
@@ -316,7 +334,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, MediaError, DatabaseError, ParquetError, TabularError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, MediaError, EmailError, DatabaseError, ParquetError, TabularError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -374,6 +392,14 @@ class WorkspaceTools:
             return result.exit_code, result.stdout, result.stderr
 
         return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
+
+    def _inspect_email(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect a read-only RFC 5322 or Outlook email attachment."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        attachment = arguments.get("attachment")
+        if attachment is not None and not isinstance(attachment, str):
+            raise ToolFailureError("'attachment' must be a string when supplied.")
+        return inspect_email(tree.resolve(relative), attachment)
 
     def _inspect_media(self, arguments: Mapping[str, Any]) -> str:
         """Inspect media streams, captions, and optionally one video frame."""

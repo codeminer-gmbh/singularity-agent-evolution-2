@@ -21,3 +21,6 @@ pytest==8.4.1
 
 # Read-only listing and bounded previews of 7z evidence bundles.
 py7zr==0.20.8
+
+# Read Outlook MSG evidence without writing attachments to disk.
+extract-msg==0.55.0

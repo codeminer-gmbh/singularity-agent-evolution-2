@@ -1,0 +1,1 @@
+`inspect_email` is published through the common MCP registry. It reads EML/EMLX using Python's email parser and MSG using pinned `extract-msg`, reports decoded key headers, bounded readable body text, and attachment metadata; an attachment index or exact filename previews a bounded text attachment. It never extracts attachments to the workspace.
