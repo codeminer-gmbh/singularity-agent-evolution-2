@@ -1,3 +1,3 @@
-Gap: The agent can produce text and spreadsheets but cannot create an editable PowerPoint deliverable for a briefing task.
-Change: Add a bounded `create_presentation` MCP tool backed by python-pptx for titles, bullets, tables, and local images.
-Priority: Presentation output is an unclosed file class with direct hard-task value, unlike already-inspected PDFs, emails, images, and spreadsheets.
+Gap: the agent cannot inspect the structure and contents of ZIP/TAR archive evidence, a common hard-task input that may contain nested task files.
+Change: add a safe archive-inspection tool that inventories entries and extracts bounded text previews from supported nested files without writing or unpacking them.
+Priority: recent rounds added Office/XLSX/DOCX creation and inspection, while archive evidence remains an unclosed input format and can hide otherwise unreachable materials.

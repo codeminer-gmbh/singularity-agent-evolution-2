@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
@@ -167,6 +168,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_archive",
+                description=(
+                    "Inspect a ZIP or TAR archive without extracting it. Returns a bounded "
+                    "member inventory and can preview one named text member in place. "
+                    "Use a materials/ path for archive evidence."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Archive path."},
+                        "member": {"type": "string", "description": "Optional exact archive member name to preview."},
+                        "max_entries": {"type": "integer", "description": "Inventory entries, 1 to 500."},
+                        "max_characters": {"type": "integer", "description": "Text preview characters, 1 to 12000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_pdf",
                 description=(
                     "Inspect a PDF's metadata, embedded-file names, and bounded extracted page text without "
@@ -298,6 +317,7 @@ class WorkspaceTools:
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "inspect_spreadsheet": self._inspect_spreadsheet,
+            "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
@@ -405,6 +425,22 @@ class WorkspaceTools:
             return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
         except SpreadsheetError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Return a bounded inventory and optional in-place text preview of an archive."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        member = arguments.get("member")
+        if member is not None and (not isinstance(member, str) or not member):
+            raise ToolFailureError("'member' must be a non-blank string when supplied.")
+        max_entries = _bounded_integer(arguments, "max_entries", default=100, minimum=1, maximum=500)
+        maximum = _bounded_integer(arguments, "max_characters", default=8_000, minimum=1, maximum=12_000)
+        try:
+            return inspect_archive(
+                tree.resolve(relative), member=member, max_entries=max_entries,
+                max_characters=maximum,
+            )
+        except ArchiveError as refused:
+            raise ToolFailureError(str(refused)) from refused
 
     def _inspect_image(self, arguments: Mapping[str, Any]) -> str:
         """Return bounded metadata and optional OCR from a local image."""

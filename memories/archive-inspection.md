@@ -1,0 +1,1 @@
+`inspect_archive` now inventories ZIP and TAR-family evidence and previews an exact regular member in place, without extraction. It is bounded to 500 entries and a 12,000-character preview; encrypted ZIP members, directories, traversal-style requested member names, and unsupported files are refused.
