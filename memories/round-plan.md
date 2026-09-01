@@ -1,3 +1,3 @@
-Bottleneck: probes with Word or PowerPoint evidence have no dedicated safe reader, while PDFs, spreadsheets, images, email, and archives are inspectable.
-Change: add a bounded DOCX/PPTX inspector that extracts text and inventories media without opening active content, and expose it through the shared tool registry.
-Evidence: ledger records repeated use and acceptance of format-specific evidence readers; no predecessor capability or tool-call route covers Office document evidence, so this closes a distinct hard-task path rather than duplicating a reader.
+Bottleneck: probes can inspect DOCX/PPTX evidence but cannot leave a requested editable Word report in `output/`; `write_file` only produces text.
+Change: publish a bounded `create_docx` tool that turns ordered headings, paragraphs, lists, page breaks, and tables into an atomic `.docx` deliverable.
+Evidence: the supplied ledger's tool inventory lists no document-creation path and recent inspector additions were not mentioned by verdicts; creating an actual collected artifact closes the missing output workflow rather than adding another reader.

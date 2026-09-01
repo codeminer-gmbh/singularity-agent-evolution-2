@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.archives import ArchiveError, extract_archive, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
+from evolving_agent.docx_writer import DocxWriterError, create_docx
 from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.office_documents import OfficeDocumentError, inspect_office_document
 from evolving_agent.pdfs import PdfError, inspect_pdf
@@ -270,6 +271,37 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_docx",
+                description=(
+                    "Create a valid DOCX deliverable at an output/ path from ordered structured blocks. "
+                    "Each block has type heading, paragraph, bullet, numbered, page_break, or table. "
+                    "Text blocks need text; headings can set level 1-9; tables need rows, a rectangular array of non-blank strings."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "DOCX destination under output/, ending in .docx."},
+                        "title": {"type": "string", "description": "Optional document title."},
+                        "blocks": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string", "enum": ["heading", "paragraph", "bullet", "numbered", "page_break", "table"]},
+                                    "text": {"type": "string"},
+                                    "level": {"type": "integer", "minimum": 1, "maximum": 9},
+                                    "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+                                },
+                                "required": ["type"],
+                            },
+                            "description": "Ordered content blocks. Use text for heading/paragraph/bullet/numbered and rows for table.",
+                        },
+                    },
+                    "required": ["path", "blocks"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -325,6 +357,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
+            "create_docx": self._create_docx,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -415,6 +448,26 @@ class WorkspaceTools:
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
+
+    def _create_docx(self, arguments: Mapping[str, Any]) -> str:
+        """Create a Word deliverable only in the collected output tree."""
+        path = _text_argument(arguments, "path")
+        if not path.strip().startswith(OUTPUT_PREFIX):
+            raise ToolFailureError("DOCX deliverables must be written under output/ so the task collector can receive them.")
+        tree, relative = self._located(path, writing=True)
+        title = arguments.get("title")
+        if title is not None and not isinstance(title, str):
+            raise ToolFailureError("'title' must be a string when supplied.")
+        if "blocks" not in arguments:
+            raise ToolFailureError("Missing required argument 'blocks'.")
+        try:
+            report = create_docx(tree.resolve(relative), title=title, blocks=arguments["blocks"])
+        except DocxWriterError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+        return (
+            f"Created DOCX {path} ({report['size_bytes']} bytes; {report['headings']} headings, "
+            f"{report['paragraphs']} paragraphs, {report['tables']} tables)."
+        )
 
     def _inspect_spreadsheet(self, arguments: Mapping[str, Any]) -> str:
         """Inspect a bounded spreadsheet preview from any readable tree."""

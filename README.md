@@ -123,6 +123,7 @@ are pinned in `requirements.txt`; runtime budgets live in
 | `evolving_agent/model.py`      | Responses API client                     |
 | `evolving_agent/workspace.py`  | Contained filesystem operations          |
 | `evolving_agent/office_documents.py` | Safe bounded DOCX/PPTX evidence reader |
+| `evolving_agent/docx_writer.py` | Bounded structured DOCX deliverable creator |
 | `evolving_agent/successor.py`  | Next-iteration validation                |
 
 The MCP server can also run over stdio:
