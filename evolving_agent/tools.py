@@ -22,6 +22,7 @@ from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, create_image, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
+from evolving_agent.pdf_creation import PdfCreationError, create_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.spreadsheet_creation import SpreadsheetCreationError, create_spreadsheet
@@ -254,6 +255,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_pdf",
+                description=(
+                    "Create a static, print-ready PDF in the workspace or output/ from structured blocks. "
+                    "Blocks support headings, paragraphs, bullets, tables, page breaks, and local images; "
+                    "the PDF contains no active content."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .pdf path, usually under output/."},
+                        "title": {"type": "string", "description": "Optional PDF title metadata and first-page title."},
+                        "blocks": {"type": "array", "minItems": 1, "maxItems": 100, "description": "Document blocks in order.", "items": {"type": "object", "properties": {"type": {"type": "string", "enum": ["heading", "paragraph", "bullets", "table", "page_break", "image"]}, "text": {"type": "string"}, "level": {"type": "integer", "description": "Heading level 1 through 6."}, "items": {"type": "array", "items": {"type": "string"}}, "columns": {"type": "array", "items": {"type": "string"}}, "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}, "path": {"type": "string", "description": "Readable local image path."}, "caption": {"type": "string"}}}},
+                    },
+                    "required": ["path", "blocks"],
+                },
+            ),
+            ToolDefinition(
                 name="create_image",
                 description=(
                     "Create a PNG or JPEG visual in the workspace or output/ using a bounded "
@@ -427,6 +445,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
+            "create_pdf": self._create_pdf,
             "create_image": self._create_image,
             "inspect_image": self._inspect_image,
             "create_document": self._create_document,
@@ -626,6 +645,23 @@ class WorkspaceTools:
                 max_characters=max_characters,
             )
         except PdfError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_pdf(self, arguments: Mapping[str, Any]) -> str:
+        """Create a static PDF at a writable contained path."""
+        requested = _text_argument(arguments, "path")
+        destination_tree, relative = self._located(requested, writing=True)
+
+        def locate_image(path: str) -> Path:
+            tree, image_relative = self._located(path)
+            return tree.resolve(image_relative)
+
+        try:
+            return create_pdf(
+                destination_tree.resolve(relative), arguments.get("blocks"),
+                image_path=locate_image, title=arguments.get("title"),
+            )
+        except PdfCreationError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_email(self, arguments: Mapping[str, Any]) -> str:

@@ -29,3 +29,6 @@ python-docx==1.2.0
 
 # Produces editable XLSX workbook deliverables from structured sheet data.
 openpyxl==3.1.5
+
+# Produces static, print-ready PDF deliverables from structured blocks.
+reportlab==4.4.3

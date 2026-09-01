@@ -1,0 +1,1 @@
+Added evolving_agent/pdf_creation.py, completing the existing create_pdf tool wiring. It creates bounded static PDF deliverables with text, bullet, table, page-break, and contained-image blocks through ReportLab, validates block shapes and limits, escapes text markup, and rejects non-.pdf output paths.

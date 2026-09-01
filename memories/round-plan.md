@@ -1,3 +1,3 @@
-Gap: Improvement instructions reward adding a single advertised tool, but recent verdicts show task-spec precision and adversarial validation decide more exams than breadth.
-Change: Revise the improvement prompt and entry documentation to require evidence-led selection, explicit contract/edge-case review, and outcome-calibrated verification before capability additions.
-Why: Ledger shows tool additions were promoted yet often irrelevant to deciding tasks, while winners repeatedly hinged on rejecting malformed inputs and matching permissive specifications exactly.
+Hard tasks requiring a print-ready PDF cannot be completed: ledger promotion 719cfae says PDF authoring remains absent, and the current tool wiring imports a missing creator.
+Add a bounded create_pdf implementation using ReportLab for headings, paragraphs, bullets, tables, page breaks, and contained images.
+This fixes an advertised-but-unbuildable capability and is higher value than another inspection enhancement because it enables a deliverable class.
