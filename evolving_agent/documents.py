@@ -8,11 +8,15 @@ import tempfile
 import xml.etree.ElementTree as element_tree
 import zipfile
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
+
+from PIL import ExifTags, Image, UnidentifiedImageError
 
 MAX_TEXT_CHARACTERS = 24_000
 MAX_EPUB_MEMBER_BYTES = 1_000_000
 MAX_ODF_CONTENT_BYTES = 4_000_000
+MAX_IMAGE_METADATA_FIELDS = 64
+MAX_IMAGE_METADATA_VALUE_CHARACTERS = 500
 """Enough evidence for a model, without one attachment consuming a turn."""
 
 
@@ -87,10 +91,114 @@ def _ocr_pdf(path: Path, page: int, header: str, embedded: str, run: Callable[[l
 
 
 def _image(path: Path, run: Callable[[list[str]], tuple[int | None, str, str]]) -> str:
+    """Read both visible image text and provenance stored in its container."""
+    metadata = _image_metadata(path)
     code, text, error = run(["tesseract", str(path), "stdout", "--psm", "3"])
     if code != 0:
         raise DocumentError(f"Tesseract could not read this image: {_reason(error)}")
-    return f"Image OCR ({path.name})\n---\n{_bounded(text)}"
+    return f"Image evidence ({path.name})\nMetadata:\n{metadata}\n---\nOCR text:\n{_bounded(text)}"
+
+
+def _image_metadata(path: Path) -> str:
+    """Render bounded, human-readable container and EXIF evidence without pixels."""
+    try:
+        with Image.open(path) as image:
+            lines = [
+                f"- Format: {image.format or 'unknown'}",
+                f"- Dimensions: {image.width} x {image.height}",
+                f"- Color mode: {image.mode}",
+            ]
+            exif = image.getexif()
+            lines.extend(_image_provenance(exif))
+            values: list[tuple[str, str]] = []
+            for tag, value in exif.items():
+                # GPS is rendered below as coordinates instead of opaque rationals.
+                if tag == 34853:
+                    continue
+                label = ExifTags.TAGS.get(tag, f"EXIF tag {tag}")
+                values.append((str(label), _metadata_value(value)))
+            for label, value in sorted(values, key=lambda item: item[0])[:MAX_IMAGE_METADATA_FIELDS]:
+                lines.append(f"- EXIF {label}: {value}")
+            if len(values) > MAX_IMAGE_METADATA_FIELDS:
+                lines.append(f"- EXIF: {len(values) - MAX_IMAGE_METADATA_FIELDS} additional field(s) omitted")
+            lines.extend(_gps_metadata(exif))
+    except (OSError, SyntaxError, UnidentifiedImageError) as error:
+        raise DocumentError(f"Could not read image metadata: {error}") from error
+    return "\n".join(lines)
+
+
+def _image_provenance(exif: Any) -> list[str]:
+    """Render common EXIF facts in terms useful to an evidence reader."""
+    lines: list[str] = []
+    orientation = exif.get(274)
+    orientation_labels = {
+        1: "normal", 2: "mirrored horizontally", 3: "rotated 180 degrees",
+        4: "mirrored vertically", 5: "mirrored horizontally, rotated 270 degrees",
+        6: "rotated 90 degrees clockwise", 7: "mirrored horizontally, rotated 90 degrees",
+        8: "rotated 270 degrees clockwise",
+    }
+    if orientation is not None:
+        lines.append(f"- Display orientation: {orientation_labels.get(orientation, _metadata_value(orientation))}")
+    # DateTimeOriginal is the camera's capture time; its label makes it less
+    # likely that a reader mistakes an edit/export timestamp for capture time.
+    captured = exif.get(36867)
+    if captured is not None:
+        lines.append(f"- Capture time (EXIF, timezone may be absent): {_metadata_value(captured)}")
+    return lines
+
+
+def _gps_metadata(exif: Any) -> list[str]:
+    """Return decimal GPS evidence when an EXIF GPS IFD is present."""
+    try:
+        gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        gps = {}
+    if not gps:
+        return []
+    lines: list[str] = []
+    latitude = _gps_coordinate(gps.get(2), gps.get(1))
+    longitude = _gps_coordinate(gps.get(4), gps.get(3))
+    if latitude is not None and longitude is not None:
+        lines.append(f"- GPS coordinates: {latitude:.6f}, {longitude:.6f}")
+    for tag, value in sorted(gps.items()):
+        if tag in {1, 2, 3, 4}:
+            continue
+        label = ExifTags.GPSTAGS.get(tag, f"GPS tag {tag}")
+        lines.append(f"- EXIF GPS {label}: {_metadata_value(value)}")
+    return lines[:MAX_IMAGE_METADATA_FIELDS]
+
+
+def _gps_coordinate(value: Any, reference: Any) -> float | None:
+    try:
+        degrees, minutes, seconds = value
+        coordinate = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
+        if str(reference).upper() in {"S", "W"}:
+            coordinate = -coordinate
+        return coordinate
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _metadata_value(value: Any, depth: int = 0) -> str:
+    """Avoid unbounded binary, nested, or control-character metadata output."""
+    if depth >= 3:
+        return "…"
+    if isinstance(value, bytes):
+        return f"<{len(value)} bytes>"
+    if isinstance(value, (tuple, list)):
+        rendered = [_metadata_value(item, depth + 1) for item in value[:16]]
+        if len(value) > 16:
+            rendered.append("…")
+        return "[" + ", ".join(rendered) + "]"
+    if isinstance(value, dict):
+        rendered = [f"{key}: {_metadata_value(item, depth + 1)}" for key, item in list(value.items())[:16]]
+        if len(value) > 16:
+            rendered.append("…")
+        return "{" + ", ".join(rendered) + "}"
+    text = str(value).replace("\x00", " ").replace("\r", " ").replace("\n", " ")
+    if len(text) > MAX_IMAGE_METADATA_VALUE_CHARACTERS:
+        return text[:MAX_IMAGE_METADATA_VALUE_CHARACTERS] + "… [truncated]"
+    return text
 
 
 def _ooxml(path: Path, suffix: str) -> str:

@@ -1,3 +1,3 @@
-Gap: the agent cannot read spoken evidence in audio/video recordings, a likely hard-task input class.
-Change: add a bounded OpenAI audio-transcription tool that returns timestamped transcript text from supported local media.
-Choice: predecessors already closed document, archive, mail, database, tabular, and EPUB gaps; speech remains wholly inaccessible and transcription gives direct task evidence.
+Gap: `inspect_document` can OCR an image but cannot reliably report image dimensions, orientation, capture time, or GPS provenance that a hard evidence task may need.
+Change: extend bounded image inspection to emit normalized image properties and readable EXIF/GPS fields alongside OCR text.
+Priority: this closes the unaddressed visual-evidence provenance gap; existing attachment inspectors already cover documents, mail, archives, databases, tabular data, media, and web pages.

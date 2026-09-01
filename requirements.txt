@@ -23,3 +23,6 @@ py7zr==0.21.0
 
 # Parse Outlook .msg evidence directly in memory, including native headers and attachments.
 extract-msg==0.55.0
+
+# Read image dimensions and EXIF/GPS evidence without decoding full pixel data.
+Pillow==10.4.0

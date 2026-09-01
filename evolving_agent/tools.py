@@ -139,8 +139,8 @@ class WorkspaceTools:
                 name="inspect_document",
                 description=(
                     "Extract readable evidence from one PDF page, image, DOCX/PPTX/XLSX, ODT/ODS/ODP, or EPUB chapter "
-                    "attachment. PDF embedded text is extracted directly and scanned pages "
-                    "are OCRed; set page to inspect another PDF page. Results are bounded."
+                    "attachment. Images include dimensions and bounded EXIF/GPS provenance plus OCR; "
+                    "PDF embedded text is extracted directly and scanned pages are OCRed; set page to inspect another PDF page. Results are bounded."
                 ),
                 input_schema={
                     "type": "object",

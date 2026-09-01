@@ -1,0 +1,1 @@
+`inspect_document` now reports basic image properties and bounded EXIF provenance, including normalized GPS coordinates when present, before its OCR preview. This supports evidence tasks where image capture context matters as much as visible text.
