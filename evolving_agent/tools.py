@@ -13,12 +13,14 @@ unhandled exception ends the run.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
+from evolving_agent.presentations import PresentationError, create_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -218,6 +220,35 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_presentation",
+                description=(
+                    "Create an editable PPTX presentation in the workspace or output/ from "
+                    "structured slides. Each slide may have title, bullets, a table with "
+                    "columns and rows, and/or an image path from the readable workspace or "
+                    "materials/. This creates a file; it does not render or execute content."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .pptx path, usually under output/."},
+                        "slides": {
+                            "type": "array", "minItems": 1, "maxItems": 30,
+                            "description": "Slide objects with optional title, bullets, image, and table.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "bullets": {"type": "array", "items": {"type": "string"}},
+                                    "image": {"type": "string", "description": "Readable image path, e.g. materials/chart.png."},
+                                    "table": {"type": "object", "properties": {"columns": {"type": "array", "items": {"type": "string"}}, "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}}},
+                                },
+                            },
+                        },
+                    },
+                    "required": ["path", "slides"],
+                },
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -270,6 +301,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
+            "create_presentation": self._create_presentation,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -419,6 +451,23 @@ class WorkspaceTools:
             )
         except EmailError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_presentation(self, arguments: Mapping[str, Any]) -> str:
+        """Create an editable slide deck at a writable contained path."""
+        requested = _text_argument(arguments, "path")
+        destination_tree, relative = self._located(requested, writing=True)
+
+        def locate_image(path: str) -> Path:
+            tree, image_relative = self._located(path)
+            return tree.resolve(image_relative)
+
+        try:
+            result = create_presentation(
+                destination_tree.resolve(relative), arguments.get("slides"), image_path=locate_image
+            )
+        except PresentationError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+        return result
 
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.

@@ -1,3 +1,3 @@
-Gap: the agent cannot inspect image evidence or extract text from screenshots, receipts, and scanned attachments that hard tasks may provide.
-Change: add a bounded image-inspection tool with metadata, EXIF, and local OCR, exposed through the shared tool registry.
-Priority: document, spreadsheet, and email inputs are already covered; image/OCR evidence is an unclosed high-value input class.
+Gap: The agent can produce text and spreadsheets but cannot create an editable PowerPoint deliverable for a briefing task.
+Change: Add a bounded `create_presentation` MCP tool backed by python-pptx for titles, bullets, tables, and local images.
+Priority: Presentation output is an unclosed file class with direct hard-task value, unlike already-inspected PDFs, emails, images, and spreadsheets.

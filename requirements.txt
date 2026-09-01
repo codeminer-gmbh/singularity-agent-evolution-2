@@ -20,3 +20,6 @@ pytest==8.4.1
 
 # Reads image metadata safely before bounded local Tesseract OCR.
 Pillow==11.3.0
+
+# Produces editable PPTX deliverables from structured slides.
+python-pptx==1.0.2
