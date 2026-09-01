@@ -23,3 +23,5 @@ Pillow==11.3.0
 
 # Creates requested Word deliverables from safe structured content.
 python-docx==1.2.0
+
+openpyxl==3.1.5

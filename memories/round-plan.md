@@ -1,3 +1,3 @@
-Bottleneck: probes can inspect DOCX/PPTX evidence but cannot leave a requested editable Word report in `output/`; `write_file` only produces text.
-Change: publish a bounded `create_docx` tool that turns ordered headings, paragraphs, lists, page breaks, and tables into an atomic `.docx` deliverable.
-Evidence: the supplied ledger's tool inventory lists no document-creation path and recent inspector additions were not mentioned by verdicts; creating an actual collected artifact closes the missing output workflow rather than adding another reader.
+Bottleneck: spreadsheet-deliverable tasks could create an XLSX but the agent's own inspector crashed on normal relationship paths and inline strings, so it could not verify the required output.
+Change: repair XLSX worksheet relationship resolution and inline-string parsing in the existing inspector, enabling create_xlsx → inspect_spreadsheet verification.
+Evidence: objective local end-to-end probe reproduced `xl/xl/worksheets/sheet1.xml` followed by an inline-string TypeError; ledger’s accepted spreadsheet-deliverable capability makes verification of this path higher leverage than another unrelated reader.

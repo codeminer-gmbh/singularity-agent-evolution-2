@@ -23,6 +23,7 @@ from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.office_documents import OfficeDocumentError, inspect_office_document
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
+from evolving_agent.xlsx_writer import XlsxWriterError, create_xlsx
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -302,6 +303,28 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_xlsx",
+                description=(
+                    "Create a valid XLSX spreadsheet deliverable at an output/ path. Each sheet has a name "
+                    "and non-empty rows of string, number, boolean, or null cells; strings beginning '=' are "
+                    "stored as formulas (not calculated). Sheets can optionally freeze at a cell and set column widths."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "XLSX destination under output/, ending in .xlsx."},
+                        "sheets": {"type": "array", "minItems": 1, "maxItems": 25, "items": {
+                            "type": "object", "properties": {
+                                "name": {"type": "string", "description": "Excel sheet name, at most 31 characters."},
+                                "rows": {"type": "array", "minItems": 1, "items": {"type": "array", "maxItems": 100, "items": {"type": ["string", "number", "boolean", "null"]}}},
+                                "freeze_panes": {"type": "string", "description": "Optional freeze cell such as A2."},
+                                "column_widths": {"type": "object", "additionalProperties": {"type": "number"}, "description": "Optional mapping of column letters to widths."}
+                            }, "required": ["name", "rows"]
+                        }}
+                    }, "required": ["path", "sheets"]
+                }
+            ),
+            ToolDefinition(
                 name="run_command",
                 description=(
                     "Run one command in the workspace and return its exit "
@@ -358,6 +381,7 @@ class WorkspaceTools:
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
             "create_docx": self._create_docx,
+            "create_xlsx": self._create_xlsx,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -468,6 +492,20 @@ class WorkspaceTools:
             f"Created DOCX {path} ({report['size_bytes']} bytes; {report['headings']} headings, "
             f"{report['paragraphs']} paragraphs, {report['tables']} tables)."
         )
+
+    def _create_xlsx(self, arguments: Mapping[str, Any]) -> str:
+        """Create a spreadsheet deliverable only in the collected output tree."""
+        path = _text_argument(arguments, "path")
+        if not path.strip().startswith(OUTPUT_PREFIX):
+            raise ToolFailureError("XLSX deliverables must be written under output/ so the task collector can receive them.")
+        tree, relative = self._located(path, writing=True)
+        if "sheets" not in arguments:
+            raise ToolFailureError("Missing required argument 'sheets'.")
+        try:
+            report = create_xlsx(tree.resolve(relative), sheets=arguments["sheets"])
+        except XlsxWriterError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+        return f"Created XLSX {path} ({report['size_bytes']} bytes; {report['sheets']} sheets, {report['cells']} supplied cells)."
 
     def _inspect_spreadsheet(self, arguments: Mapping[str, Any]) -> str:
         """Inspect a bounded spreadsheet preview from any readable tree."""
