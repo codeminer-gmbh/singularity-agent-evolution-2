@@ -1,4 +1,4 @@
-"""Bounded extraction of evidence from PDFs, images, and Office Open XML files."""
+"""Bounded extraction of evidence from PDFs, images, Office Open XML, and OpenDocument files."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from typing import Callable
 
 MAX_TEXT_CHARACTERS = 24_000
 MAX_EPUB_MEMBER_BYTES = 1_000_000
+MAX_ODF_CONTENT_BYTES = 4_000_000
 """Enough evidence for a model, without one attachment consuming a turn."""
 
 
@@ -41,10 +42,12 @@ def inspect_document(
         return _image(path, run)
     if suffix in {".docx", ".pptx", ".xlsx"}:
         return _ooxml(path, suffix)
+    if suffix in {".odt", ".ods", ".odp"}:
+        return _odf(path, suffix)
     if suffix == ".epub":
         return _epub(path, page)
     raise DocumentError(
-        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, DOCX/PPTX/XLSX, and EPUB."
+        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, DOCX/PPTX/XLSX, ODT/ODS/ODP, and EPUB."
     )
 
 
@@ -104,6 +107,36 @@ def _ooxml(path: Path, suffix: str) -> str:
         raise DocumentError(f"Could not read Office document: {error}") from error
     if not text.strip():
         raise DocumentError("No readable text was found in this Office document.")
+    return f"{suffix[1:].upper()} extracted text ({path.name})\n---\n{_bounded(text)}"
+
+
+def _odf(path: Path, suffix: str) -> str:
+    """Extract visible text from an OpenDocument package without unpacking it.
+
+    ODT, ODS, and ODP all keep their principal document content in content.xml.
+    Reading just that member avoids executing macros or following package links.
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            try:
+                info = archive.getinfo("content.xml")
+            except KeyError as error:
+                raise DocumentError("OpenDocument package has no content.xml member.") from error
+            if info.is_dir() or info.file_size > MAX_ODF_CONTENT_BYTES:
+                raise DocumentError(
+                    f"OpenDocument content.xml exceeds the {MAX_ODF_CONTENT_BYTES}-byte inspection limit."
+                )
+            with archive.open(info) as source:
+                data = source.read(MAX_ODF_CONTENT_BYTES + 1)
+            if len(data) > MAX_ODF_CONTENT_BYTES:
+                raise DocumentError(
+                    f"OpenDocument content.xml exceeds the {MAX_ODF_CONTENT_BYTES}-byte inspection limit."
+                )
+            text = _xml_text(data)
+    except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
+        raise DocumentError(f"Could not read OpenDocument file: {error}") from error
+    if not text.strip():
+        raise DocumentError("No readable text was found in this OpenDocument file.")
     return f"{suffix[1:].upper()} extracted text ({path.name})\n---\n{_bounded(text)}"
 
 

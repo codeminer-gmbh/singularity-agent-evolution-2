@@ -1,0 +1,1 @@
+Added bounded OpenDocument inspection: `inspect_document` now reads ODT, ODS, and ODP `content.xml` directly from the ZIP package, extracts its XML text, and rejects missing, malformed, or over-limit content. Tool and README descriptions advertise the formats.

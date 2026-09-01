@@ -1,3 +1,3 @@
-Gap: the agent cannot inspect 7z evidence attachments, a common compressed format a hard task may supply.
-Change: add a bounded, read-only 7z member listing and text preview to the archive inspector using py7zr.
-Priority: the inherited notes cover ZIP/TAR and document/data formats, while 7z is an unclosed input-format gap with a focused library solution.
+Gap: the agent cannot inspect OpenDocument evidence (ODT, ODS, or ODP), which a hard task may supply instead of Microsoft Office files.
+Change: add bounded, read-only OpenDocument package text extraction to inspect_document using the existing ZIP/XML approach.
+Priority: inherited work already covers archives, web, SQLite/Parquet/tabular, EPUB, PDFs, images, and OOXML; ODF is a distinct common attachment family with a focused dependency-free solution.
