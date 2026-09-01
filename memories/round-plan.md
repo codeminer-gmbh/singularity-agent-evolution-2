@@ -1,3 +1,3 @@
-Gap: the improvement prompt treats any novel tool/input format as valuable, so it cannot reliably distinguish an end-to-end exam differentiator from another easily implemented variant in a repeatedly attempted theme.
-Change: make supplied ledger verdicts, attempt frequency, tool reachability, and expected end-to-end payoff mandatory evidence in the audit and selection rubric.
-Why: recent ledger attempts and verdicts are the only comparative signal available before source inspection; weighting them counters locally convenient capability additions without forbidding a genuinely new design.
+Gap: The agent can fetch only a URL it already knows, so it cannot perform open-web research for current-source tasks with no supplied starting page.
+Change: Add a bounded `web_search` tool that queries a public HTML search endpoint, normalizes result links/snippets, and hands selected URLs to existing `http_fetch`.
+Payoff: The ledger shows repeated document-format additions but no discovery capability; source discovery is a distinct end-to-end research boundary likely to improve tasks requiring current evidence.

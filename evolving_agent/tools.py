@@ -13,11 +13,12 @@ unhandled exception ends the run.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from html.parser import HTMLParser
 import tarfile
 import zipfile
 import zlib
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from typing import Any, BinaryIO
 
@@ -40,6 +41,9 @@ _MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_HTTP_TIMEOUT_SECONDS = 30
 _MAX_HTTP_REDIRECTS = 5
 _HTTP_CHUNK_BYTES = 64 * 1024
+_MAX_SEARCH_RESULTS = 10
+_MAX_SEARCH_QUERY_CHARACTERS = 500
+_MAX_SEARCH_RESPONSE_BYTES = 512 * 1024
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -217,6 +221,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="web_search",
+                description=(
+                    "Search the live web for current sources when a task gives no URL. "
+                    "Returns normalized result titles, destination URLs, and snippets; "
+                    "use http_fetch to read a selected source."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search terms or a research question."},
+                        "max_results": {"type": "integer", "minimum": 1, "maximum": _MAX_SEARCH_RESULTS, "description": "Maximum results (default 5)."},
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": _MAX_HTTP_TIMEOUT_SECONDS, "description": "Network timeout (default 20 seconds)."},
+                    },
+                    "required": ["query"],
+                },
+            ),
+            ToolDefinition(
                 name="http_fetch",
                 description=(
                     "Fetch a live HTTP or HTTPS URL with a bounded GET request. "
@@ -303,6 +324,7 @@ class WorkspaceTools:
             "read_document": self._read_document,
             "query_sqlite": self._query_sqlite,
             "extract_archive": self._extract_archive,
+            "web_search": self._web_search,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -409,6 +431,41 @@ class WorkspaceTools:
         except (OSError, tarfile.TarError, zipfile.BadZipFile) as unusable:
             raise ToolFailureError(f"Could not extract {archive_path!r}: {unusable}") from unusable
         return f"Extracted {count} files ({total} bytes) to {destination_path}."
+
+    def _web_search(self, arguments: Mapping[str, Any]) -> str:
+        """Discover public web sources through DuckDuckGo's lightweight HTML page.
+
+        Search responses are deliberately reduced to untrusted factual leads rather
+        than presented as an answer.  This keeps research iterative: the model can
+        select a result and inspect its primary source with ``http_fetch``.
+        """
+        query = _search_query_argument(arguments)
+        maximum = _http_bound_argument(arguments, "max_results", _MAX_SEARCH_RESULTS, 5)
+        timeout = _http_bound_argument(arguments, "timeout_seconds", _MAX_HTTP_TIMEOUT_SECONDS, 20)
+        url = "https://html.duckduckgo.com/html/?" + urlencode({"q": query})
+        request = Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; evolving-agent/1.0)",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Encoding": "gzip, deflate",
+        })
+        try:
+            with build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
+                body = _read_http_body(response, _MAX_SEARCH_RESPONSE_BYTES)
+                page = _http_body_text(
+                    _decode_http_body(body, response.headers, _MAX_SEARCH_RESPONSE_BYTES),
+                    response.headers,
+                )
+        except HTTPError as error:
+            raise ToolFailureError(f"Search service returned HTTP {error.code}; try a narrower query or a direct URL.") from error
+        except (URLError, OSError, ValueError) as unavailable:
+            raise ToolFailureError(f"Could not search the web: {unavailable}") from unavailable
+        results = _DuckDuckGoResults(page).results()
+        if not results:
+            return f"No web results found for {query!r}. Try different terms or use a direct URL."
+        lines = [f"Web results for {query!r}:"]
+        for number, result in enumerate(results[:maximum], start=1):
+            lines.extend((f"{number}. {result.title}", f"   URL: {result.url}", f"   {result.snippet}" if result.snippet else ""))
+        return "\n".join(line for line in lines if line)
 
     def _http_fetch(self, arguments: Mapping[str, Any]) -> str:
         """Fetch a web resource without delegating networking to a shell command."""
@@ -522,6 +579,90 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
+def _search_query_argument(arguments: Mapping[str, Any]) -> str:
+    """Return a short nonempty query that cannot turn one call into a bulk crawl."""
+    query = _text_argument(arguments, "query").strip()
+    if len(query) > _MAX_SEARCH_QUERY_CHARACTERS:
+        raise ToolFailureError(
+            f"'query' must be at most {_MAX_SEARCH_QUERY_CHARACTERS} characters."
+        )
+    return query
+
+
+@dataclass
+class _SearchResult:
+    """One normalized external lead returned by the HTML search service."""
+
+    title: str
+    url: str
+    snippet: str = ""
+
+
+class _DuckDuckGoResults(HTMLParser):
+    """Extract result anchors and snippets without trusting search-page markup."""
+
+    def __init__(self, page: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self._found: list[_SearchResult] = []
+        self._capture: str | None = None
+        self._depth = 0
+        self._parts: list[str] = []
+        self.feed(page)
+        self.close()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        classes = set((attributes.get("class") or "").split())
+        if tag == "a" and ("result__a" in classes or "result-link" in classes):
+            target = _search_destination(attributes.get("href") or "")
+            if target:
+                self._capture, self._depth, self._parts = target, 1, []
+            return
+        if self._capture is not None:
+            self._depth += 1
+            return
+        if ("result__snippet" in classes or "result-snippet" in classes) and self._found:
+            self._capture, self._depth, self._parts = "snippet", 1, []
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del tag, attrs
+
+    def handle_endtag(self, tag: str) -> None:
+        del tag
+        if self._capture is None:
+            return
+        self._depth -= 1
+        if self._depth > 0:
+            return
+        text = " ".join("".join(self._parts).split())
+        if self._capture == "snippet":
+            self._found[-1].snippet = text
+        elif text:
+            self._found.append(_SearchResult(title=text, url=self._capture))
+        self._capture, self._parts = None, []
+
+    def handle_data(self, data: str) -> None:
+        if self._capture is not None:
+            self._parts.append(data)
+
+    def results(self) -> tuple[_SearchResult, ...]:
+        return tuple(self._found)
+
+
+def _search_destination(href: str) -> str | None:
+    """Unwrap DuckDuckGo's redirect URL and retain only usable HTTP targets."""
+    candidate = href.strip()
+    if candidate.startswith("//"):
+        candidate = "https:" + candidate
+    parsed = urlsplit(candidate)
+    if parsed.netloc.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        candidate = parse_qs(parsed.query).get("uddg", [""])[0]
+    try:
+        return _http_url(candidate)
+    except ToolFailureError:
+        return None
+
+
 def _http_url_argument(arguments: Mapping[str, Any]) -> str:
     """Return a syntactically usable web URL."""
     return _http_url(_text_argument(arguments, "url"))
@@ -605,14 +746,19 @@ def _bounded_zlib_decode(body: bytes, wbits: int, maximum: int) -> bytes:
     return bytes(output)
 
 
+def _http_body_text(body: bytes, headers: Any) -> str:
+    """Decode an HTTP entity body using its declared charset when usable."""
+    charset = headers.get_content_charset() if hasattr(headers, "get_content_charset") else None
+    try:
+        return body.decode(charset or "utf-8")
+    except (LookupError, UnicodeDecodeError):
+        return body.decode("utf-8", errors="replace")
+
+
 def _format_http_response(url: str, status: int, headers: Any, body: bytes) -> str:
     """Render a bounded fetched response as useful model-readable text."""
     content_type = headers.get("Content-Type", "")
-    charset = headers.get_content_charset() if hasattr(headers, "get_content_charset") else None
-    try:
-        text = body.decode(charset or "utf-8")
-    except (LookupError, UnicodeDecodeError):
-        text = body.decode("utf-8", errors="replace")
+    text = _http_body_text(body, headers)
     shown_headers = "\n".join(f"{name}: {value}" for name, value in list(headers.items())[:20])
     return f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\nHeaders:\n{shown_headers}\n\n{text}"
 
