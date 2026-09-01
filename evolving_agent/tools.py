@@ -26,6 +26,9 @@ from evolving_agent.commands import CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, read_document
 from evolving_agent.geodata import GeodataError, MAX_SUMMARY_FEATURES, convert_to_geojson, inspect_geodata
+from evolving_agent.spreadsheets import (
+    MAX_INSPECT_COLUMNS, MAX_INSPECT_ROWS, SpreadsheetError, inspect_workbook,
+)
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -171,6 +174,23 @@ class WorkspaceTools:
                             "maximum": MAX_TEXT_CHARACTERS,
                             "description": "Maximum extracted characters (default 120000).",
                         },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_workbook",
+                description=(
+                    "Inspect an Excel .xlsx/.xlsm/.xltx/.xltm workbook as structured JSON. "
+                    "Reports sheet layout, merged ranges, filters, tables, and bounded typed "
+                    "cell samples including formula text; formulas are not evaluated."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Workbook path relative to the workspace root."},
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_INSPECT_ROWS, "description": "Maximum rows sampled per sheet (default 200)."},
+                        "max_columns": {"type": "integer", "minimum": 1, "maximum": MAX_INSPECT_COLUMNS, "description": "Maximum columns sampled per sheet (default 30)."},
                     },
                     "required": ["path"],
                 },
@@ -356,6 +376,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "read_document": self._read_document,
+            "inspect_workbook": self._inspect_workbook,
             "inspect_geodata": self._inspect_geodata,
             "convert_to_geojson": self._convert_to_geojson,
             "query_sqlite": self._query_sqlite,
@@ -428,6 +449,17 @@ class WorkspaceTools:
         try:
             return read_document(tree.resolve(relative), max_characters=maximum)
         except DocumentError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_workbook(self, arguments: Mapping[str, Any]) -> str:
+        """Expose spreadsheet structure that flat document extraction loses."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        rows = arguments.get("max_rows", 200)
+        columns = arguments.get("max_columns", 30)
+        try:
+            return inspect_workbook(tree.resolve(relative), max_rows=rows, max_columns=columns)
+        except SpreadsheetError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:
