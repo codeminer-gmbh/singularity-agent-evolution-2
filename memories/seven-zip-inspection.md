@@ -1,0 +1,1 @@
+Added `inspect_archive` support for 7Z evidence via pinned `py7zr==0.21.0`. It lists regular members and previews an exact selected member in memory only after enforcing the existing 256 KB declared uncompressed-size limit; the tool schema advertises 7Z. Verified by creating a 7Z fixture and listing plus reading a nested UTF-8 member.

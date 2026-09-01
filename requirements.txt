@@ -18,3 +18,5 @@ duckdb==1.2.2
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+# Read 7Z evidence bundles directly without writing their members to disk.
+py7zr==0.21.0

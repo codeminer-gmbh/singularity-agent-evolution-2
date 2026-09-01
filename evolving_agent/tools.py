@@ -113,7 +113,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_archive",
                 description=(
-                    "List readable members of a ZIP or TAR (including compressed TAR) "
+                    "List readable members of a ZIP, TAR (including compressed TAR), or 7Z "
                     "archive, or inspect a GZIP, BZIP2, or XZ compressed stream. Return "
                     "a bounded UTF-8 preview of one exact member without extracting to disk."
                 ),

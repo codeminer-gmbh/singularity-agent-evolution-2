@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect common CSV, TSV, JSONL, or JSON data attachments with schema and SQL aggregation; hard evidence tasks often use these rather than SQLite or Parquet.
-Change: Add a bounded read-only `inspect_tabular` tool built on the installed DuckDB relation APIs and expose it through the MCP registry.
-Choice: This extends the already proven attachment-inspection pattern without a new dependency, while archives, documents, SQLite, Parquet, and OCR are already covered.
+Gap: the agent cannot inspect 7z evidence attachments, a common compressed format a hard task may supply.
+Change: add a bounded, read-only 7z member listing and text preview to the archive inspector using py7zr.
+Priority: the inherited notes cover ZIP/TAR and document/data formats, while 7z is an unclosed input-format gap with a focused library solution.
