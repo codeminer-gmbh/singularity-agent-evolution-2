@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from docx import Document
+import extract_msg
 from openpyxl import load_workbook
 from pypdf import PdfReader
 from PIL import Image, UnidentifiedImageError
@@ -42,6 +43,7 @@ MAX_OCR_DIMENSION = 4_000
 MAX_OCR_SECONDS_PER_PAGE = 30
 MAX_EMAIL_PARTS = 1_000
 MAX_EMAIL_TEXT_PART_BYTES = 8 * 1024 * 1024
+MAX_MSG_ATTACHMENTS = 1_000
 _OCR_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
 
 
@@ -50,7 +52,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, EPUB, or EML document.
+    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, EPUB, EML, or MSG document.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -75,12 +77,13 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".pptx": _pptx_text,
         ".epub": _epub_text,
         ".eml": _email_text,
+        ".msg": _msg_text,
     }
     extractor = extractors.get(suffix)
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), EPUB (.epub), RFC 822 email (.eml), and Outlook email (.msg)."
         )
     try:
         text = extractor(path)
@@ -239,6 +242,62 @@ def _email_text(path: Path) -> str:
     body = plain_parts or html_parts
     if body:
         chunks.extend(("--- Email Body ---", "\n\n".join(body)))
+    if attachments:
+        chunks.extend(("--- Attachments ---", "\n".join(attachments)))
+    return "\n\n".join(chunks)
+
+
+def _msg_value(value: object) -> str:
+    """Normalize optional extract-msg fields without exposing parser reprs."""
+    return " ".join(str(value).replace("\x00", "").split()) if value is not None else ""
+
+
+def _msg_text(path: Path) -> str:
+    """Extract the useful message fields from an Outlook .msg compound file.
+
+    MSG attachments remain inventory only, just as EML attachments do: their
+    content may be separately supplied for inspection and need not be expanded
+    into the model context while reading the message envelope.
+    """
+    try:
+        with extract_msg.Message(str(path)) as message:
+            headers = []
+            for label, attribute in (
+                ("From", "sender"), ("To", "to"), ("Cc", "cc"),
+                ("Bcc", "bcc"), ("Subject", "subject"), ("Date", "date"),
+            ):
+                value = _msg_value(getattr(message, attribute, None))
+                if value:
+                    headers.append(f"{label}: {value}")
+
+            body = getattr(message, "body", None)
+            if not body:
+                html = getattr(message, "htmlBody", None)
+                if isinstance(html, bytes):
+                    html = html.decode("utf-8", errors="replace")
+                if html:
+                    parser = _EpubTextParser()
+                    parser.feed(str(html))
+                    parser.close()
+                    body = parser.text()
+            body_text = str(body).replace("\x00", "").strip() if body else ""
+
+            attachments: list[str] = []
+            for number, attachment in enumerate(message.attachments, 1):
+                if number > MAX_MSG_ATTACHMENTS:
+                    raise DocumentError(f"MSG has more than {MAX_MSG_ATTACHMENTS} attachments.")
+                name = _msg_value(getattr(attachment, "longFilename", None))
+                name = name or _msg_value(getattr(attachment, "name", None)) or "unnamed attachment"
+                content_type = _msg_value(getattr(attachment, "mimetype", None))
+                attachments.append(f"- {name}" + (f" ({content_type})" if content_type else ""))
+    except DocumentError:
+        raise
+    except Exception as error:  # extract-msg exposes parser-specific exceptions
+        raise DocumentError(f"Could not parse Outlook MSG {path.name!r}: {error}") from error
+
+    chunks = ["--- Email Headers ---", "\n".join(headers) or "[No standard headers found.]"]
+    if body_text:
+        chunks.extend(("--- Email Body ---", body_text))
     if attachments:
         chunks.extend(("--- Attachments ---", "\n".join(attachments)))
     return "\n\n".join(chunks)

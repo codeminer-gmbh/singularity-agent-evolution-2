@@ -1,0 +1,1 @@
+`read_document` now supports Outlook `.msg` files through pinned `extract-msg`. It returns normalized From/To/Cc/Bcc/Subject/Date fields, a plain or HTML-derived body, and a bounded (1,000 item) attachment inventory; raw NUL padding is removed. Input retains the existing 48 MiB document cap and malformed compound files become `DocumentError`.
