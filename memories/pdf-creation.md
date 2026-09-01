@@ -1,0 +1,1 @@
+PDF creation is available as `create_pdf`. It writes bounded, portable ReportLab reports to workspace or `output/` from headings, paragraphs, bullets, tables, page breaks, and contained local images; it also validates the requested content and avoids active PDF features. `WorkspaceTools` publishes and dispatches it, and ReportLab is pinned in `requirements.txt`.

@@ -1,3 +1,3 @@
-Gap: the agent can inspect images but cannot create an image deliverable, chart, or annotated visual from task data.
-Change: add a deterministic Pillow-backed create_image tool for PNG/JPEG with canvas, shapes, text, and local-image composition.
-Priority: document, presentation, spreadsheet, archive, email, PDF inspection, and web retrieval are already covered; visual asset creation is an unclosed input/output class.
+Gap: the agent can inspect PDFs but cannot create a polished, portable PDF report deliverable, a common hard-task output format.
+Change: add a bounded declarative create_pdf tool backed by ReportLab, with text, tables, page breaks, and contained local images.
+Why this: existing notes show document, spreadsheet, presentation, image, archive, email, and PDF inspection coverage, while no PDF-creation capability has been closed.
