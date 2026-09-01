@@ -44,6 +44,8 @@ probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file
 inspection results.
 
+`inspect_email` reads RFC 822 `.eml` correspondence and Unix mbox exports without writing them out. It presents decoded headers and body text, inventories attachments, and can preview a selected textual attachment.
+
 Requests use `/v1/responses` with `store: false`. The session therefore carries
 its own model output and trims history when necessary. The implementation is
 container-portable and does not depend on the orchestrator that normally runs

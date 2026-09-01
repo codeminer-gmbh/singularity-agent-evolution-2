@@ -1,0 +1,1 @@
+Added `inspect_email` for bounded, read-only RFC 822 EML and Unix mbox evidence. It selects one-based mbox messages, renders decoded correspondence headers and bodies, inventories MIME attachments, and previews selected textual attachments without extracting files. The tool is registered for workspace and `materials/` paths and documented in README.

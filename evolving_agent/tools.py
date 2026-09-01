@@ -18,6 +18,7 @@ from typing import Any
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
+from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.tabular import TabularError, inspect_tabular
@@ -145,6 +146,22 @@ class WorkspaceTools:
                         "path": {"type": "string", "description": "Path in the workspace or materials/."},
                         "page": {"type": "integer", "description": "One-based PDF page or EPUB spine chapter (default 1)."},
                         "ocr": {"type": "boolean", "description": "OCR a PDF page even when it has embedded text."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_email",
+                description=(
+                    "Extract readable evidence from an RFC 822 .eml message or Unix mbox file without modifying it. "
+                    "Returns decoded headers, body text, and attachment metadata; select a one-based message or textual attachment preview."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Email path in the workspace or materials/."},
+                        "message": {"type": "integer", "description": "One-based mbox message (default 1)."},
+                        "attachment": {"type": "integer", "description": "One-based attachment to preview when textual."},
                     },
                     "required": ["path"],
                 },
@@ -283,6 +300,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
             "inspect_document": self._inspect_document,
+            "inspect_email": self._inspect_email,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
@@ -298,7 +316,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, DatabaseError, ParquetError, TabularError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -356,6 +374,16 @@ class WorkspaceTools:
             return result.exit_code, result.stdout, result.stderr
 
         return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
+
+    def _inspect_email(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect one EML message or a selected mbox message read-only."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        message = arguments.get("message", 1)
+        attachment = arguments.get("attachment")
+        for name, value in (("message", message), ("attachment", attachment)):
+            if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+                raise ToolFailureError(f"'{name}' must be an integer when supplied.")
+        return inspect_email(tree.resolve(relative), message, attachment)
 
     def _inspect_database(self, arguments: Mapping[str, Any]) -> str:
         """Inspect SQLite schema or run a bounded read-only evidence query."""
