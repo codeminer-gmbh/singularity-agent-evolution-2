@@ -25,3 +25,5 @@ Pillow==11.3.0
 python-docx==1.2.0
 
 openpyxl==3.1.5
+# Creates ordinary text-and-table PDF deliverables from bounded structured blocks.
+reportlab==4.4.3

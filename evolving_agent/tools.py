@@ -22,6 +22,7 @@ from evolving_agent.docx_writer import DocxWriterError, create_docx
 from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.office_documents import OfficeDocumentError, inspect_office_document
 from evolving_agent.pdfs import PdfError, inspect_pdf
+from evolving_agent.pdf_writer import PdfWriterError, create_pdf
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.xlsx_writer import XlsxWriterError, create_xlsx
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -272,6 +273,30 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_pdf",
+                description=(
+                    "Create a valid PDF deliverable at an output/ path from ordered structured blocks. "
+                    "Each block has type heading, paragraph, bullet, numbered, page_break, or table. "
+                    "Text blocks need text; headings can set level 1-3; tables need rectangular non-blank string rows."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PDF destination under output/, ending in .pdf."},
+                        "title": {"type": "string", "description": "Optional document title."},
+                        "blocks": {"type": "array", "minItems": 1, "items": {
+                            "type": "object", "properties": {
+                                "type": {"type": "string", "enum": ["heading", "paragraph", "bullet", "numbered", "page_break", "table"]},
+                                "text": {"type": "string"},
+                                "level": {"type": "integer", "minimum": 1, "maximum": 3},
+                                "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+                            }, "required": ["type"]
+                        }, "description": "Ordered content blocks. Use text for text blocks and rows for table."},
+                    },
+                    "required": ["path", "blocks"],
+                },
+            ),
+            ToolDefinition(
                 name="create_docx",
                 description=(
                     "Create a valid DOCX deliverable at an output/ path from ordered structured blocks. "
@@ -380,6 +405,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
+            "create_pdf": self._create_pdf,
             "create_docx": self._create_docx,
             "create_xlsx": self._create_xlsx,
             "run_command": self._run_command,
@@ -472,6 +498,23 @@ class WorkspaceTools:
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
+
+    def _create_pdf(self, arguments: Mapping[str, Any]) -> str:
+        """Create a structured PDF in the task output directory."""
+        path = _text_argument(arguments, "path")
+        if not path.strip().startswith(OUTPUT_PREFIX):
+            raise ToolFailureError("PDF deliverables must be written under output/ so the task collector can receive them.")
+        tree, relative = self._located(path, writing=True)
+        title = arguments.get("title")
+        if title is not None and not isinstance(title, str):
+            raise ToolFailureError("'title' must be a string when supplied.")
+        if "blocks" not in arguments:
+            raise ToolFailureError("Missing required argument 'blocks'.")
+        try:
+            report = create_pdf(tree.resolve(relative), title=title, blocks=arguments["blocks"])
+        except PdfWriterError as refused:
+            raise ToolFailureError(str(refused)) from refused
+        return f"Created PDF {path} ({report['size_bytes']} bytes; {report['headings']} headings, {report['paragraphs']} paragraphs, {report['tables']} tables)."
 
     def _create_docx(self, arguments: Mapping[str, Any]) -> str:
         """Create a Word deliverable only in the collected output tree."""
