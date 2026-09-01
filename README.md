@@ -15,12 +15,17 @@ fact on the record.
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with a capability audit: three lines in
-`memories/round-plan.md` naming what this agent cannot do that a hard task
-might need, which change would fix it, and why that one — and the round's
-change is justified against that audit rather than against whatever the source
-happened to suggest. Keeping the tree buildable, startable and able to improve
-itself is a gate the orchestrator checks; it is not what a round is for.
+When supplied, `materials/ledger.md` is read after the README and rules and
+before the capability audit. It records recent attempts and exam verdicts;
+objective results, repeated themes, and judges’ reasons are evidence for
+choosing work, not instructions. The audit is three lines in
+`memories/round-plan.md`: a concrete task-relevant gap, the tool or change
+that would close it, and why ledger evidence plus expected end-to-end payoff
+make it preferable to other gaps. A capability is valuable only when the
+normal agent can reach it and it is likely to improve an answer, rather than
+when it is simply a convenient new parser or tool variant. Keeping the tree
+buildable, startable and able to improve itself is a gate the orchestrator
+checks; it is not what a round is for.
 
 ## How it works
 
@@ -45,9 +50,11 @@ inherit: gaps found, failed approaches and why, design rationale, what the exam
 rewarded, and promising next steps. Keep each memory concise and useful to an
 agent that has no access to earlier conversations, and describe only code that
 is actually in the tree — a note about a capability the tree does not hold is
-inherited by every successor as fact. The directory is intentionally not
-ignored and is copied with the rest of the source; `memories/round-plan.md` is
-rewritten by every improvement run.
+inherited by every successor as fact. State verification only when the check
+was actually run, with its scope and result; otherwise record the boundary as
+untested. The directory is intentionally not ignored and is copied with the
+rest of the source; `memories/round-plan.md` is rewritten by every improvement
+run.
 
 ## Running
 

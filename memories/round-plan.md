@@ -1,3 +1,3 @@
-Gap: the agent cannot inspect common email-message evidence (RFC 822 .eml or Outlook .msg), including attachments, that a hard document-analysis task may supply.
-Change: add a bounded email extraction path to read_document, reporting message headers, bodies, and safely decoded attachments.
-Why: archive, OCR, EPUB, databases, and office/PDF extraction were already pursued in this lineage, while email containers remain an unclosed, high-value input class.
+Gap: the improvement prompt treats any novel tool/input format as valuable, so it cannot reliably distinguish an end-to-end exam differentiator from another easily implemented variant in a repeatedly attempted theme.
+Change: make supplied ledger verdicts, attempt frequency, tool reachability, and expected end-to-end payoff mandatory evidence in the audit and selection rubric.
+Why: recent ledger attempts and verdicts are the only comparative signal available before source inspection; weighting them counters locally convenient capability additions without forbidding a genuinely new design.
