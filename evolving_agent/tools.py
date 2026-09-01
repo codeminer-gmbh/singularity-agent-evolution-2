@@ -25,6 +25,7 @@ from typing import Any, BinaryIO
 from evolving_agent.commands import CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, read_document
+from evolving_agent.geodata import GeodataError, MAX_SUMMARY_FEATURES, convert_to_geojson, inspect_geodata
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -175,6 +176,39 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_geodata",
+                description=(
+                    "Inspect GeoJSON (.geojson, .json) or ESRI Shapefile (.shp) "
+                    "vector data. Returns bounded JSON with feature count, geometry "
+                    "types, fields, coordinate bounds, and property samples."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Geodata path relative to the workspace root."},
+                        "max_features": {"type": "integer", "minimum": 1, "maximum": MAX_SUMMARY_FEATURES, "description": "Maximum sample features (default 100)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="convert_to_geojson",
+                description=(
+                    "Convert a GeoJSON or ESRI Shapefile vector dataset to a GeoJSON "
+                    "FeatureCollection. Destination must be a .geojson or .json file "
+                    "in the workspace or output/."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "source_path": {"type": "string", "description": "GeoJSON or .shp source path."},
+                        "destination": {"type": "string", "description": "Writable .geojson or .json destination path."},
+                        "max_features": {"type": "integer", "minimum": 1, "maximum": 20000, "description": "Maximum features to convert (default 20000)."},
+                    },
+                    "required": ["source_path", "destination"],
+                },
+            ),
+            ToolDefinition(
                 name="query_sqlite",
                 description=(
                     "Run a read-only SELECT, WITH, or EXPLAIN query against a SQLite "
@@ -322,6 +356,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "read_document": self._read_document,
+            "inspect_geodata": self._inspect_geodata,
+            "convert_to_geojson": self._convert_to_geojson,
             "query_sqlite": self._query_sqlite,
             "extract_archive": self._extract_archive,
             "web_search": self._web_search,
@@ -393,6 +429,33 @@ class WorkspaceTools:
             return read_document(tree.resolve(relative), max_characters=maximum)
         except DocumentError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:
+        """Summarize a vector dataset without asking the model to parse coordinates."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        maximum = arguments.get("max_features", 100)
+        try:
+            return inspect_geodata(tree.resolve(relative), max_features=maximum)
+        except GeodataError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _convert_to_geojson(self, arguments: Mapping[str, Any]) -> str:
+        """Write a portable GeoJSON FeatureCollection from a vector source."""
+        source_path = _text_argument(arguments, "source_path")
+        source_tree, source_relative = self._located(source_path)
+        destination_path = _text_argument(arguments, "destination")
+        destination_tree, destination_relative = self._located(destination_path, writing=True)
+        maximum = arguments.get("max_features", 20_000)
+        try:
+            count = convert_to_geojson(
+                source_tree.resolve(source_relative),
+                destination_tree.resolve(destination_relative),
+                max_features=maximum,
+            )
+        except GeodataError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+        return f"Converted {count} features from {source_path} to {destination_path}."
 
     def _query_sqlite(self, arguments: Mapping[str, Any]) -> str:
         """Run a bounded read-only query against a task SQLite database."""

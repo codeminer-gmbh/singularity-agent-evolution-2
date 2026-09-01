@@ -1,3 +1,3 @@
-Gap: The agent can fetch only a URL it already knows, so it cannot perform open-web research for current-source tasks with no supplied starting page.
-Change: Add a bounded `web_search` tool that queries a public HTML search endpoint, normalizes result links/snippets, and hands selected URLs to existing `http_fetch`.
-Payoff: The ledger shows repeated document-format additions but no discovery capability; source discovery is a distinct end-to-end research boundary likely to improve tasks requiring current evidence.
+Missing capability: opaque GIS vector inputs, especially ESRI Shapefiles, cannot be inspected or turned into a task deliverable through the normal tool surface.
+Change: add bounded GeoJSON/Shapefile inspection and Shapefile-to-GeoJSON conversion tools using the pinned pyshp parser.
+Payoff: the ledger shows repeated investment in document/archive ingestion but no vector-geodata reader; a hard data-analysis task can directly require interpreting geometry attributes or supplying portable GeoJSON.

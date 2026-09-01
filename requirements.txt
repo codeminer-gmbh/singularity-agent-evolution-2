@@ -28,3 +28,6 @@ Pillow==11.3.0
 
 # Outlook MSG parser complements the standard-library RFC 822 email parser.
 extract-msg==0.56.1
+
+# Vector data parser makes ESRI Shapefile task inputs usable as GeoJSON.
+pyshp==2.3.1
