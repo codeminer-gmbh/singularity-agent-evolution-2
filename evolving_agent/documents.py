@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 from pathlib import Path
+import subprocess
+import tempfile
 from typing import Callable, Iterable
 from urllib.parse import unquote
 import posixpath
@@ -12,11 +14,16 @@ import zipfile
 
 from docx import Document
 from openpyxl import load_workbook
+from PIL import Image, ImageSequence
 from pypdf import PdfReader
 from pptx import Presentation
 
 MAX_DOCUMENT_BYTES = 48 * 1024 * 1024
 MAX_PDF_PAGES = 200
+MAX_OCR_PAGES = 30
+MAX_OCR_PIXELS_PER_PAGE = 20_000_000
+MAX_OCR_OUTPUT_BYTES = 1_000_000
+_OCR_TIMEOUT_SECONDS = 45
 MAX_SLIDES = 200
 MAX_PRESENTATION_SHAPES = 10_000
 MAX_PRESENTATION_MEMBERS = 10_000
@@ -36,7 +43,11 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, PPTX, or EPUB document.
+    """Extract readable text from a PDF, common office documents, or an image.
+
+    Scanned PDF pages and PNG, JPEG, TIFF, WebP, and BMP images are read with
+    Tesseract OCR. OCR has deliberately tighter page and pixel limits than
+    native extraction because raster recognition is computationally expensive.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -59,12 +70,19 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".xlsx": _xlsx_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
+        ".png": _image_text,
+        ".jpg": _image_text,
+        ".jpeg": _image_text,
+        ".tif": _image_text,
+        ".tiff": _image_text,
+        ".webp": _image_text,
+        ".bmp": _image_text,
     }
     extractor = extractors.get(suffix)
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), and EPUB (.epub)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB (.epub), and PNG, JPEG, TIFF, WebP, or BMP images."
         )
     try:
         text = extractor(path)
@@ -92,8 +110,78 @@ def _pdf_text(path: Path) -> str:
             text = page.extract_text() or ""
         except Exception as error:
             raise DocumentError(f"Could not extract page {number} of PDF: {error}") from error
+        if not text.strip():
+            text = _ocr_pdf_page(path, number)
         chunks.append(f"--- Page {number} ---\n{text.strip()}")
     return "\n\n".join(chunks)
+
+
+def _ocr_pdf_page(path: Path, number: int) -> str:
+    """Rasterize one textless PDF page only when native extraction failed."""
+    if number > MAX_OCR_PAGES:
+        return f"[OCR skipped: page {number} exceeds the {MAX_OCR_PAGES}-page OCR limit.]"
+    try:
+        import pypdfium2 as pdfium
+        document = pdfium.PdfDocument(str(path))
+        page = document[number - 1]
+        image = page.render(scale=2).to_pil()
+        try:
+            return _ocr_image(image, f"PDF page {number}")
+        finally:
+            image.close()
+            page.close()
+            document.close()
+    except DocumentError:
+        raise
+    except Exception as error:
+        raise DocumentError(f"Could not rasterize page {number} for OCR: {error}") from error
+
+
+def _image_text(path: Path) -> str:
+    try:
+        with Image.open(path) as opened:
+            chunks: list[str] = []
+            for number, frame in enumerate(ImageSequence.Iterator(opened), start=1):
+                if number > MAX_OCR_PAGES:
+                    chunks.append(f"[OCR stopped at {MAX_OCR_PAGES} image frames.]")
+                    break
+                chunks.append(f"--- Image {number} ---\n{_ocr_image(frame.copy(), f'image frame {number}').strip()}")
+            return "\n\n".join(chunks)
+    except DocumentError:
+        raise
+    except (OSError, ValueError) as error:
+        raise DocumentError(f"Could not open image {path.name!r}: {error}") from error
+
+
+def _ocr_image(image: Image.Image, label: str) -> str:
+    """Recognize a bounded raster using Tesseract without shell interpolation."""
+    width, height = image.size
+    if width <= 0 or height <= 0 or width * height > MAX_OCR_PIXELS_PER_PAGE:
+        raise DocumentError(f"{label} has {width * height} pixels; OCR limit is {MAX_OCR_PIXELS_PER_PAGE}.")
+    with tempfile.TemporaryDirectory(prefix="evolving-agent-ocr-") as temporary:
+        source = Path(temporary) / "image.png"
+        output_base = Path(temporary) / "recognized"
+        image.convert("RGB").save(source, format="PNG")
+        try:
+            completed = subprocess.run(
+                ["tesseract", str(source), str(output_base), "-l", "eng", "--psm", "3"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                text=True, encoding="utf-8", errors="replace", timeout=_OCR_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except FileNotFoundError as error:
+            raise DocumentError("OCR engine is unavailable in this image.") from error
+        except subprocess.TimeoutExpired as error:
+            raise DocumentError(f"OCR of {label} exceeded {_OCR_TIMEOUT_SECONDS} seconds.") from error
+        if completed.returncode:
+            detail = completed.stderr.strip()[:500]
+            raise DocumentError(f"OCR of {label} failed: {detail or 'Tesseract returned an error.'}")
+        result = output_base.with_suffix(".txt")
+        if not result.is_file():
+            raise DocumentError(f"OCR of {label} produced no text output.")
+        if result.stat().st_size > MAX_OCR_OUTPUT_BYTES:
+            raise DocumentError(f"OCR output for {label} exceeds the {MAX_OCR_OUTPUT_BYTES}-byte limit.")
+        return result.read_text(encoding="utf-8", errors="replace")
 
 
 def _docx_text(path: Path) -> str:
