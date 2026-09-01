@@ -20,7 +20,7 @@ from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
-from evolving_agent.images import ImageError, inspect_image
+from evolving_agent.images import ImageError, create_image, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
@@ -254,6 +254,26 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_image",
+                description=(
+                    "Create a PNG or JPEG visual in the workspace or output/ using a bounded "
+                    "canvas and declarative rectangle, ellipse, line, text, and local-image "
+                    "operations. Coordinates are pixel values; image operations can compose "
+                    "readable workspace or materials/ images."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .png, .jpg, or .jpeg path, usually under output/."},
+                        "width": {"type": "integer", "description": "Canvas width in pixels, 1 to 6000."},
+                        "height": {"type": "integer", "description": "Canvas height in pixels, 1 to 6000."},
+                        "background": {"type": "string", "description": "Optional Pillow color, default white."},
+                        "operations": {"type": "array", "maxItems": 200, "description": "Drawing operations in order.", "items": {"type": "object", "properties": {"type": {"type": "string", "enum": ["rectangle", "ellipse", "line", "text", "image"]}, "box": {"type": "array", "items": {"type": "integer"}, "description": "[left, top, right, bottom] for shapes and images."}, "fill": {"type": "string"}, "outline": {"type": "string"}, "stroke_width": {"type": "integer"}, "points": {"type": "array", "items": {"type": "array", "items": {"type": "integer"}}}, "position": {"type": "array", "items": {"type": "integer"}}, "text": {"type": "string"}, "font_size": {"type": "integer"}, "path": {"type": "string", "description": "Readable image path for image operation."}}, "required": ["type"]}}
+                    },
+                    "required": ["path", "width", "height"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_image",
                 description=(
                     "Inspect a PNG, JPEG, WebP, TIFF, BMP, or GIF image locally. "
@@ -407,6 +427,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
+            "create_image": self._create_image,
             "inspect_image": self._inspect_image,
             "create_document": self._create_document,
             "create_presentation": self._create_presentation,
@@ -556,6 +577,24 @@ class WorkspaceTools:
             )
         except ArchiveError as refused:
             raise ToolFailureError(str(refused)) from refused
+
+    def _create_image(self, arguments: Mapping[str, Any]) -> str:
+        """Create a bounded raster visual, resolving composition inputs safely."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path, writing=True)
+        width = arguments.get("width")
+        height = arguments.get("height")
+        background = arguments.get("background", "white")
+        operations = arguments.get("operations", [])
+        def resolve(source: str) -> Path:
+            source_tree, source_relative = self._located(source)
+            return source_tree.resolve(source_relative)
+        try:
+            return create_image(tree.resolve(relative), width=width, height=height,
+                                background=background, operations=operations,
+                                image_resolver=resolve)
+        except ImageError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_image(self, arguments: Mapping[str, Any]) -> str:
         """Return bounded metadata and optional OCR from a local image."""

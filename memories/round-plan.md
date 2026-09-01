@@ -1,3 +1,3 @@
-Gap: XLSX inspection could not read valid workbooks produced by the agent's own editable workbook creator, which hard tasks may ask it to verify or revise.
-Change: correct relationship-target resolution and inline-string decoding in the dependency-free XLSX reader.
-Priority: spreadsheet inspection is an existing high-value workflow, and compatibility with standard openpyxl output was an unclosed functional gap.
+Gap: the agent can inspect images but cannot create an image deliverable, chart, or annotated visual from task data.
+Change: add a deterministic Pillow-backed create_image tool for PNG/JPEG with canvas, shapes, text, and local-image composition.
+Priority: document, presentation, spreadsheet, archive, email, PDF inspection, and web retrieval are already covered; visual asset creation is an unclosed input/output class.

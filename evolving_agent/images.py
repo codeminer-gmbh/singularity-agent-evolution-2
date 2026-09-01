@@ -134,3 +134,142 @@ def _ocr(path: Path) -> str:
         detail = completed.stderr.decode("utf-8", errors="replace").strip()
         raise ImageError(f"OCR failed for {path.name!r}: {detail[:500] or 'Tesseract returned an error.'}")
     return completed.stdout.decode("utf-8", errors="replace").strip()
+
+# Creation intentionally has a small declarative surface.  It lets the model make
+# portable visual deliverables without granting a general graphics interpreter.
+_MAX_CREATED_PIXELS = 24_000_000
+_MAX_DRAW_OPERATIONS = 200
+_MAX_TEXT_LENGTH = 4_000
+
+
+def create_image(
+    path: Path,
+    *,
+    width: int,
+    height: int,
+    background: str = "white",
+    operations: list[dict[str, Any]] | None = None,
+    image_resolver: Any = None,
+) -> str:
+    """Create a PNG or JPEG from bounded declarative drawing operations.
+
+    Operations are ``rectangle``, ``ellipse``, ``line``, ``text``, and
+    ``image``. Coordinates are pixels; colors use normal Pillow CSS-style
+    color strings.  Image operations may only name paths resolved by the
+    caller, keeping composition inside the agent's readable trees.
+    """
+    if not isinstance(width, int) or isinstance(width, bool) or not 1 <= width <= 6000:
+        raise ImageError("width must be an integer between 1 and 6000.")
+    if not isinstance(height, int) or isinstance(height, bool) or not 1 <= height <= 6000:
+        raise ImageError("height must be an integer between 1 and 6000.")
+    if width * height > _MAX_CREATED_PIXELS:
+        raise ImageError(f"image has too many pixels; limit is {_MAX_CREATED_PIXELS}.")
+    if not isinstance(background, str) or not background.strip():
+        raise ImageError("background must be a non-blank color string.")
+    if operations is None:
+        operations = []
+    if not isinstance(operations, list) or len(operations) > _MAX_DRAW_OPERATIONS:
+        raise ImageError(f"operations must be a list with at most {_MAX_DRAW_OPERATIONS} items.")
+    suffix = path.suffix.lower()
+    if suffix not in {".png", ".jpg", ".jpeg"}:
+        raise ImageError("destination must end in .png, .jpg, or .jpeg.")
+    try:
+        from PIL import ImageColor, ImageDraw, ImageFont
+        # Validate separately so invalid colors report a useful input error.
+        ImageColor.getrgb(background)
+        canvas = Image.new("RGBA", (width, height), background)
+        draw = ImageDraw.Draw(canvas)
+        for index, operation in enumerate(operations, start=1):
+            if not isinstance(operation, dict):
+                raise ImageError(f"operation {index} must be an object.")
+            kind = operation.get("type")
+            if kind == "rectangle":
+                draw.rectangle(_box(operation, index), fill=operation.get("fill"), outline=operation.get("outline"), width=_positive(operation.get("stroke_width", 1), "stroke_width", index))
+            elif kind == "ellipse":
+                draw.ellipse(_box(operation, index), fill=operation.get("fill"), outline=operation.get("outline"), width=_positive(operation.get("stroke_width", 1), "stroke_width", index))
+            elif kind == "line":
+                points = operation.get("points")
+                if not isinstance(points, list) or len(points) < 2 or len(points) > 100:
+                    raise ImageError(f"operation {index} line needs 2 to 100 [x, y] points.")
+                draw.line([_point(point, index) for point in points], fill=operation.get("fill", "black"), width=_positive(operation.get("stroke_width", 1), "stroke_width", index), joint="curve")
+            elif kind == "text":
+                text = operation.get("text")
+                if not isinstance(text, str) or len(text) > _MAX_TEXT_LENGTH:
+                    raise ImageError(f"operation {index} text must be a string up to {_MAX_TEXT_LENGTH} characters.")
+                font_size = _positive(operation.get("font_size", 16), "font_size", index)
+                if font_size > 200:
+                    raise ImageError(f"operation {index} font_size must be at most 200.")
+                draw.multiline_text(_point(operation.get("position"), index), text, fill=operation.get("fill", "black"), font=_font(font_size), spacing=4)
+            elif kind == "image":
+                source = operation.get("path")
+                if not isinstance(source, str) or image_resolver is None:
+                    raise ImageError(f"operation {index} image needs a readable path.")
+                with _open_composition_image(image_resolver(source)) as overlay:
+                    box = _box(operation, index)
+                    target = (box[2] - box[0], box[3] - box[1])
+                    if target[0] <= 0 or target[1] <= 0:
+                        raise ImageError(f"operation {index} image box must have positive dimensions.")
+                    overlay.thumbnail(target)
+                    canvas.alpha_composite(overlay.convert("RGBA"), (box[0], box[1]))
+            else:
+                raise ImageError(f"operation {index} has unsupported type {kind!r}.")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if suffix in {".jpg", ".jpeg"}:
+            canvas.convert("RGB").save(path, "JPEG", quality=95)
+        else:
+            canvas.save(path, "PNG")
+    except ImageError:
+        raise
+    except (OSError, ValueError, TypeError) as exc:
+        raise ImageError(f"Could not create image {path.name!r}: {exc}") from exc
+    return f"Created {path.name} ({width}x{height} {suffix[1:].upper()})."
+
+
+def _open_composition_image(path: Path) -> Any:
+    """Open a local source only after applying the same basic decode bounds."""
+    if not path.is_file():
+        raise ImageError(f"{path.name!r} is not a readable image file.")
+    try:
+        if path.stat().st_size > _MAX_SOURCE_BYTES:
+            raise ImageError(f"{path.name!r} is too large to compose; limit is {_MAX_SOURCE_BYTES} bytes.")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            image = Image.open(path)
+        pixels = image.width * image.height
+        if pixels > _MAX_CREATED_PIXELS:
+            image.close()
+            raise ImageError(f"{path.name!r} has too many pixels to compose; limit is {_MAX_CREATED_PIXELS}.")
+        return image
+    except ImageError:
+        raise
+    except (OSError, UnidentifiedImageError, Image.DecompressionBombError, SyntaxError, ValueError) as exc:
+        raise ImageError(f"Could not open composition image {path.name!r}: {exc}") from exc
+
+
+def _point(value: Any, index: int) -> tuple[int, int]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2 or any(not isinstance(v, int) or isinstance(v, bool) for v in value):
+        raise ImageError(f"operation {index} needs a two-integer position or point.")
+    return value[0], value[1]
+
+
+def _box(operation: dict[str, Any], index: int) -> tuple[int, int, int, int]:
+    value = operation.get("box")
+    if not isinstance(value, (list, tuple)) or len(value) != 4 or any(not isinstance(v, int) or isinstance(v, bool) for v in value):
+        raise ImageError(f"operation {index} needs a four-integer box [left, top, right, bottom].")
+    return value[0], value[1], value[2], value[3]
+
+
+def _positive(value: Any, name: str, index: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ImageError(f"operation {index} {name} must be a positive integer.")
+    return value
+
+
+def _font(size: int) -> Any:
+    from PIL import ImageFont
+    for candidate in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(candidate, size)
+        except OSError:
+            pass
+    return ImageFont.load_default()
