@@ -46,6 +46,8 @@ inspection results.
 
 `inspect_email` reads RFC 822 `.eml` correspondence, Unix mbox exports, and Outlook `.msg` messages without writing them out. It presents decoded headers and body text, inventories attachments, can preview a selected textual attachment, and renders an embedded forwarded Outlook message selected as an attachment.
 
+`transcribe_media` sends a bounded local audio/video attachment to the configured OpenAI-compatible transcription endpoint and returns spoken evidence with available segment timestamps. It supports common MP3, WAV, M4A, MP4, Ogg, FLAC, and WebM formats without converting or modifying the source.
+
 `fetch_web_page` retrieves a single HTTP(S) page as bounded readable evidence, including its visible text, title, final URL, and HTTP(S) links, without executing page content or saving it to disk.
 
 `download_web_file` acquires one bounded HTTP(S) binary resource (up to 25 MB) into the workspace or `output/` atomically. A probe can use it to bring a web-hosted PDF, office file, archive, or dataset into the existing local inspectors; it sends no credentials, cookies, or request body.
@@ -136,6 +138,7 @@ evolving_agent/settings.py.
 | `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
 | `evolving_agent/parquet.py`    | Read-only bounded Parquet evidence inspection |
 | `evolving_agent/tabular.py`    | Read-only bounded CSV/TSV/JSON evidence inspection |
+| `evolving_agent/media.py`      | Bounded audio/video speech evidence transcription |
 | `evolving_agent/workspace.py`  | Contained filesystem operations               |
 | `evolving_agent/successor.py`  | Next-iteration validation                    |
 

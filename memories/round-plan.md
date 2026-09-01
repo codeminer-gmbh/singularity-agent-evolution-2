@@ -1,3 +1,3 @@
-Gap: The agent can read HTML/JSON web pages but cannot acquire a remote PDF, spreadsheet, archive, or dataset for its existing evidence inspectors.
-Change: Add a bounded HTTP(S) binary downloader that saves only to the workspace or output/ and reports verified retrieval metadata.
-Priority: This composes the established web and attachment-inspection capabilities into research from primary-source files, a gap no inherited note closes.
+Gap: the agent cannot read spoken evidence in audio/video recordings, a likely hard-task input class.
+Change: add a bounded OpenAI audio-transcription tool that returns timestamped transcript text from supported local media.
+Choice: predecessors already closed document, archive, mail, database, tabular, and EPUB gaps; speech remains wholly inaccessible and transcription gives direct task evidence.

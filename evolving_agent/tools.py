@@ -21,6 +21,7 @@ from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
+from evolving_agent.media import MediaError, transcribe_media
 from evolving_agent.tabular import TabularError, inspect_tabular
 from evolving_agent.web import WebError, download_web_file, fetch_web_page
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -200,6 +201,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="transcribe_media",
+                description=(
+                    "Transcribe spoken evidence in a local MP3, WAV, M4A, MP4, WebM, "
+                    "or other supported audio/video attachment without modifying it. "
+                    "Returns bounded transcript text and available segment timestamps; "
+                    "uses the configured OpenAI-compatible transcription service."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Media path in the workspace or materials/."},
+                        "model": {"type": "string", "description": "Transcription model (default gpt-4o-mini-transcribe)."},
+                        "timeout_seconds": {"type": "integer", "description": "API timeout from 1 through 300 seconds (default 180)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_tabular",
                 description=(
                     "Inspect a CSV, TSV, JSON, JSONL, or NDJSON attachment without modifying it. "
@@ -338,6 +357,7 @@ class WorkspaceTools:
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
+            "transcribe_media": self._transcribe_media,
             "fetch_web_page": self._fetch_web_page,
             "download_web_file": self._download_web_file,
             "write_file": self._write_file,
@@ -352,7 +372,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, MediaError, WebError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -442,6 +462,17 @@ class WorkspaceTools:
         if not isinstance(max_rows, int) or isinstance(max_rows, bool):
             raise ToolFailureError("'max_rows' must be an integer when supplied.")
         return inspect_parquet(tree.resolve(relative), query, max_rows)
+
+    def _transcribe_media(self, arguments: Mapping[str, Any]) -> str:
+        """Extract spoken evidence using the configured transcription endpoint."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        model = arguments.get("model", "gpt-4o-mini-transcribe")
+        if not isinstance(model, str) or not model.strip():
+            raise ToolFailureError("'model' must be a non-empty string when supplied.")
+        timeout = arguments.get("timeout_seconds", 180)
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 300:
+            raise ToolFailureError("'timeout_seconds' must be an integer from 1 through 300.")
+        return transcribe_media(tree.resolve(relative), model.strip(), timeout)
 
     def _inspect_tabular(self, arguments: Mapping[str, Any]) -> str:
         """Inspect supported tabular evidence or run a bounded data query."""

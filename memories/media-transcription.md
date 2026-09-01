@@ -1,0 +1,1 @@
+Added `transcribe_media`: a shared tool that reads a supported local audio/video attachment, uploads at most 24 MiB to the configured OpenAI-compatible transcription API, and returns a bounded transcript plus segment timestamps. It uses the existing contained materials/output path resolution and never changes the source media.
