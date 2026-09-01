@@ -20,6 +20,7 @@ from evolving_agent.audio import AudioError, inspect_audio
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.emails import EmailError, inspect_email
+from evolving_agent.geospatial import GeospatialError, inspect_geospatial
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.tabular import TabularError, inspect_tabular
@@ -233,6 +234,22 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_geospatial",
+                description=(
+                    "Inspect GeoJSON, KML, GPX, ESRI Shapefile, or ZIPped Shapefile vector evidence without modifying it. "
+                    "Returns feature count, bounds, schema, or runs one bounded read-only SELECT, WITH, or EXPLAIN query against its data view."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Geospatial path in the workspace or materials/."},
+                        "query": {"type": "string", "description": "Optional single read-only SQL query against data."},
+                        "max_rows": {"type": "integer", "description": "Maximum returned rows, from 1 through 1000 (default 200)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_tabular",
                 description=(
                     "Inspect a CSV, TSV, JSON, JSONL, or NDJSON attachment without modifying it. "
@@ -372,6 +389,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
+            "inspect_geospatial": self._inspect_geospatial,
             "inspect_tabular": self._inspect_tabular,
             "fetch_web_page": self._fetch_web_page,
             "download_web_file": self._download_web_file,
@@ -498,6 +516,20 @@ class WorkspaceTools:
         if not isinstance(max_rows, int) or isinstance(max_rows, bool):
             raise ToolFailureError("'max_rows' must be an integer when supplied.")
         return inspect_parquet(tree.resolve(relative), query, max_rows)
+
+    def _inspect_geospatial(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect vector geospatial evidence or query its bounded data view."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        query = arguments.get("query")
+        if query is not None and not isinstance(query, str):
+            raise ToolFailureError("'query' must be a string when supplied.")
+        max_rows = arguments.get("max_rows", 200)
+        if not isinstance(max_rows, int) or isinstance(max_rows, bool):
+            raise ToolFailureError("'max_rows' must be an integer when supplied.")
+        try:
+            return inspect_geospatial(tree.resolve(relative), query, max_rows)
+        except GeospatialError as error:
+            raise ToolFailureError(str(error)) from error
 
     def _inspect_tabular(self, arguments: Mapping[str, Any]) -> str:
         """Inspect supported tabular evidence or run a bounded data query."""
