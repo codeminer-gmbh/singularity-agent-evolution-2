@@ -23,7 +23,11 @@ from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
+from evolving_agent.delimited import (
+    MAX_DELIMITED_OFFSET, MAX_DELIMITED_ROWS, DelimitedError, inspect_delimited,
+)
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
+from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -204,6 +208,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_delimited",
+                description=(
+                    "Stream a CSV, TSV, or delimiter-separated text file without loading it "
+                    "into memory. Reports detected dialect, headers, preview-inferred types, "
+                    "and bounded records; offset skips data records after the header."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Delimited data path, including materials/ or output/."},
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_DELIMITED_ROWS, "description": "Preview records, default 200."},
+                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_DELIMITED_OFFSET, "description": "Data records to skip after header, default 0."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_parquet",
                 description=(
                     "Read Apache Parquet schema, metadata, and a bounded TSV preview. "
@@ -218,6 +239,23 @@ class WorkspaceTools:
                         "filters": {"type": "array", "items": {"type": "object", "properties": {"column": {"type": "string"}, "op": {"type": "string", "enum": ["eq", "ne", "lt", "le", "gt", "ge", "in", "is_null"]}, "value": {}}, "required": ["column", "op"]}, "description": "Optional ANDed filter objects."},
                         "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_PARQUET_ROWS, "description": "Preview rows, default 200."},
                         "offset": {"type": "integer", "minimum": 0, "maximum": MAX_PARQUET_OFFSET, "description": "Matching rows to skip, default 0."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_geodata",
+                description=(
+                    "Read vector geodata metadata and a bounded feature preview from GeoJSON, "
+                    "Shapefile, GeoPackage, KML, and other GDAL/Fiona-supported files. "
+                    "Reports layers, property schema, bounds, CRS, geometry types, and preview features."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Vector geodata file path, including materials/ or output/."},
+                        "layer": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}], "description": "Optional GeoPackage/dataset layer name or index."},
+                        "max_features": {"type": "integer", "minimum": 1, "maximum": MAX_GEODATA_FEATURES, "description": "Preview features, default 20."},
                     },
                     "required": ["path"],
                 },
@@ -338,7 +376,9 @@ class WorkspaceTools:
             "read_document": self._read_document,
             "ocr_document": self._ocr_document,
             "query_sqlite": self._query_sqlite,
+            "inspect_delimited": self._inspect_delimited,
             "inspect_parquet": self._inspect_parquet,
+            "inspect_geodata": self._inspect_geodata,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -432,6 +472,18 @@ class WorkspaceTools:
         except DatabaseError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
+    def _inspect_delimited(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect CSV/TSV records with the CSV parser rather than raw text."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return inspect_delimited(
+                tree.resolve(relative), max_rows=arguments.get("max_rows", 200),
+                offset=arguments.get("offset", 0),
+            )
+        except DelimitedError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
     def _inspect_parquet(self, arguments: Mapping[str, Any]) -> str:
         """Inspect a columnar task dataset using bounded batch reads."""
         path = _text_argument(arguments, "path")
@@ -444,6 +496,18 @@ class WorkspaceTools:
                 max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
             )
         except ParquetError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect bounded metadata and features from a vector geodata source."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return inspect_geodata(
+                tree.resolve(relative), layer=arguments.get("layer"),
+                max_features=arguments.get("max_features", 20),
+            )
+        except GeodataError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
