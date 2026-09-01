@@ -139,8 +139,11 @@ def _xlsx_sheets(path: Path, row_limit: int, column_limit: int) -> dict[str, lis
                 continue
             name = node.attrib.get("name", "Unnamed")
             rel_id = next((value for key, value in node.attrib.items() if key.endswith("}id")), "")
-            target = relationship.get(rel_id, "")
-            member = "xl/" + target.lstrip("/") if not target.startswith("xl/") else target
+            target = relationship.get(rel_id, "").lstrip("/")
+            # Relationship targets are conventionally relative to xl/, but
+            # valid producers (including openpyxl) can write /xl/... .
+            # Strip the leading slash before deciding whether xl/ is present.
+            member = target if target.startswith("xl/") else "xl/" + target
             result[name] = _xlsx_rows(_xml(archive, member), shared, row_limit, column_limit)
         return result
 
@@ -163,7 +166,7 @@ def _xlsx_rows(
         if kind == "s" and value.isdigit() and int(value) < len(shared):
             value = shared[int(value)]
         elif kind == "inlineStr":
-            value = "".join(x.itertext() for x in cell if x.tag.rsplit("}", 1)[-1] == "is")
+            value = "".join("".join(x.itertext()) for x in cell if x.tag.rsplit("}", 1)[-1] == "is")
         if formula:
             value = f"={formula}" + (f" → {value}" if value else "")
         # A sparse cell can legally name row 1,048,576 or column XFD.  Keep a

@@ -24,6 +24,7 @@ from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
+from evolving_agent.spreadsheet_creation import SpreadsheetCreationError, create_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 from evolving_agent.web import WebError, fetch_url
 
@@ -184,6 +185,36 @@ class WorkspaceTools:
                         "max_columns": {"type": "integer", "description": "Preview columns, 1 to 100."},
                     },
                     "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="create_spreadsheet",
+                description=(
+                    "Create an editable XLSX workbook in the workspace or output/ from structured sheets. "
+                    "Each sheet can have a styled table (columns and rows) plus individual A1 cells, "
+                    "including formulas stored for Excel to calculate when opened."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .xlsx path, usually under output/."},
+                        "title": {"type": "string", "description": "Optional workbook title property."},
+                        "sheets": {
+                            "type": "array", "minItems": 1, "maxItems": 20,
+                            "description": "Sheet objects in workbook order.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string", "description": "Excel sheet name (1-31 characters)."},
+                                    "columns": {"type": "array", "items": {"type": "string"}, "description": "Optional table column headings."},
+                                    "rows": {"type": "array", "items": {"type": "array", "items": {}}, "description": "Table rows, each matching columns."},
+                                    "cells": {"type": "array", "description": "Optional individual cells or formulas.", "items": {"type": "object", "properties": {"reference": {"type": "string", "description": "A1 reference."}, "value": {"description": "String (including =formula), number, boolean, or null."}, "number_format": {"type": "string"}}, "required": ["reference", "value"]}},
+                                },
+                                "required": ["name"],
+                            },
+                        },
+                    },
+                    "required": ["path", "sheets"],
                 },
             ),
             ToolDefinition(
@@ -372,6 +403,7 @@ class WorkspaceTools:
             "delete_path": self._delete_path,
             "fetch_url": self._fetch_url,
             "inspect_spreadsheet": self._inspect_spreadsheet,
+            "create_spreadsheet": self._create_spreadsheet,
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
@@ -496,6 +528,17 @@ class WorkspaceTools:
         try:
             return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
         except SpreadsheetError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_spreadsheet(self, arguments: Mapping[str, Any]) -> str:
+        """Create an editable XLSX workbook at a writable contained path."""
+        requested = _text_argument(arguments, "path")
+        destination_tree, relative = self._located(requested, writing=True)
+        try:
+            return create_spreadsheet(
+                destination_tree.resolve(relative), arguments.get("sheets"), title=arguments.get("title")
+            )
+        except SpreadsheetCreationError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:

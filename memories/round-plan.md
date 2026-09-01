@@ -1,3 +1,3 @@
-Gap: The agent cannot retrieve remote HTML, text, or JSON evidence for web-research tasks despite network access.
-Change: Add a bounded `fetch_url` tool that follows only limited HTTP(S) redirects and returns decoded text or JSON metadata.
-Priority: Remote evidence is a broad missing input class; it complements local inspection and is more generally useful than another format-specific creator.
+Gap: XLSX inspection could not read valid workbooks produced by the agent's own editable workbook creator, which hard tasks may ask it to verify or revise.
+Change: correct relationship-target resolution and inline-string decoding in the dependency-free XLSX reader.
+Priority: spreadsheet inspection is an existing high-value workflow, and compatibility with standard openpyxl output was an unclosed functional gap.

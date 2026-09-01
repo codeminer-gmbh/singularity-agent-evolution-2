@@ -1,0 +1,1 @@
+The XLSX inspector now correctly resolves relationship targets written as `/xl/...` and decodes `inlineStr` cells. This lets `inspect_spreadsheet` read the editable openpyxl workbooks made by `create_spreadsheet`, including stored formulas without evaluating them. Verified by creating a workbook through WorkspaceTools and inspecting it back through the same tool.
