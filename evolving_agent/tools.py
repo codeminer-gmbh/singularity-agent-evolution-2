@@ -20,6 +20,7 @@ from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
+from evolving_agent.media import MediaError, inspect_media
 from evolving_agent.tabular import TabularError, inspect_tabular
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -128,6 +129,22 @@ class WorkspaceTools:
                             "type": "string",
                             "description": "Exact member name to preview; omit to list members.",
                         },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_media",
+                description=(
+                    "Inspect an audio or video attachment without modifying it. Returns bounded "
+                    "FFmpeg stream metadata and embedded subtitles; for video, an optional timestamp "
+                    "extracts one frame and returns its OCR text."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Media path in the workspace or materials/."},
+                        "timestamp": {"type": "number", "description": "Optional video timestamp in seconds for frame OCR (0 through 86400)."},
                     },
                     "required": ["path"],
                 },
@@ -283,6 +300,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
             "inspect_document": self._inspect_document,
+            "inspect_media": self._inspect_media,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
@@ -298,7 +316,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, DatabaseError, ParquetError, TabularError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, MediaError, DatabaseError, ParquetError, TabularError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -356,6 +374,19 @@ class WorkspaceTools:
             return result.exit_code, result.stdout, result.stderr
 
         return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
+
+    def _inspect_media(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect media streams, captions, and optionally one video frame."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        timestamp = arguments.get("timestamp")
+        if timestamp is not None and (not isinstance(timestamp, (int, float)) or isinstance(timestamp, bool)):
+            raise ToolFailureError("'timestamp' must be a number when supplied.")
+
+        def run(command: list[str]) -> tuple[int | None, str, str]:
+            result = self._commands.run(command)
+            return result.exit_code, result.stdout, result.stderr
+
+        return inspect_media(tree.resolve(relative), timestamp=None if timestamp is None else float(timestamp), run=run)
 
     def _inspect_database(self, arguments: Mapping[str, Any]) -> str:
         """Inspect SQLite schema or run a bounded read-only evidence query."""

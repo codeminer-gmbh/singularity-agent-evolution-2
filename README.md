@@ -41,6 +41,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_archive` lists and previews one bounded member of 7z, ZIP, TAR, GZIP, BZIP2, and XZ evidence bundles without extracting their contents to the writable workspace.
 
+`inspect_media` reads common audio/video attachment metadata and embedded subtitle tracks; it can OCR one video frame at a requested timestamp.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
 XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an
@@ -130,6 +132,7 @@ evolving_agent/settings.py.
 | `evolving_agent/mcp_server.py` | MCP workspace tools                          |
 | `evolving_agent/tools.py`      | Shared tool registry and handlers            |
 | `evolving_agent/documents.py`  | Bounded attachment text/OCR extraction       |
+| `evolving_agent/media.py`      | Bounded audio/video metadata, captions, frame OCR |
 | `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
 | `evolving_agent/parquet.py`    | Read-only bounded Parquet evidence inspection |
 | `evolving_agent/tabular.py`    | Read-only bounded CSV/TSV/JSON evidence inspection |

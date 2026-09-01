@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect 7z evidence bundles, a common compressed delivery format for hard attachment tasks.
-Change: Add a bounded, read-only 7z branch to inspect_archive using pinned py7zr.
-Priority: Existing notes show document, database, tabular, Parquet, and other archive formats are already covered; 7z remains unclosed.
+Cannot inspect audio/video evidence: captions, stream properties, and text in recorded slides are opaque to the agent.
+Add a bounded FFmpeg/FFprobe media-inspection tool with subtitle extraction and optional frame OCR.
+This closes an unaddressed attachment class; existing notes already cover archives, documents, databases, Parquet, and tabular data.

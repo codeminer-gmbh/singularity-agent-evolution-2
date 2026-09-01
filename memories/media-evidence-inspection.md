@@ -1,0 +1,1 @@
+`inspect_media` is now published through the shared tool registry. It uses FFprobe for bounded stream metadata, FFmpeg for the first embedded subtitle stream and optional frame extraction, and Tesseract for requested-frame OCR; Docker installs FFmpeg. The parser, unsupported-suffix refusal, registry/describe schema, and Python compilation were exercised in this round.
