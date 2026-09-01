@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
+from evolving_agent.audio import AudioError, inspect_audio
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.emails import EmailError, inspect_email
@@ -130,6 +131,22 @@ class WorkspaceTools:
                             "type": "string",
                             "description": "Exact member name to preview; omit to list members.",
                         },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_audio",
+                description=(
+                    "Transcribe a local MP3, WAV, M4A, OGG, FLAC, MP4, MPEG, MPGA, or WEBM "
+                    "audio/video attachment using the configured transcription API. Returns bounded "
+                    "JSON evidence with text and timestamps when the service supplies them; input is read-only."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path in the workspace or materials/."},
+                        "model": {"type": "string", "description": "Optional transcription model override."},
                     },
                     "required": ["path"],
                 },
@@ -333,6 +350,7 @@ class WorkspaceTools:
             "list_files": self._list_files,
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
+            "inspect_audio": self._inspect_audio,
             "inspect_document": self._inspect_document,
             "inspect_email": self._inspect_email,
             "inspect_database": self._inspect_database,
@@ -352,7 +370,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
+        except (WorkspaceError, ArchiveError, AudioError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -394,6 +412,14 @@ class WorkspaceTools:
         if requested is not None and (not isinstance(requested, str) or not requested):
             raise ToolFailureError("'member' must be a non-empty string when supplied.")
         return inspect_archive(tree.resolve(relative), requested)
+
+    def _inspect_audio(self, arguments: Mapping[str, Any]) -> str:
+        """Transcribe a bounded supported media attachment without changing it."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        model = arguments.get("model")
+        if model is not None and (not isinstance(model, str) or not model.strip()):
+            raise ToolFailureError("'model' must be a non-empty string when supplied.")
+        return inspect_audio(tree.resolve(relative), model=model)
 
     def _inspect_document(self, arguments: Mapping[str, Any]) -> str:
         """Extract a bounded page of an attachment without changing it."""

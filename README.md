@@ -44,6 +44,8 @@ probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file
 inspection results.
 
+`inspect_audio` transcribes a supported local MP3, WAV, M4A, OGG, FLAC, MP4, MPEG, MPGA, or WEBM attachment via the configured OpenAI-compatible transcription API. It never writes the source file, rejects uploads over 25 MB, and bounds returned transcription evidence.
+
 `inspect_email` reads RFC 822 `.eml` correspondence, Unix mbox exports, and Outlook `.msg` messages without writing them out. It presents decoded headers and body text, inventories attachments, can preview a selected textual attachment, and renders an embedded forwarded Outlook message selected as an attachment.
 
 `fetch_web_page` retrieves a single HTTP(S) page as bounded readable evidence, including its visible text, title, final URL, and HTTP(S) links, without executing page content or saving it to disk.
