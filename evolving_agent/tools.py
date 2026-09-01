@@ -22,6 +22,7 @@ from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.tabular import TabularError, inspect_tabular
+from evolving_agent.web import WebError, download_web_file, fetch_web_page
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -215,6 +216,39 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="fetch_web_page",
+                description=(
+                    "Retrieve one HTTP(S) web page without writing it to disk. Returns bounded "
+                    "readable text, page title, final URL, and discovered HTTP(S) links; it does "
+                    "not execute page content or fetch linked resources."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Absolute HTTP or HTTPS URL to retrieve."},
+                        "timeout_seconds": {"type": "integer", "description": "Request timeout from 1 through 60 seconds (default 20)."},
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
+                name="download_web_file",
+                description=(
+                    "Download one HTTP(S) file (including PDFs, office documents, archives, or datasets) "
+                    "to a workspace or output/ path. The response is bounded to 25 MB and can then be "
+                    "inspected with the appropriate local evidence tool."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "HTTP or HTTPS URL to download."},
+                        "path": {"type": "string", "description": "Destination in the workspace or output/."},
+                        "timeout_seconds": {"type": "integer", "description": "Network timeout from 1 through 60 seconds (default 30)."},
+                    },
+                    "required": ["url", "path"],
+                },
+            ),
+            ToolDefinition(
                 name="write_file",
                 description=(
                     "Write one file, replacing it if it exists and creating "
@@ -304,6 +338,8 @@ class WorkspaceTools:
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
+            "fetch_web_page": self._fetch_web_page,
+            "download_web_file": self._download_web_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
@@ -316,7 +352,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -417,6 +453,25 @@ class WorkspaceTools:
         if not isinstance(max_rows, int) or isinstance(max_rows, bool):
             raise ToolFailureError("'max_rows' must be an integer when supplied.")
         return inspect_tabular(tree.resolve(relative), query, max_rows)
+
+    def _fetch_web_page(self, arguments: Mapping[str, Any]) -> str:
+        """Retrieve one bounded, read-only HTTP(S) evidence page."""
+        url = _text_argument(arguments, "url")
+        timeout = arguments.get("timeout_seconds", 20)
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 60:
+            raise ToolFailureError("'timeout_seconds' must be an integer from 1 through 60.")
+        return fetch_web_page(url, timeout)
+
+    def _download_web_file(self, arguments: Mapping[str, Any]) -> str:
+        """Retrieve a bounded binary web resource into a writable tree."""
+        url = _text_argument(arguments, "url")
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path, writing=True)
+        timeout = arguments.get("timeout_seconds", 30)
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 60:
+            raise ToolFailureError("'timeout_seconds' must be an integer from 1 through 60.")
+        result = download_web_file(url, tree.resolve(relative), timeout)
+        return f"{result} Saved as {path}."
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""
