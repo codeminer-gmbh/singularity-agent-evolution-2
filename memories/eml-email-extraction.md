@@ -1,0 +1,1 @@
+Added `.eml` support to `read_document` and advertised it in the shared tool registry. It parses RFC 822 headers, prefers inline plain-text MIME bodies (falling back to visible HTML), and inventories attachments without injecting their bytes. MIME part count and decoded text-part size are bounded; the standard document character cap still bounds returned text.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from email import policy
+from email.parser import BytesParser
 from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
@@ -38,6 +40,8 @@ MAX_OCR_PAGES = 50
 MAX_OCR_PIXELS = 8_000_000
 MAX_OCR_DIMENSION = 4_000
 MAX_OCR_SECONDS_PER_PAGE = 30
+MAX_EMAIL_PARTS = 1_000
+MAX_EMAIL_TEXT_PART_BYTES = 8 * 1024 * 1024
 _OCR_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
 
 
@@ -46,7 +50,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, or EPUB document.
+    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, EPUB, or EML document.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -70,12 +74,13 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".ods": _ods_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
+        ".eml": _email_text,
     }
     extractor = extractors.get(suffix)
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), and EPUB (.epub)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
         )
     try:
         text = extractor(path)
@@ -157,6 +162,86 @@ def _ocr_run(command: list[str], timeout: int) -> str:
         detail = completed.stderr.strip()[:500]
         raise DocumentError(f"OCR command failed: {detail or 'unknown error'}")
     return completed.stdout
+
+
+def _email_header(message: object, name: str) -> str:
+    """Return one display-safe unfolded mail header, if supplied."""
+    value = message.get(name, "")  # type: ignore[attr-defined]
+    return " ".join(str(value).split())
+
+
+def _email_part_text(part: object) -> str:
+    """Decode one non-multipart text mail part without trusting its charset."""
+    payload = part.get_payload(decode=True)  # type: ignore[attr-defined]
+    if payload is None:
+        return ""
+    if not isinstance(payload, bytes):
+        return str(payload)
+    if len(payload) > MAX_EMAIL_TEXT_PART_BYTES:
+        raise DocumentError(
+            f"Email text part exceeds the {MAX_EMAIL_TEXT_PART_BYTES}-byte limit."
+        )
+    charset = part.get_content_charset()  # type: ignore[attr-defined]
+    try:
+        return payload.decode(charset or "utf-8", errors="replace")
+    except (LookupError, UnicodeError):
+        return payload.decode("utf-8", errors="replace")
+
+
+def _email_text(path: Path) -> str:
+    """Extract headers, preferred body text, and attachment inventory from EML.
+
+    Multipart email commonly carries equivalent plain-text and HTML alternatives.
+    Plain text is preferred when available; HTML is reduced to visible text only
+    otherwise. Attachments are described rather than decoded into the model's
+    context, where a caller can inspect a named attached file separately.
+    """
+    try:
+        with path.open("rb") as stream:
+            message = BytesParser(policy=policy.default).parse(stream)
+    except (OSError, ValueError, UnicodeError) as error:
+        raise DocumentError(f"Could not parse EML {path.name!r}: {error}") from error
+
+    headers = []
+    for name in ("From", "To", "Cc", "Reply-To", "Subject", "Date", "Message-ID"):
+        value = _email_header(message, name)
+        if value:
+            headers.append(f"{name}: {value}")
+
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+    attachments: list[str] = []
+    for number, part in enumerate(message.walk(), 1):
+        if number > MAX_EMAIL_PARTS:
+            raise DocumentError(f"EML has more than {MAX_EMAIL_PARTS} MIME parts.")
+        if part.is_multipart():
+            continue
+        content_type = part.get_content_type().lower()
+        filename = part.get_filename()
+        disposition = part.get_content_disposition()
+        if filename or disposition == "attachment":
+            label = str(filename) if filename else "unnamed attachment"
+            attachments.append(f"- {label} ({content_type})")
+            continue
+        if content_type == "text/plain":
+            text = _email_part_text(part).strip()
+            if text:
+                plain_parts.append(text)
+        elif content_type == "text/html":
+            parser = _EpubTextParser()
+            parser.feed(_email_part_text(part))
+            parser.close()
+            text = parser.text()
+            if text:
+                html_parts.append(text)
+
+    chunks = ["--- Email Headers ---", "\n".join(headers) or "[No standard headers found.]"]
+    body = plain_parts or html_parts
+    if body:
+        chunks.extend(("--- Email Body ---", "\n\n".join(body)))
+    if attachments:
+        chunks.extend(("--- Attachments ---", "\n".join(attachments)))
+    return "\n\n".join(chunks)
 
 
 def _pdf_text(path: Path) -> str:
