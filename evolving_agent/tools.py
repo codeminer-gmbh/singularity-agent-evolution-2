@@ -153,7 +153,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_email",
                 description=(
-                    "Extract readable evidence from an RFC 822 .eml message or Unix mbox file without modifying it. "
+                    "Extract readable evidence from an RFC 822 .eml message, Unix mbox file, or Microsoft Outlook .msg message without modifying it. "
                     "Returns decoded headers, body text, and attachment metadata; select a one-based message or textual attachment preview."
                 ),
                 input_schema={
@@ -376,7 +376,7 @@ class WorkspaceTools:
         return inspect_document(tree.resolve(relative), page=page, ocr=ocr, run=run)
 
     def _inspect_email(self, arguments: Mapping[str, Any]) -> str:
-        """Inspect one EML message or a selected mbox message read-only."""
+        """Inspect one EML/Outlook message or a selected mbox message read-only."""
         tree, relative = self._located(_text_argument(arguments, "path"))
         message = arguments.get("message", 1)
         attachment = arguments.get("attachment")

@@ -1,3 +1,3 @@
-Gap: the agent cannot read RFC 822 email evidence or mailbox exports, common task attachments containing correspondence and records.
-Change: add a bounded read-only inspect_email tool for .eml and mbox files, including decoded headers, bodies, attachment inventory, and text-attachment previews.
-Priority: archive, document, SQLite, Parquet, and tabular evidence are already covered; email is an unclosed high-value attachment format without a new dependency.
+Gap: the evidence tools cannot read messages forwarded as embedded Outlook MSG attachments, a common email-chain format in incident and discovery bundles.
+Change: extend MSG attachment inspection to render a bounded nested MSG's headers, body, and attachment inventory in memory.
+Priority: predecessor notes show the direct MSG parser is present, while nested-message evidence remains inaccessible and is more likely to change a hard email-evidence answer than another format variant.

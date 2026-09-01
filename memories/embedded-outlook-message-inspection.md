@@ -1,0 +1,1 @@
+`inspect_email` now renders an embedded Outlook MSG selected with `attachment=`: `emails._msg_attachment` retains nested MSGFile attachment data and `_msg_attachment_preview` produces its decoded headers, text body, and attachment inventory in memory. Direct MSG, EML, and mbox behavior remains unchanged.

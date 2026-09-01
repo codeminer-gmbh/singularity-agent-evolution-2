@@ -20,3 +20,6 @@ duckdb==1.2.2
 pytest==8.4.1
 # Read 7Z evidence bundles directly without writing their members to disk.
 py7zr==0.21.0
+
+# Parse Outlook .msg evidence directly in memory, including native headers and attachments.
+extract-msg==0.55.0
