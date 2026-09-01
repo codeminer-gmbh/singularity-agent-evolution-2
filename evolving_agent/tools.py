@@ -23,7 +23,7 @@ from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
-from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, read_document
+from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -171,6 +171,21 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="ocr_document",
+                description=(
+                    "Recognize text in a scanned PDF or PNG, JPEG, TIFF, BMP, or WebP image. "
+                    "Uses bounded local OCR; paths may be under materials/ or output/."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Image or PDF path relative to the workspace root."},
+                        "max_characters": {"type": "integer", "minimum": 1, "maximum": MAX_TEXT_CHARACTERS, "description": "Maximum recognized characters (default 120000)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="query_sqlite",
                 description=(
                     "Run a read-only SELECT, WITH, or EXPLAIN query against a SQLite "
@@ -301,6 +316,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "read_document": self._read_document,
+            "ocr_document": self._ocr_document,
             "query_sqlite": self._query_sqlite,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
@@ -371,6 +387,18 @@ class WorkspaceTools:
             return read_document(tree.resolve(relative), max_characters=maximum)
         except DocumentError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _ocr_document(self, arguments: Mapping[str, Any]) -> str:
+        path = _text_argument(arguments, "path")
+        maximum = _bounded_integer_argument(
+            arguments, "max_characters", minimum=1, maximum=MAX_TEXT_CHARACTERS,
+            default=MAX_TEXT_CHARACTERS,
+        )
+        try:
+            tree, relative = self._located(path)
+            return ocr_document(tree.resolve(relative), max_characters=maximum)
+        except (WorkspaceError, DocumentError) as error:
+            raise ToolFailureError(str(error)) from error
 
     def _query_sqlite(self, arguments: Mapping[str, Any]) -> str:
         """Run a bounded read-only query against a task SQLite database."""
@@ -615,6 +643,15 @@ def _format_http_response(url: str, status: int, headers: Any, body: bytes) -> s
         text = body.decode("utf-8", errors="replace")
     shown_headers = "\n".join(f"{name}: {value}" for name, value in list(headers.items())[:20])
     return f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\nHeaders:\n{shown_headers}\n\n{text}"
+
+
+def _bounded_integer_argument(
+    arguments: Mapping[str, Any], name: str, *, minimum: int, maximum: int, default: int
+) -> int:
+    value = arguments.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
+        raise ToolFailureError(f"{name} must be an integer from {minimum} through {maximum}.")
+    return value
 
 
 def _text_argument(

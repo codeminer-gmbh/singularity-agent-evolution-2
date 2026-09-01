@@ -1,3 +1,3 @@
-Gap: existing Office readers already cover PowerPoint, but the agent cannot inspect EPUB ebooks, whose ordered chapters and embedded text may be the only task material.
-Change: add a bounded, dependency-free EPUB reader that follows the package spine and converts XHTML chapter bodies to text through `read_document`.
-Priority: this closes an unaddressed common document format without another large runtime dependency, unlike already-covered Office, archive, and SQLite inputs.
+Gap: OCR code is present, but the image/PDF OCR executables and direct image dependency are absent from the image, so scanned materials cannot actually be read.
+Change: Install pinned Pillow plus Tesseract and Poppler in the container so the existing bounded OCR document reader can execute.
+Why: This closes an end-to-end scanned-document input gap without duplicating a parser; archive, Office, EPUB, database, and HTTP inputs are already covered.

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 from pathlib import Path
+import subprocess
+import tempfile
 from typing import Callable, Iterable
 from urllib.parse import unquote
 import posixpath
@@ -13,6 +15,7 @@ import zipfile
 from docx import Document
 from openpyxl import load_workbook
 from pypdf import PdfReader
+from PIL import Image, UnidentifiedImageError
 from pptx import Presentation
 
 MAX_DOCUMENT_BYTES = 48 * 1024 * 1024
@@ -29,6 +32,11 @@ MAX_EBOOK_MEMBERS = 10_000
 MAX_EBOOK_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 MAX_EBOOK_CHAPTERS = 1_000
 MAX_EBOOK_CHAPTER_BYTES = 8 * 1024 * 1024
+MAX_OCR_PAGES = 50
+MAX_OCR_PIXELS = 8_000_000
+MAX_OCR_DIMENSION = 4_000
+MAX_OCR_SECONDS_PER_PAGE = 30
+_OCR_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
 
 
 class DocumentError(Exception):
@@ -75,6 +83,77 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     if len(text) > max_characters:
         return f"{text[:max_characters]}\n... [truncated at {max_characters} characters]"
     return text or "[The document contains no extractable text.]"
+
+
+def ocr_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
+    """Recognize text in a scanned PDF or a common raster image with Tesseract.
+
+    PDF pages are rasterized at a bounded resolution in a private temporary
+    directory.  Images are inspected before OCR so decompression bombs and
+    impractically large pages are refused rather than handed to Tesseract.
+    """
+    if not path.is_file():
+        raise DocumentError(f"{path.name!r} is not a file.")
+    if path.stat().st_size > MAX_DOCUMENT_BYTES:
+        raise DocumentError(f"{path.name!r} exceeds the {MAX_DOCUMENT_BYTES}-byte document limit.")
+    if not isinstance(max_characters, int) or not 1 <= max_characters <= MAX_TEXT_CHARACTERS:
+        raise DocumentError(f"max_characters must be an integer from 1 through {MAX_TEXT_CHARACTERS}.")
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        try:
+            reader = PdfReader(str(path))
+            if reader.is_encrypted:
+                raise DocumentError(f"PDF {path.name!r} is encrypted and cannot be read without a password.")
+            pages = len(reader.pages)
+        except DocumentError:
+            raise
+        except Exception as error:
+            raise DocumentError(f"Could not parse PDF {path.name!r}: {error}") from error
+        if not 1 <= pages <= MAX_OCR_PAGES:
+            raise DocumentError(f"PDF has {pages} pages; OCR limit is {MAX_OCR_PAGES}.")
+        with tempfile.TemporaryDirectory(prefix="evolving-ocr-") as directory:
+            prefix = str(Path(directory) / "page")
+            _ocr_run(["pdftoppm", "-png", "-r", "150", "-scale-to", "2400", str(path), prefix], 90)
+            images = sorted(Path(directory).glob("page-*.png"))
+            if len(images) != pages:
+                raise DocumentError("PDF rendering did not produce every page for OCR.")
+            chunks = [_ocr_image(image, number) for number, image in enumerate(images, 1)]
+    elif suffix in _OCR_IMAGE_SUFFIXES:
+        chunks = [_ocr_image(path, 1)]
+    else:
+        raise DocumentError("OCR supports PDF and PNG, JPEG, TIFF, BMP, or WebP image files.")
+    text = "\n\n".join(chunks).strip()
+    if len(text) > max_characters:
+        return f"{text[:max_characters]}\n... [truncated at {max_characters} characters]"
+    return text or "[No text was recognized.]"
+
+
+def _ocr_image(path: Path, number: int) -> str:
+    try:
+        with Image.open(path) as image:
+            width, height = image.size
+            if width > MAX_OCR_DIMENSION or height > MAX_OCR_DIMENSION or width * height > MAX_OCR_PIXELS:
+                raise DocumentError(f"OCR page {number} is too large ({width}x{height}); limit is {MAX_OCR_PIXELS} pixels.")
+            image.verify()
+    except DocumentError:
+        raise
+    except (OSError, UnidentifiedImageError) as error:
+        raise DocumentError(f"Could not read OCR image {number}: {error}") from error
+    text = _ocr_run(["tesseract", str(path), "stdout", "-l", "eng", "--psm", "3"], MAX_OCR_SECONDS_PER_PAGE)
+    return f"--- OCR Page {number} ---\n{text.strip()}"
+
+
+def _ocr_run(command: list[str], timeout: int) -> str:
+    try:
+        completed = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, check=False)
+    except FileNotFoundError as error:
+        raise DocumentError(f"OCR engine is unavailable ({command[0]} is not installed).") from error
+    except subprocess.TimeoutExpired as error:
+        raise DocumentError(f"OCR timed out after {timeout} seconds.") from error
+    if completed.returncode:
+        detail = completed.stderr.strip()[:500]
+        raise DocumentError(f"OCR command failed: {detail or 'unknown error'}")
+    return completed.stdout
 
 
 def _pdf_text(path: Path) -> str:
