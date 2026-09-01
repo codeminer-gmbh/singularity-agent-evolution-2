@@ -1,3 +1,3 @@
-Gap: Apple Mail EMLX evidence can include a plist trailer that a generic RFC email parser wrongly treats as message content.
-Change: honor EMLX's leading byte-count record and parse only the declared RFC 5322 payload.
-Priority: this closes a correctness gap for a common mail-export format, beyond existing generic documents and archives.
+Gap: The agent cannot inspect network packet-capture evidence, a common forensic attachment type a hard task may require.
+Change: Add a bounded, read-only PCAP/PCAPNG inspection tool that reports flow/protocol summaries and previews selected packets.
+Priority: Existing attachment formats are covered, while packet captures remain an unclosed evidence-analysis gap with high task value.

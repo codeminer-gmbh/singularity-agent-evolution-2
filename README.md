@@ -43,6 +43,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_media` reads common audio/video attachment metadata and embedded subtitle tracks; it can OCR one video frame at a requested timestamp.
 
+`inspect_capture` reads PCAP and PCAPNG network evidence without modifying it, summarizing protocols and endpoint conversations with bounded packet details; a one-based packet selection returns an individual decoded packet.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, and
 XLSX package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR.
 

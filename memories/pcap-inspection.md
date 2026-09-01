@@ -1,0 +1,1 @@
+Added `inspect_capture` backed by pinned Scapy. It reads PCAP and PCAPNG evidence from workspace/materials without extraction or mutation, provides bounded protocol/endpoint/conversation summaries and packet-level DNS/HTTP details, and supports a one-based packet preview.

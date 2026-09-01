@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
+from evolving_agent.capture import CaptureError, inspect_capture
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.email import EmailError, inspect_email
@@ -130,6 +131,22 @@ class WorkspaceTools:
                             "type": "string",
                             "description": "Exact member name to preview; omit to list members.",
                         },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_capture",
+                description=(
+                    "Inspect a PCAP or PCAPNG network capture without modifying it. Returns a bounded "
+                    "protocol, endpoint, and conversation summary with initial packet details; set packet "
+                    "to preview one one-based packet number."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PCAP/PCAPNG path in the workspace or materials/."},
+                        "packet": {"type": "integer", "description": "Optional one-based packet number to inspect."},
                     },
                     "required": ["path"],
                 },
@@ -316,6 +333,7 @@ class WorkspaceTools:
             "list_files": self._list_files,
             "read_file": self._read_file,
             "inspect_archive": self._inspect_archive,
+            "inspect_capture": self._inspect_capture,
             "inspect_document": self._inspect_document,
             "inspect_email": self._inspect_email,
             "inspect_media": self._inspect_media,
@@ -334,7 +352,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, MediaError, EmailError, DatabaseError, ParquetError, TabularError) as refused:
+        except (WorkspaceError, ArchiveError, CaptureError, DocumentError, MediaError, EmailError, DatabaseError, ParquetError, TabularError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -376,6 +394,14 @@ class WorkspaceTools:
         if requested is not None and (not isinstance(requested, str) or not requested):
             raise ToolFailureError("'member' must be a non-empty string when supplied.")
         return inspect_archive(tree.resolve(relative), requested)
+
+    def _inspect_capture(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect a PCAP or PCAPNG evidence file through the matching tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        packet = arguments.get("packet")
+        if packet is not None and (not isinstance(packet, int) or isinstance(packet, bool)):
+            raise ToolFailureError("packet must be an integer when provided.")
+        return inspect_capture(tree.resolve(relative), packet)
 
     def _inspect_document(self, arguments: Mapping[str, Any]) -> str:
         """Extract a bounded page of an attachment without changing it."""
