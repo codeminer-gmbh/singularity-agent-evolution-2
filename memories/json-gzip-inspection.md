@@ -1,0 +1,1 @@
+`inspect_json` now accepts gzip-compressed JSON arrays and JSONL/NDJSON by suffix (`.json.gz`, `.jsonl.gz`, `.ndjson.gz`). It uses a capped streaming decompressor, so compressed inputs retain the JSON inspection byte bound rather than expanding without limit. The registered tool schema advertises this support.

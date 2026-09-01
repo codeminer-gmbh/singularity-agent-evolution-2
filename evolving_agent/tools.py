@@ -28,6 +28,7 @@ from evolving_agent.delimited import (
 )
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
 from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
+from evolving_agent.jsondata import MAX_JSON_OFFSET, MAX_JSON_ROWS, JsonDataError, inspect_json
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -290,6 +291,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_json",
+                description=(
+                    "Stream a JSON array or JSON Lines/NDJSON dataset (including .gz files) "
+                    "without loading the whole file. Returns typed preview records; for a "
+                    "nested JSON array, use an RFC 6901 pointer such as /results/items."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "JSON or JSON Lines data path (optionally .gz), including materials/ or output/."},
+                        "pointer": {"type": "string", "description": "Optional JSON Pointer to an array inside a JSON document."},
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_JSON_ROWS, "description": "Preview rows, default 200."},
+                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_JSON_OFFSET, "description": "Records to skip, default 0."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="http_fetch",
                 description=(
                     "Fetch a live HTTP or HTTPS URL with a bounded GET request. "
@@ -379,6 +398,7 @@ class WorkspaceTools:
             "inspect_delimited": self._inspect_delimited,
             "inspect_parquet": self._inspect_parquet,
             "inspect_geodata": self._inspect_geodata,
+            "inspect_json": self._inspect_json,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -508,6 +528,18 @@ class WorkspaceTools:
                 max_features=arguments.get("max_features", 20),
             )
         except GeodataError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_json(self, arguments: Mapping[str, Any]) -> str:
+        """Stream a structured JSON task dataset into a bounded preview."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return inspect_json(
+                tree.resolve(relative), pointer=arguments.get("pointer", ""),
+                max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
+            )
+        except JsonDataError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:

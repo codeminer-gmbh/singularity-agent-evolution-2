@@ -1,3 +1,3 @@
-Gap: The agent cannot extract readable content from RFC 822 `.eml` email messages, a common task material containing headers, multipart bodies, and attached documents.
-Change: Add bounded standard-library EML parsing to `read_document`, selecting decoded plain/HTML body text and reporting attachment metadata.
-Why: ODS, EPUB, OCR, delimited, Parquet, geodata, and ZIP/TAR inputs are already covered; EML is a distinct ubiquitous office-record format that needs no fragile new runtime dependency.
+Gap: the document reader cannot extract legacy binary Excel `.xls` workbooks, a still-common format in archival data tasks.
+Change: add bounded `.xls` sheet/cell extraction using a pinned `xlrd` dependency and advertise it through `read_document`.
+Priority: this closes an unaddressed office-document reachability gap; existing notes already cover ODS, while `.xls` otherwise remains opaque.
