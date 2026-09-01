@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from evolving_agent.archives import ArchiveError, extract_archive, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
@@ -147,6 +148,39 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_archive",
+                description=(
+                    "Inspect a ZIP or TAR archive (including gzip, bzip2, and xz TAR variants) "
+                    "without opening member payloads. Returns bounded member names, sizes, and types. "
+                    "Use a materials/ path for an input archive."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Archive path."},
+                        "max_members": {"type": "integer", "description": "Members to preview, 1 to 2000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_archive",
+                description=(
+                    "Safely extract regular files from a ZIP or TAR archive into a workspace or output/ "
+                    "directory. Links, special files, unsafe paths, and oversized extraction are refused. "
+                    "Set member to extract one exact member; otherwise extracts the bounded whole archive."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Source archive path."},
+                        "destination": {"type": "string", "description": "Writable destination directory (default extracted)."},
+                        "member": {"type": "string", "description": "Optional exact archive member path."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_spreadsheet",
                 description=(
                     "Inspect a CSV, TSV, XLSX, or ODS spreadsheet without executing "
@@ -266,6 +300,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "delete_path": self._delete_path,
+            "inspect_archive": self._inspect_archive,
+            "extract_archive": self._extract_archive,
             "inspect_spreadsheet": self._inspect_spreadsheet,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
@@ -404,6 +440,32 @@ class WorkspaceTools:
                 max_characters=max_characters,
             )
         except PdfError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:
+        """List bounded metadata for a common archive from a readable tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_members = _bounded_integer(arguments, "max_members", default=100, minimum=1, maximum=2_000)
+        try:
+            return inspect_archive(tree.resolve(relative), max_members=max_members)
+        except ArchiveError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
+        """Extract a bounded, link-free archive into a writable contained tree."""
+        source_tree, source_relative = self._located(_text_argument(arguments, "path"))
+        destination = arguments.get("destination", "extracted")
+        if not isinstance(destination, str) or not destination.strip():
+            raise ToolFailureError("'destination' must be a non-blank string.")
+        target_tree, target_relative = self._located(destination, writing=True)
+        member = arguments.get("member")
+        if member is not None and (not isinstance(member, str) or not member):
+            raise ToolFailureError("'member' must be a non-blank string when supplied.")
+        try:
+            return extract_archive(
+                source_tree.resolve(source_relative), target_tree.resolve(target_relative), member=member
+            )
+        except ArchiveError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_email(self, arguments: Mapping[str, Any]) -> str:
