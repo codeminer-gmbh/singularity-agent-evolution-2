@@ -1,3 +1,3 @@
-Gap: the agent can inspect images but cannot create an image deliverable, chart, or annotated visual from task data.
-Change: add a deterministic Pillow-backed create_image tool for PNG/JPEG with canvas, shapes, text, and local-image composition.
-Priority: document, presentation, spreadsheet, archive, email, PDF inspection, and web retrieval are already covered; visual asset creation is an unclosed input/output class.
+Gap: Improvement instructions reward adding a single advertised tool, but recent verdicts show task-spec precision and adversarial validation decide more exams than breadth.
+Change: Revise the improvement prompt and entry documentation to require evidence-led selection, explicit contract/edge-case review, and outcome-calibrated verification before capability additions.
+Why: Ledger shows tool additions were promoted yet often irrelevant to deciding tasks, while winners repeatedly hinged on rejecting malformed inputs and matching permissive specifications exactly.
