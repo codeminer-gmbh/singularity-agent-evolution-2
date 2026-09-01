@@ -24,7 +24,7 @@ FROM python:3.12-slim
 WORKDIR /opt/evolving-agent
 COPY requirements.txt requirements.txt
 # Tesseract supplies offline OCR for scanned PDFs and image materials.
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr && rm -rf /var/lib/apt/lists/* \
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr ffmpeg && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt
 
 # Everything below is this image's own configuration. The run itself arrives in

@@ -28,3 +28,6 @@ Pillow==11.3.0
 
 # Outlook MSG parser complements the standard-library RFC 822 email parser.
 extract-msg==0.56.1
+
+# Compact offline English speech recognition model for bounded audio/video transcription.
+pocketsphinx==5.0.4

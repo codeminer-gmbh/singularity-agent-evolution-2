@@ -38,9 +38,23 @@ MAX_EBOOK_MEMBERS = 10_000
 MAX_EBOOK_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 MAX_EBOOK_CHAPTERS = 1_000
 MAX_EBOOK_CHAPTER_BYTES = 8 * 1024 * 1024
+MAX_ODF_MEMBERS = 10_000
+MAX_ODF_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
+MAX_ODF_CONTENT_BYTES = 32 * 1024 * 1024
 MAX_EMAIL_PARTS = 200
 MAX_EMAIL_ATTACHMENT_BYTES = 16 * 1024 * 1024
 MAX_EMAIL_DOCUMENT_ATTACHMENTS = 20
+# Speech recognition is intentionally bounded more tightly than document parsing:
+# decoding compressed media and acoustic inference both consume CPU proportional
+# to duration, not just the on-disk input size.
+MAX_AUDIO_DURATION_SECONDS = 15 * 60
+MAX_AUDIO_PCM_BYTES = MAX_AUDIO_DURATION_SECONDS * 16_000 * 2
+_AUDIO_CONVERT_TIMEOUT_SECONDS = 90
+_AUDIO_CHUNK_BYTES = 64 * 1024
+_AUDIO_SUFFIXES = frozenset({
+    ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+    ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi",
+})
 
 
 class DocumentError(Exception):
@@ -75,6 +89,9 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".xlsx": _xlsx_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
+        ".odt": _odf_text,
+        ".ods": _odf_text,
+        ".odp": _odf_text,
         ".eml": _eml_text,
         ".msg": _msg_text,
         ".png": _image_text,
@@ -84,12 +101,13 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".tiff": _image_text,
         ".webp": _image_text,
         ".bmp": _image_text,
+        **{suffix: _audio_text for suffix in _AUDIO_SUFFIXES},
     }
     extractor = extractors.get(suffix)
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB (.epub), RFC 822 email (.eml), Outlook email (.msg), and PNG, JPEG, TIFF, WebP, or BMP images."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument Text/Spreadsheet/Presentation (.odt, .ods, .odp), EPUB (.epub), RFC 822 email (.eml), Outlook email (.msg), PNG/JPEG/TIFF/WebP/BMP images, and common audio or video files (including WAV, MP3, M4A, FLAC, OGG, MP4, MOV, MKV, and WebM)."
         )
     try:
         text = extractor(path)
@@ -129,9 +147,10 @@ def _email_attachment_text(data: bytes, filename: str) -> str:
     suffix = Path(filename).suffix.lower()
     extractor = {
         ".pdf": _pdf_text, ".docx": _docx_text, ".xlsx": _xlsx_text,
-        ".pptx": _pptx_text, ".epub": _epub_text, ".png": _image_text,
+        ".pptx": _pptx_text, ".epub": _epub_text, ".odt": _odf_text, ".ods": _odf_text, ".odp": _odf_text, ".png": _image_text,
         ".jpg": _image_text, ".jpeg": _image_text, ".tif": _image_text,
         ".tiff": _image_text, ".webp": _image_text, ".bmp": _image_text,
+        **{extension: _audio_text for extension in _AUDIO_SUFFIXES},
     }.get(suffix)
     if extractor is None:
         return ""
@@ -185,7 +204,7 @@ def _eml_text(path: Path) -> str:
             if extracted:
                 document_attachments += 1
                 chunks.append(extracted)
-        elif Path(filename).suffix.lower() in {".pdf", ".docx", ".xlsx", ".pptx", ".epub", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp"}:
+        elif Path(filename).suffix.lower() in {".pdf", ".docx", ".xlsx", ".pptx", ".epub", ".odt", ".ods", ".odp", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp", *_AUDIO_SUFFIXES}:
             chunks.append(f"[Document attachments stopped at {MAX_EMAIL_DOCUMENT_ATTACHMENTS}.]")
     return "\n".join(chunks)
 
@@ -311,6 +330,95 @@ def _ocr_image(image: Image.Image, label: str) -> str:
         if result.stat().st_size > MAX_OCR_OUTPUT_BYTES:
             raise DocumentError(f"OCR output for {label} exceeds the {MAX_OCR_OUTPUT_BYTES}-byte limit.")
         return result.read_text(encoding="utf-8", errors="replace")
+
+
+def _audio_text(path: Path) -> str:
+    """Transcribe the first audio stream with PocketSphinx, via ffmpeg.
+
+    ffmpeg gives one carefully constrained decoder path for both audio files and
+    movie containers.  PocketSphinx ships a compact English acoustic/language
+    model, avoiding a network download or a cloud credential while a task is
+    running.  Its output is best-effort recognition, not a verbatim guarantee.
+    """
+    duration = _media_duration(path)
+    if duration <= 0:
+        raise DocumentError(f"Could not determine a positive duration for {path.name!r}.")
+    if duration > MAX_AUDIO_DURATION_SECONDS:
+        raise DocumentError(
+            f"{path.name!r} is {duration:.1f} seconds long; audio limit is "
+            f"{MAX_AUDIO_DURATION_SECONDS} seconds."
+        )
+    with tempfile.TemporaryDirectory(prefix="evolving-agent-audio-") as temporary:
+        pcm = Path(temporary) / "audio.s16le"
+        _decode_media_to_pcm(path, pcm)
+        transcript = _recognize_pcm(pcm)
+    return f"--- Audio transcript ({duration:.1f} seconds; English, offline recognition) ---\n{transcript}"
+
+
+def _media_duration(path: Path) -> float:
+    """Ask ffprobe for duration without accepting arbitrary probe output."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=20, check=False,
+        )
+    except FileNotFoundError as error:
+        raise DocumentError("Audio support is unavailable because ffprobe is not installed.") from error
+    except subprocess.TimeoutExpired as error:
+        raise DocumentError(f"Timed out reading media metadata for {path.name!r}.") from error
+    try:
+        duration = float(result.stdout.decode("ascii", errors="strict").strip())
+    except (UnicodeError, ValueError) as error:
+        raise DocumentError(f"Could not read media duration for {path.name!r}.") from error
+    if result.returncode or duration == float("inf") or duration != duration:
+        raise DocumentError(f"Could not inspect audio in {path.name!r}.")
+    return duration
+
+
+def _decode_media_to_pcm(source: Path, destination: Path) -> None:
+    """Decode only one mono, 16 kHz stream, with output and wall-clock bounds."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-nostdin", "-v", "error", "-i", str(source), "-map", "0:a:0", "-vn", "-sn", "-dn", "-ac", "1", "-ar", "16000", "-f", "s16le", "-y", str(destination)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            timeout=_AUDIO_CONVERT_TIMEOUT_SECONDS, check=False,
+        )
+    except FileNotFoundError as error:
+        raise DocumentError("Audio support is unavailable because ffmpeg is not installed.") from error
+    except subprocess.TimeoutExpired as error:
+        raise DocumentError(f"Timed out decoding audio from {source.name!r}.") from error
+    if result.returncode or not destination.is_file():
+        detail = result.stderr.decode("utf-8", errors="replace").strip().replace("\n", " ")[:300]
+        raise DocumentError(f"Could not decode an audio stream from {source.name!r}{': ' + detail if detail else ''}")
+    if destination.stat().st_size > MAX_AUDIO_PCM_BYTES:
+        raise DocumentError(f"Decoded audio from {source.name!r} exceeds the audio duration limit.")
+
+
+def _recognize_pcm(path: Path) -> str:
+    """Run the bundled PocketSphinx English model on bounded signed PCM."""
+    try:
+        from pocketsphinx import Decoder, get_model_path
+    except ImportError as error:
+        raise DocumentError("Audio support is unavailable because PocketSphinx is not installed.") from error
+    try:
+        model_root = Path(get_model_path()) / "en-us"
+        config = Decoder.default_config()
+        config.set_string("-hmm", str(model_root / "en-us"))
+        config.set_string("-lm", str(model_root / "en-us.lm.bin"))
+        config.set_string("-dict", str(model_root / "cmudict-en-us.dict"))
+        decoder = Decoder(config)
+        decoder.start_utt()
+        with path.open("rb") as stream:
+            while chunk := stream.read(_AUDIO_CHUNK_BYTES):
+                decoder.process_raw(chunk, False, False)
+        decoder.end_utt()
+        hypothesis = decoder.hyp()
+    except Exception as error:
+        raise DocumentError(f"Could not recognize audio: {error}") from error
+    if hypothesis is None or not hypothesis.hypstr.strip():
+        return "[No intelligible speech was recognized.]"
+    return hypothesis.hypstr.strip()
 
 
 def _docx_text(path: Path) -> str:
@@ -459,6 +567,115 @@ class _EpubTextParser(HTMLParser):
 
     def text(self) -> str:
         return "".join(self.parts).strip()
+
+
+_ODF_TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+_ODF_TABLE_NS = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+_ODF_DRAW_NS = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+_ODF_OFFICE_NS = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+
+
+def _odf_paragraphs(node: ET.Element) -> list[str]:
+    """Return visible paragraph/headline text below one ODF element."""
+    paragraphs: list[str] = []
+    for element in node.iter():
+        if element.tag in {f"{{{_ODF_TEXT_NS}}}p", f"{{{_ODF_TEXT_NS}}}h"}:
+            value = "".join(element.itertext()).strip()
+            if value:
+                paragraphs.append(value)
+    return paragraphs
+
+
+def _odf_word_text(root: ET.Element) -> str:
+    body = root.find(f".//{{{_ODF_OFFICE_NS}}}text")
+    if body is None:
+        raise DocumentError("OpenDocument text file has no office:text body.")
+    return "\n".join(_odf_paragraphs(body))
+
+
+def _odf_spreadsheet_text(root: ET.Element) -> str:
+    body = root.find(f".//{{{_ODF_OFFICE_NS}}}spreadsheet")
+    if body is None:
+        raise DocumentError("OpenDocument spreadsheet has no office:spreadsheet body.")
+    chunks: list[str] = []
+    tables = list(body.iter(f"{{{_ODF_TABLE_NS}}}table"))
+    if len(tables) > MAX_SHEETS:
+        raise DocumentError(f"OpenDocument spreadsheet has {len(tables)} sheets; limit is {MAX_SHEETS}.")
+    for table in tables:
+        name = table.get(f"{{{_ODF_TABLE_NS}}}name", "Untitled")
+        chunks.append(f"--- Sheet: {name} ---")
+        emitted_rows = 0
+        for row in table:
+            if row.tag != f"{{{_ODF_TABLE_NS}}}table-row":
+                continue
+            repetitions = _odf_repeat(row, "number-rows-repeated")
+            for _ in range(min(repetitions, MAX_ROWS_PER_SHEET - emitted_rows)):
+                values: list[str] = []
+                for cell in row:
+                    if cell.tag not in {f"{{{_ODF_TABLE_NS}}}table-cell", f"{{{_ODF_TABLE_NS}}}covered-table-cell"}:
+                        continue
+                    value = " ".join(_odf_paragraphs(cell))
+                    if not value:
+                        value = cell.get(f"{{{_ODF_OFFICE_NS}}}value", "")
+                    repeat = min(_odf_repeat(cell, "number-columns-repeated"), MAX_COLUMNS_PER_SHEET - len(values))
+                    values.extend([value] * repeat)
+                    if len(values) >= MAX_COLUMNS_PER_SHEET:
+                        break
+                while values and not values[-1]:
+                    values.pop()
+                if values:
+                    chunks.append("\t".join(values))
+                emitted_rows += 1
+            if emitted_rows >= MAX_ROWS_PER_SHEET:
+                chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
+                break
+    return "\n".join(chunks)
+
+
+def _odf_repeat(element: ET.Element, name: str) -> int:
+    """Read a non-negative ODF repeat attribute without expanding hostile counts."""
+    try:
+        return max(1, int(element.get(f"{{{_ODF_TABLE_NS}}}{name}", "1")))
+    except ValueError:
+        return 1
+
+
+def _odf_presentation_text(root: ET.Element) -> str:
+    body = root.find(f".//{{{_ODF_OFFICE_NS}}}presentation")
+    if body is None:
+        raise DocumentError("OpenDocument presentation has no office:presentation body.")
+    pages = list(body.iter(f"{{{_ODF_DRAW_NS}}}page"))
+    if len(pages) > MAX_SLIDES:
+        raise DocumentError(f"OpenDocument presentation has {len(pages)} slides; limit is {MAX_SLIDES}.")
+    chunks: list[str] = []
+    for number, page in enumerate(pages, 1):
+        chunks.append(f"--- Slide {number} ---")
+        chunks.extend(_odf_paragraphs(page))
+    return "\n".join(chunks)
+
+
+def _odf_text(path: Path) -> str:
+    """Read ODT, ODS, or ODP ``content.xml`` with ZIP and logical-size bounds."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ODF_MEMBERS:
+                raise DocumentError(f"OpenDocument has {len(infos)} package members; limit is {MAX_ODF_MEMBERS}.")
+            if sum(info.file_size for info in infos) > MAX_ODF_UNCOMPRESSED_BYTES:
+                raise DocumentError(f"OpenDocument expands beyond the {MAX_ODF_UNCOMPRESSED_BYTES}-byte limit.")
+            try:
+                content = archive.getinfo("content.xml")
+            except KeyError as error:
+                raise DocumentError("OpenDocument package has no content.xml.") from error
+            if content.file_size > MAX_ODF_CONTENT_BYTES:
+                raise DocumentError(f"OpenDocument content.xml exceeds the {MAX_ODF_CONTENT_BYTES}-byte limit.")
+            root = ET.fromstring(archive.read(content))
+    except DocumentError:
+        raise
+    except (ET.ParseError, OSError, ValueError, zipfile.BadZipFile) as error:
+        raise DocumentError(f"Could not parse OpenDocument {path.name!r}: {error}") from error
+    extractors = {".odt": _odf_word_text, ".ods": _odf_spreadsheet_text, ".odp": _odf_presentation_text}
+    return extractors[path.suffix.lower()](root)
 
 
 def _epub_member_path(base: str, href: str) -> str:
