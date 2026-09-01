@@ -152,7 +152,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="read_document",
                 description=(
-                    "Extract text, tables, speaker notes, and OCR text from scanned PDFs or PNG/JPEG/TIFF/WebP/BMP images, as well as PDF, Word DOCX, Excel XLSX, PowerPoint PPTX, or EPUB "
+                    "Extract headers, bodies, and supported attachments from RFC 822 (.eml) or Outlook (.msg) email; text, tables, speaker notes, and OCR text from scanned PDFs or PNG/JPEG/TIFF/WebP/BMP images; and text from PDF, Word DOCX, Excel XLSX, PowerPoint PPTX, or EPUB "
                     "file. Paths may be under materials/ or output/. Output is bounded; "
                     "use max_characters to request a smaller excerpt."
                 ),

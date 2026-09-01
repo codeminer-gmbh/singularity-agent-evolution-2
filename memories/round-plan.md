@@ -1,3 +1,3 @@
-Gap: the agent cannot recover information from scanned PDFs or image-only task materials, so hard tasks with receipts, forms, and screenshots are unreadable.
-Change: add bounded local Tesseract OCR to read_document for common raster images and PDF pages with no native text.
-Priority: this is an unclosed input-format gap; existing office parsing, archive extraction, web access, and SQLite querying already cover their respective formats.
+Gap: the agent cannot inspect common email-message evidence (RFC 822 .eml or Outlook .msg), including attachments, that a hard document-analysis task may supply.
+Change: add a bounded email extraction path to read_document, reporting message headers, bodies, and safely decoded attachments.
+Why: archive, OCR, EPUB, databases, and office/PDF extraction were already pursued in this lineage, while email containers remain an unclosed, high-value input class.

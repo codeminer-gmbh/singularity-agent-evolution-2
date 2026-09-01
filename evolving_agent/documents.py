@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from email import policy
+from email.parser import BytesParser
 from html.parser import HTMLParser
 from pathlib import Path
 import subprocess
@@ -36,6 +38,9 @@ MAX_EBOOK_MEMBERS = 10_000
 MAX_EBOOK_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 MAX_EBOOK_CHAPTERS = 1_000
 MAX_EBOOK_CHAPTER_BYTES = 8 * 1024 * 1024
+MAX_EMAIL_PARTS = 200
+MAX_EMAIL_ATTACHMENT_BYTES = 16 * 1024 * 1024
+MAX_EMAIL_DOCUMENT_ATTACHMENTS = 20
 
 
 class DocumentError(Exception):
@@ -43,7 +48,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, common office documents, or an image.
+    """Extract readable text from a PDF, office documents, email, or an image.
 
     Scanned PDF pages and PNG, JPEG, TIFF, WebP, and BMP images are read with
     Tesseract OCR. OCR has deliberately tighter page and pixel limits than
@@ -70,6 +75,8 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".xlsx": _xlsx_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
+        ".eml": _eml_text,
+        ".msg": _msg_text,
         ".png": _image_text,
         ".jpg": _image_text,
         ".jpeg": _image_text,
@@ -82,7 +89,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB (.epub), and PNG, JPEG, TIFF, WebP, or BMP images."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), EPUB (.epub), RFC 822 email (.eml), Outlook email (.msg), and PNG, JPEG, TIFF, WebP, or BMP images."
         )
     try:
         text = extractor(path)
@@ -94,6 +101,128 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         return f"{text[:max_characters]}\n... [truncated at {max_characters} characters]"
     return text or "[The document contains no extractable text.]"
 
+
+
+def _decode_email_bytes(part: object) -> str:
+    """Decode one MIME text part without trusting its claimed charset."""
+    payload = part.get_payload(decode=True)
+    if payload is None:
+        payload = b""
+    if len(payload) > MAX_EMAIL_ATTACHMENT_BYTES:
+        raise DocumentError(f"Email part exceeds the {MAX_EMAIL_ATTACHMENT_BYTES}-byte limit.")
+    charset = part.get_content_charset() or "utf-8"
+    try:
+        return payload.decode(charset, errors="replace")
+    except (LookupError, UnicodeError):
+        return payload.decode("utf-8", errors="replace")
+
+
+def _email_html_text(value: str) -> str:
+    parser = _EpubTextParser()
+    parser.feed(value)
+    parser.close()
+    return parser.text()
+
+
+def _email_attachment_text(data: bytes, filename: str) -> str:
+    """Read a bounded, supported document attached to an email."""
+    suffix = Path(filename).suffix.lower()
+    extractor = {
+        ".pdf": _pdf_text, ".docx": _docx_text, ".xlsx": _xlsx_text,
+        ".pptx": _pptx_text, ".epub": _epub_text, ".png": _image_text,
+        ".jpg": _image_text, ".jpeg": _image_text, ".tif": _image_text,
+        ".tiff": _image_text, ".webp": _image_text, ".bmp": _image_text,
+    }.get(suffix)
+    if extractor is None:
+        return ""
+    if len(data) > MAX_EMAIL_ATTACHMENT_BYTES:
+        return f"[Attachment omitted: exceeds {MAX_EMAIL_ATTACHMENT_BYTES}-byte limit.]"
+    # The generated filename is never derived from untrusted attachment names.
+    with tempfile.TemporaryDirectory(prefix="evolving-agent-email-") as temporary:
+        attached = Path(temporary) / f"attachment{suffix}"
+        attached.write_bytes(data)
+        try:
+            return extractor(attached)
+        except DocumentError as error:
+            return f"[Attachment could not be read: {error}]"
+
+
+def _eml_text(path: Path) -> str:
+    """Extract headers, readable bodies, and supported attachments from RFC 822 mail."""
+    try:
+        message = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
+    except Exception as error:
+        raise DocumentError(f"Could not parse email {path.name!r}: {error}") from error
+    chunks = ["--- Email ---"]
+    for header in ("From", "To", "Cc", "Bcc", "Date", "Subject"):
+        value = str(message.get(header, "")).strip()
+        if value:
+            chunks.append(f"{header}: {value}")
+    document_attachments = 0
+    for number, part in enumerate(message.walk(), start=1):
+        if number > MAX_EMAIL_PARTS:
+            raise DocumentError(f"Email has more than {MAX_EMAIL_PARTS} MIME parts.")
+        if part.is_multipart():
+            continue
+        content_type = part.get_content_type().lower()
+        filename = part.get_filename() or ""
+        disposition = (part.get_content_disposition() or "").lower()
+        if content_type.startswith("text/") and not (filename or disposition == "attachment"):
+            text = _decode_email_bytes(part)
+            if content_type == "text/html":
+                text = _email_html_text(text)
+            if text.strip():
+                chunks.append(f"--- Body part {number} ({content_type}) ---\n{text.strip()}")
+            continue
+        label = filename or f"part-{number}"
+        chunks.append(f"--- Attachment: {label} ({content_type}) ---")
+        data = part.get_payload(decode=True) or b""
+        if len(data) > MAX_EMAIL_ATTACHMENT_BYTES:
+            chunks.append(f"[Attachment omitted: exceeds {MAX_EMAIL_ATTACHMENT_BYTES}-byte limit.]")
+            continue
+        if document_attachments < MAX_EMAIL_DOCUMENT_ATTACHMENTS:
+            extracted = _email_attachment_text(data, filename)
+            if extracted:
+                document_attachments += 1
+                chunks.append(extracted)
+        elif Path(filename).suffix.lower() in {".pdf", ".docx", ".xlsx", ".pptx", ".epub", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp"}:
+            chunks.append(f"[Document attachments stopped at {MAX_EMAIL_DOCUMENT_ATTACHMENTS}.]")
+    return "\n".join(chunks)
+
+
+def _msg_text(path: Path) -> str:
+    """Extract Outlook MSG metadata, body, and supported binary attachments."""
+    try:
+        import extract_msg
+        message = extract_msg.Message(str(path))
+    except Exception as error:
+        raise DocumentError(f"Could not parse Outlook email {path.name!r}: {error}") from error
+    try:
+        chunks = ["--- Outlook Email ---"]
+        for label, value in (("From", message.sender), ("To", message.to), ("Cc", message.cc), ("Date", message.date), ("Subject", message.subject)):
+            if value:
+                chunks.append(f"{label}: {value}")
+        body = message.body or ""
+        if body.strip():
+            chunks.append(f"--- Body ---\n{body.strip()}")
+        for number, attachment in enumerate(message.attachments, start=1):
+            if number > MAX_EMAIL_PARTS:
+                raise DocumentError(f"Outlook email has more than {MAX_EMAIL_PARTS} attachments.")
+            filename = attachment.getFilename() or f"attachment-{number}"
+            chunks.append(f"--- Attachment: {filename} ({getattr(attachment, 'mimetype', None) or 'unknown'}) ---")
+            data = attachment.data
+            if not isinstance(data, bytes):
+                chunks.append("[Attachment is not a binary file and was not extracted.]")
+                continue
+            if len(data) > MAX_EMAIL_ATTACHMENT_BYTES:
+                chunks.append(f"[Attachment omitted: exceeds {MAX_EMAIL_ATTACHMENT_BYTES}-byte limit.]")
+                continue
+            extracted = _email_attachment_text(data, filename)
+            if extracted:
+                chunks.append(extracted)
+        return "\n".join(chunks)
+    finally:
+        message.close()
 
 def _pdf_text(path: Path) -> str:
     try:

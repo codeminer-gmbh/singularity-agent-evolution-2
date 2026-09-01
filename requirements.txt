@@ -25,3 +25,6 @@ python-pptx==1.0.2
 # Rasterization and image decoding make bounded OCR available for scans.
 pypdfium2==5.13.0
 Pillow==11.3.0
+
+# Outlook MSG parser complements the standard-library RFC 822 email parser.
+extract-msg==0.56.1
