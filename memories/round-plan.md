@@ -1,3 +1,3 @@
-Current gap: rounds favor plausible isolated tools even when the ledger shows scored deliverable/task-workflow gaps and no demonstrated leverage.
-Change: make the improvement role require a ledger-guided, end-to-end bottleneck audit and task-interface verification.
-Why this: recent ledger entries repeatedly leave added inspection tools unmentioned or tied, while decisive verdicts cite executable task results; this selection rule targets that evidence rather than another format reader.
+Bottleneck: probes with Word or PowerPoint evidence have no dedicated safe reader, while PDFs, spreadsheets, images, email, and archives are inspectable.
+Change: add a bounded DOCX/PPTX inspector that extracts text and inventories media without opening active content, and expose it through the shared tool registry.
+Evidence: ledger records repeated use and acceptance of format-specific evidence readers; no predecessor capability or tool-call route covers Office document evidence, so this closes a distinct hard-task path rather than duplicating a reader.

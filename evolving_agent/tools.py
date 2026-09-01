@@ -19,6 +19,7 @@ from evolving_agent.archives import ArchiveError, extract_archive, inspect_archi
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
+from evolving_agent.office_documents import OfficeDocumentError, inspect_office_document
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -199,6 +200,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_office_document",
+                description=(
+                    "Inspect a DOCX Word document or PPTX PowerPoint presentation without executing macros, "
+                    "following links, or opening media. Returns bounded text from document parts or slides and "
+                    "an embedded-media inventory. Use a materials/ path for evidence."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "DOCX or PPTX document path."},
+                        "max_parts": {"type": "integer", "description": "Text parts or slides to preview, 1 to 100."},
+                        "max_characters": {"type": "integer", "description": "Characters per part preview, 1 to 12000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_pdf",
                 description=(
                     "Inspect a PDF's metadata, embedded-file names, and bounded extracted page text without "
@@ -303,6 +321,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "extract_archive": self._extract_archive,
             "inspect_spreadsheet": self._inspect_spreadsheet,
+            "inspect_office_document": self._inspect_office_document,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
@@ -422,6 +441,16 @@ class WorkspaceTools:
         try:
             return inspect_image(tree.resolve(relative), ocr=ocr, max_characters=maximum)
         except ImageError as refused:
+            raise ToolFailureError(str(refused)) from refused
+
+    def _inspect_office_document(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect bounded text and media metadata from DOCX or PPTX evidence."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_parts = _bounded_integer(arguments, "max_parts", default=20, minimum=1, maximum=100)
+        max_characters = _bounded_integer(arguments, "max_characters", default=8_000, minimum=1, maximum=12_000)
+        try:
+            return inspect_office_document(tree.resolve(relative), max_parts=max_parts, max_characters=max_characters)
+        except OfficeDocumentError as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _inspect_pdf(self, arguments: Mapping[str, Any]) -> str:
