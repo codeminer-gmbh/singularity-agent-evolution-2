@@ -17,6 +17,7 @@ from typing import Any
 
 from evolving_agent.commands import CommandRunner
 from evolving_agent.emails import EmailError, inspect_email
+from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -182,6 +183,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_image",
+                description=(
+                    "Inspect a PNG, JPEG, WebP, TIFF, BMP, or GIF image locally. "
+                    "Returns dimensions, frame count, printable EXIF metadata, and bounded "
+                    "English OCR text without rendering the image. Use a materials/ path for evidence."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Image file path."},
+                        "ocr": {"type": "boolean", "description": "Whether to extract English OCR text (default true)."},
+                        "max_characters": {"type": "integer", "description": "OCR preview characters, 1 to 20000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_email",
                 description=(
                     "Inspect an EML, EMLX, or MBOX email evidence file without "
@@ -251,6 +269,7 @@ class WorkspaceTools:
             "inspect_spreadsheet": self._inspect_spreadsheet,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
+            "inspect_image": self._inspect_image,
             "run_command": self._run_command,
         }
         handler = handlers.get(name)
@@ -354,6 +373,20 @@ class WorkspaceTools:
             return inspect_spreadsheet(tree.resolve(relative), sheet=sheet, max_rows=max_rows, max_columns=max_columns)
         except SpreadsheetError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_image(self, arguments: Mapping[str, Any]) -> str:
+        """Return bounded metadata and optional OCR from a local image."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        ocr = arguments.get("ocr", True)
+        if not isinstance(ocr, bool):
+            raise ToolFailureError("'ocr' must be true or false when supplied.")
+        maximum = _bounded_integer(
+            arguments, "max_characters", default=8_000, minimum=1, maximum=20_000
+        )
+        try:
+            return inspect_image(tree.resolve(relative), ocr=ocr, max_characters=maximum)
+        except ImageError as refused:
+            raise ToolFailureError(str(refused)) from refused
 
     def _inspect_pdf(self, arguments: Mapping[str, Any]) -> str:
         """Inspect non-active PDF evidence from a readable contained tree."""

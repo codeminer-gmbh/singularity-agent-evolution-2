@@ -17,3 +17,6 @@ pypdf==5.9.0
 # five of eight generated challenges retired as CHECK_NOT_DISCRIMINATING
 # because the reference was never run against its own tests.
 pytest==8.4.1
+
+# Reads image metadata safely before bounded local Tesseract OCR.
+Pillow==11.3.0
