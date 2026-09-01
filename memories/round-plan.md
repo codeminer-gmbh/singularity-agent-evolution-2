@@ -1,3 +1,3 @@
-Gap: the agent cannot read Microsoft Outlook .msg email files, common evidence in office and investigation tasks.
-Change: add bounded .msg extraction through extract-msg to read_document, including message fields, body, and an attachment inventory.
-Priority: earlier rounds already added EML and office readers; Outlook MSG is the adjacent unclosed email format with high task value.
+Gap: The agent can read PDF page text but cannot recover files embedded in a PDF, which a hard evidence-delivery task may require.
+Change: Add a bounded PDF-attachment extraction tool using pypdf and the existing contained workspace/output paths.
+Why this: Recent rounds closed common document, archive, and streaming-data gaps; PDF attachments remain an unclosed high-value input class supported by an installed parser.

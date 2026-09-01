@@ -26,7 +26,7 @@ from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.delimited import (
     MAX_DELIMITED_OFFSET, MAX_DELIMITED_ROWS, DelimitedError, inspect_delimited,
 )
-from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
+from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, extract_pdf_attachments, ocr_document, read_document
 from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
 from evolving_agent.jsondata import MAX_JSON_OFFSET, MAX_JSON_ROWS, JsonDataError, inspect_json
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
@@ -174,6 +174,23 @@ class WorkspaceTools:
                         },
                     },
                     "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_pdf_attachments",
+                description=(
+                    "Extract files embedded in a PDF into a new directory. Paths may be under "
+                    "materials/ or output/; destination must be under the workspace or output/. "
+                    "Omit members to extract every attachment. Attachment sizes and counts are bounded."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PDF path relative to the workspace root."},
+                        "destination": {"type": "string", "description": "Empty destination directory under the workspace or output/."},
+                        "members": {"type": "array", "items": {"type": "string"}, "description": "Optional exact embedded attachment names to extract."},
+                    },
+                    "required": ["path", "destination"],
                 },
             ),
             ToolDefinition(
@@ -393,6 +410,7 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "read_document": self._read_document,
+            "extract_pdf_attachments": self._extract_pdf_attachments,
             "ocr_document": self._ocr_document,
             "query_sqlite": self._query_sqlite,
             "inspect_delimited": self._inspect_delimited,
@@ -468,6 +486,31 @@ class WorkspaceTools:
             return read_document(tree.resolve(relative), max_characters=maximum)
         except DocumentError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _extract_pdf_attachments(self, arguments: Mapping[str, Any]) -> str:
+        """Extract bounded embedded files from a PDF into a writable tree."""
+        path = _text_argument(arguments, "path")
+        destination = _text_argument(arguments, "destination")
+        members_value = arguments.get("members")
+        if members_value is None:
+            members = None
+        elif isinstance(members_value, list) and all(isinstance(item, str) for item in members_value):
+            members = members_value
+        else:
+            raise ToolFailureError("members must be an array of attachment name strings.")
+        try:
+            source_tree, source_relative = self._located(path)
+            destination_tree, destination_relative = self._located(destination, writing=True)
+            extracted = extract_pdf_attachments(
+                source_tree.resolve(source_relative), destination_tree.resolve(destination_relative), members=members,
+            )
+        except (WorkspaceError, DocumentError) as error:
+            raise ToolFailureError(str(error)) from error
+        if not extracted:
+            return "The PDF contains no embedded attachments."
+        return "Extracted PDF attachments:\n" + "\n".join(
+            f"- {name} ({size} bytes)" for name, size in extracted
+        )
 
     def _ocr_document(self, arguments: Mapping[str, Any]) -> str:
         path = _text_argument(arguments, "path")

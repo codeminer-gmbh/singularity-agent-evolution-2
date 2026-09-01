@@ -5,7 +5,7 @@ from __future__ import annotations
 from email import policy
 from email.parser import BytesParser
 from html.parser import HTMLParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import tempfile
 from typing import Callable, Iterable
@@ -23,6 +23,9 @@ from pptx import Presentation
 
 MAX_DOCUMENT_BYTES = 48 * 1024 * 1024
 MAX_PDF_PAGES = 200
+MAX_PDF_ATTACHMENTS = 100
+MAX_PDF_ATTACHMENT_BYTES = 16 * 1024 * 1024
+MAX_PDF_ATTACHMENT_TOTAL_BYTES = 64 * 1024 * 1024
 MAX_SLIDES = 200
 MAX_PRESENTATION_SHAPES = 10_000
 MAX_PRESENTATION_MEMBERS = 10_000
@@ -301,6 +304,79 @@ def _msg_text(path: Path) -> str:
     if attachments:
         chunks.extend(("--- Attachments ---", "\n".join(attachments)))
     return "\n\n".join(chunks)
+
+
+def extract_pdf_attachments(path: Path, destination: Path, *, members: Iterable[str] | None = None) -> list[tuple[str, int]]:
+    """Copy selected embedded PDF files into *destination* under strict bounds.
+
+    PDF attachment names are untrusted, so only simple file names are accepted.
+    The returned names are the names written, together with their byte sizes.
+    """
+    if not path.is_file():
+        raise DocumentError(f"{path.name!r} is not a file.")
+    if path.stat().st_size > MAX_DOCUMENT_BYTES:
+        raise DocumentError(f"{path.name!r} exceeds the {MAX_DOCUMENT_BYTES}-byte document limit.")
+    if path.suffix.lower() != ".pdf":
+        raise DocumentError(f"{path.name!r} is not a PDF file.")
+    if members is not None and (not members or len(set(members)) != len(members)):
+        raise DocumentError("members must be a non-empty list of distinct attachment names.")
+    try:
+        reader = PdfReader(str(path))
+        if reader.is_encrypted:
+            raise DocumentError(f"PDF {path.name!r} is encrypted and cannot be read without a password.")
+        attachments = reader.attachments
+        available = list(attachments.keys())
+    except DocumentError:
+        raise
+    except Exception as error:
+        raise DocumentError(f"Could not parse PDF {path.name!r}: {error}") from error
+    if len(available) > MAX_PDF_ATTACHMENTS:
+        raise DocumentError(f"PDF has {len(available)} attachments; limit is {MAX_PDF_ATTACHMENTS}.")
+    selected = available if members is None else list(members)
+    absent = sorted(set(selected) - set(available))
+    if absent:
+        raise DocumentError("PDF has no attachment(s) named: " + ", ".join(repr(name) for name in absent))
+    if len(selected) > MAX_PDF_ATTACHMENTS:
+        raise DocumentError(f"Requested {len(selected)} attachments; limit is {MAX_PDF_ATTACHMENTS}.")
+    for name in selected:
+        _safe_pdf_attachment_name(name)
+    payloads: list[tuple[str, bytes]] = []
+    total = 0
+    try:
+        for name in selected:
+            # A PDF name can map to several file specifications; preserve each
+            # byte stream in one file only when there is exactly one payload.
+            blobs = attachments[name]
+            if len(blobs) != 1:
+                raise DocumentError(f"Attachment {name!r} has {len(blobs)} payloads and cannot be extracted safely.")
+            blob = blobs[0]
+            if len(blob) > MAX_PDF_ATTACHMENT_BYTES:
+                raise DocumentError(f"Attachment {name!r} exceeds the {MAX_PDF_ATTACHMENT_BYTES}-byte limit.")
+            total += len(blob)
+            if total > MAX_PDF_ATTACHMENT_TOTAL_BYTES:
+                raise DocumentError(f"Selected attachments exceed the {MAX_PDF_ATTACHMENT_TOTAL_BYTES}-byte total limit.")
+            payloads.append((name, blob))
+    except DocumentError:
+        raise
+    except Exception as error:
+        raise DocumentError(f"Could not read PDF attachments from {path.name!r}: {error}") from error
+    destination.mkdir(parents=True, exist_ok=True)
+    written: list[tuple[str, int]] = []
+    for name, blob in payloads:
+        target = destination / name
+        if target.exists():
+            raise DocumentError(f"Destination already contains {name!r}; choose an empty destination.")
+        target.write_bytes(blob)
+        written.append((name, len(blob)))
+    return written
+
+
+def _safe_pdf_attachment_name(name: str) -> None:
+    if not isinstance(name, str) or not name or "\x00" in name or "\\" in name:
+        raise DocumentError(f"Unsafe PDF attachment name {name!r}.")
+    pure = PurePosixPath(name)
+    if pure.name != name or name in {".", ".."}:
+        raise DocumentError(f"Unsafe PDF attachment name {name!r}.")
 
 
 def _pdf_text(path: Path) -> str:
