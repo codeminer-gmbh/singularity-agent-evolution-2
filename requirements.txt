@@ -23,3 +23,6 @@ Pillow==11.3.0
 
 # Produces editable PPTX deliverables from structured slides.
 python-pptx==1.0.2
+
+# Produces editable Word DOCX deliverables from structured content.
+python-docx==1.2.0

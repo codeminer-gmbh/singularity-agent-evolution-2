@@ -18,6 +18,7 @@ from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
+from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
@@ -239,6 +240,41 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_document",
+                description=(
+                    "Create an editable Word DOCX document in the workspace or output/ from "
+                    "structured blocks. Blocks can be headings, paragraphs, bullet lists, "
+                    "tables, page breaks, and local images from the readable workspace or "
+                    "materials/. This creates a file; it does not render or execute content."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .docx path, usually under output/."},
+                        "title": {"type": "string", "description": "Optional document title and first heading."},
+                        "blocks": {
+                            "type": "array", "minItems": 1, "maxItems": 100,
+                            "description": "Document block objects, in order.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string", "enum": ["heading", "paragraph", "bullets", "table", "page_break", "image"]},
+                                    "text": {"type": "string", "description": "Text for heading or paragraph blocks."},
+                                    "level": {"type": "integer", "description": "Heading level, 1 through 9 (default 1)."},
+                                    "items": {"type": "array", "items": {"type": "string"}, "description": "Bullet text."},
+                                    "columns": {"type": "array", "items": {"type": "string"}, "description": "Table header text."},
+                                    "rows": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}, "description": "Table rows."},
+                                    "path": {"type": "string", "description": "Image path, e.g. materials/chart.png."},
+                                    "caption": {"type": "string", "description": "Optional image caption."},
+                                },
+                                "required": ["type"],
+                            },
+                        },
+                    },
+                    "required": ["path", "blocks"],
+                },
+            ),
+            ToolDefinition(
                 name="create_presentation",
                 description=(
                     "Create an editable PPTX presentation in the workspace or output/ from "
@@ -321,6 +357,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
+            "create_document": self._create_document,
             "create_presentation": self._create_presentation,
             "run_command": self._run_command,
         }
@@ -486,6 +523,23 @@ class WorkspaceTools:
                 max_messages=max_messages,
             )
         except EmailError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_document(self, arguments: Mapping[str, Any]) -> str:
+        """Create an editable Word document at a writable contained path."""
+        requested = _text_argument(arguments, "path")
+        destination_tree, relative = self._located(requested, writing=True)
+
+        def locate_image(path: str) -> Path:
+            tree, image_relative = self._located(path)
+            return tree.resolve(image_relative)
+
+        try:
+            return create_document(
+                destination_tree.resolve(relative), arguments.get("blocks"),
+                image_path=locate_image, title=arguments.get("title"),
+            )
+        except DocumentError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _create_presentation(self, arguments: Mapping[str, Any]) -> str:

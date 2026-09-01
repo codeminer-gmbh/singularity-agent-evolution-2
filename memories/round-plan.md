@@ -1,3 +1,3 @@
-Gap: the agent cannot inspect the structure and contents of ZIP/TAR archive evidence, a common hard-task input that may contain nested task files.
-Change: add a safe archive-inspection tool that inventories entries and extracts bounded text previews from supported nested files without writing or unpacking them.
-Priority: recent rounds added Office/XLSX/DOCX creation and inspection, while archive evidence remains an unclosed input format and can hide otherwise unreachable materials.
+Gap: the agent cannot create an editable Word (.docx) deliverable, a common hard-task output, despite being able to create slides and spreadsheets.
+Change: add a contained create_document tool backed by python-docx for headings, paragraphs, bullets, tables, page breaks, and local images.
+Priority: DOCX production is absent from the live tool registry and closes a distinct deliverable class; earlier iterations already covered spreadsheet and presentation generation.

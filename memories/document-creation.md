@@ -1,0 +1,1 @@
+Added `create_document`, a tool that generates contained editable DOCX deliverables from validated headings, paragraphs, bullets, tables, page breaks, and local images. It uses pinned python-docx and shares workspace/output path containment; a direct integration check verifies DOCX XML and tool publication.

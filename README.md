@@ -25,7 +25,7 @@ itself is a gate the orchestrator checks; it is not what a round is for.
 ## How it works
 
 The MCP server publishes file and command tools together with their JSON
-schemas. Those schemas become OpenAI Responses API function definitions, so
+schemas. It can create editable Word DOCX deliverables with headings, paragraphs, bullet lists, tables, page breaks, and local images. Those schemas become OpenAI Responses API function definitions, so
 there is only one tool registry. The model can inspect and edit its workspace,
 run bounded commands, observe their results, and repeat until it returns a
 final response. Two further trees sit beside the workspace when a run is given
@@ -117,6 +117,7 @@ are pinned in `requirements.txt`; runtime budgets live in
 | `evolving_agent/model.py`      | Responses API client                     |
 | `evolving_agent/workspace.py`  | Contained filesystem operations          |
 | `evolving_agent/archives.py`   | Safe ZIP/TAR evidence inspection         |
+| `evolving_agent/documents.py`  | Editable DOCX deliverable creation        |
 | `evolving_agent/successor.py`  | Next-iteration validation                |
 
 The MCP server can also run over stdio:
