@@ -1,0 +1,1 @@
+`inspect_video` now publishes `minimum: 1` and `maximum: 12` for `max_frames` in its JSON schema, matching the enforced sampler bounds. Tool-calling models can therefore avoid invalid video-frame requests before invoking ffmpeg/Tesseract; the bounded video OCR implementation remains in `evolving_agent/video.py`.

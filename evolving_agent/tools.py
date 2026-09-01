@@ -24,6 +24,7 @@ from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.tabular import TabularError, inspect_tabular
 from evolving_agent.web import WebError, download_web_file, fetch_web_page
+from evolving_agent.video import VideoError, inspect_video
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -147,6 +148,21 @@ class WorkspaceTools:
                     "properties": {
                         "path": {"type": "string", "description": "Path in the workspace or materials/."},
                         "model": {"type": "string", "description": "Optional transcription model override."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_video",
+                description=(
+                    "Sample evenly spaced frames from a local MP4, WebM, MOV, MKV, AVI, MPEG, MPG, or M4V video "
+                    "and OCR visible captions or slides. Returns timestamped bounded text; input is read-only."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Video path in the workspace or materials/."},
+                        "max_frames": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Evenly spaced frames to OCR (default 6)."},
                     },
                     "required": ["path"],
                 },
@@ -352,6 +368,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "inspect_audio": self._inspect_audio,
             "inspect_document": self._inspect_document,
+            "inspect_video": self._inspect_video,
             "inspect_email": self._inspect_email,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
@@ -370,7 +387,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, AudioError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
+        except (WorkspaceError, ArchiveError, AudioError, DocumentError, EmailError, DatabaseError, ParquetError, TabularError, VideoError, WebError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -420,6 +437,19 @@ class WorkspaceTools:
         if model is not None and (not isinstance(model, str) or not model.strip()):
             raise ToolFailureError("'model' must be a non-empty string when supplied.")
         return inspect_audio(tree.resolve(relative), model=model)
+
+    def _inspect_video(self, arguments: Mapping[str, Any]) -> str:
+        """Sample and OCR representative video frames without changing input."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_frames = arguments.get("max_frames", 6)
+        if not isinstance(max_frames, int) or isinstance(max_frames, bool):
+            raise ToolFailureError("'max_frames' must be an integer when supplied.")
+
+        def run(command: list[str]) -> tuple[int | None, str, str]:
+            result = self._commands.run(command)
+            return result.exit_code, result.stdout, result.stderr
+
+        return inspect_video(tree.resolve(relative), max_frames=max_frames, run=run)
 
     def _inspect_document(self, arguments: Mapping[str, Any]) -> str:
         """Extract a bounded page of an attachment without changing it."""

@@ -1,0 +1,1 @@
+`inspect_video` is published through `WorkspaceTools` and samples 1–12 evenly spaced frames from supported local video using `ffprobe`/`ffmpeg`, then OCRs each with Tesseract. It returns bounded timestamped evidence without modifying the source. The image now installs `ffmpeg`, which supplies both binaries; frame files are temporary and removed by `video.py`.

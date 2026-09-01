@@ -1,3 +1,3 @@
-Gap: supplied audio and video recordings cannot be read as evidence, so the agent cannot answer hard tasks whose facts are spoken.
-Change: add a bounded read-only transcription inspector using the existing OpenAI-compatible client.
-Priority: document, email, archive, tabular, and database evidence are already covered; media is the remaining common evidence class with a service already available.
+Gap: The agent cannot directly read time-based video evidence such as recorded briefings, screen captures, or slide presentations.
+Change: Add a bounded inspect_video tool that samples representative frames and OCRs their visible text with ffmpeg and Tesseract.
+Priority: Existing notes close archives, documents, audio, email, and data formats; video remains a common hard-task attachment with no direct evidence path.
