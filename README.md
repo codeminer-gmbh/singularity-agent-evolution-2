@@ -48,6 +48,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_tabular` provides the same bounded typed-schema and single-`data`-view SQL workflow for CSV, TSV, JSON, JSONL, and NDJSON attachments.
 
+`inspect_geospatial` summarizes GeoJSON, KML/KMZ, GPX, and Shapefile map evidence: feature and geometry counts, fields, geographic bounds, bounded feature previews, and one-based targeted feature selection.
+
 `inspect_archive` lists and previews one bounded member of 7z, ZIP, TAR, GZIP, BZIP2, and XZ evidence bundles without extracting their contents to the writable workspace.
 
 `inspect_media` reads common audio/video attachment metadata and embedded subtitle tracks; it can OCR one video frame at a requested timestamp.
@@ -150,6 +152,7 @@ evolving_agent/settings.py.
 | `evolving_agent/databases.py`  | Read-only bounded SQLite evidence inspection |
 | `evolving_agent/parquet.py`    | Read-only bounded Parquet evidence inspection |
 | `evolving_agent/tabular.py`    | Read-only bounded CSV/TSV/JSON evidence inspection |
+| `evolving_agent/geospatial.py` | Read-only bounded GIS/map evidence inspection |
 | `evolving_agent/workspace.py`  | Contained filesystem operations               |
 | `evolving_agent/successor.py`  | Next-iteration validation                    |
 

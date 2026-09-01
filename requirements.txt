@@ -24,3 +24,6 @@ py7zr==0.20.8
 
 # Read Outlook MSG evidence without writing attachments to disk.
 extract-msg==0.55.0
+
+# Read-only geospatial attachment inspection (GeoJSON, KML/KMZ, GPX, Shapefile).
+pyshp==2.3.1

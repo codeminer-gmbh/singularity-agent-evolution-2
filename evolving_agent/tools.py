@@ -22,6 +22,7 @@ from evolving_agent.email import EmailError, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.media import MediaError, inspect_media
+from evolving_agent.geospatial import GeospatialError, inspect_geospatial
 from evolving_agent.tabular import TabularError, inspect_tabular
 from evolving_agent.web import WebError, fetch_web_page, search_web
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -213,6 +214,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_geospatial",
+                description=(
+                    "Inspect GeoJSON, KML/KMZ, GPX, or Shapefile map evidence without modifying it. "
+                    "Returns feature counts, geometry/property summaries, bounds, and bounded feature previews; "
+                    "use feature_index to inspect one one-based feature."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Geospatial attachment path in the workspace or materials/."},
+                        "feature_index": {"type": "integer", "description": "Optional one-based feature to inspect."},
+                        "max_features": {"type": "integer", "description": "Maximum preview features, 1 through 100 (default 20)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_database",
                 description=(
                     "Inspect a SQLite database attachment without modifying it. Returns table/view schema, "
@@ -350,6 +368,7 @@ class WorkspaceTools:
             "inspect_document": self._inspect_document,
             "inspect_email": self._inspect_email,
             "inspect_media": self._inspect_media,
+            "inspect_geospatial": self._inspect_geospatial,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
@@ -365,7 +384,7 @@ class WorkspaceTools:
             )
         try:
             return handler(arguments)
-        except (WorkspaceError, ArchiveError, DocumentError, MediaError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
+        except (WorkspaceError, ArchiveError, DocumentError, MediaError, GeospatialError, EmailError, DatabaseError, ParquetError, TabularError, WebError) as refused:
             raise ToolFailureError(str(refused)) from refused
 
     def _list_files(self, arguments: Mapping[str, Any]) -> str:
@@ -452,6 +471,17 @@ class WorkspaceTools:
             return result.exit_code, result.stdout, result.stderr
 
         return inspect_media(tree.resolve(relative), timestamp=None if timestamp is None else float(timestamp), run=run)
+
+    def _inspect_geospatial(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect bounded geospatial features in a readable attachment."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        feature_index = arguments.get("feature_index")
+        if feature_index is not None and (not isinstance(feature_index, int) or isinstance(feature_index, bool)):
+            raise ToolFailureError("'feature_index' must be an integer when supplied.")
+        max_features = arguments.get("max_features", 20)
+        if not isinstance(max_features, int) or isinstance(max_features, bool):
+            raise ToolFailureError("'max_features' must be an integer when supplied.")
+        return inspect_geospatial(tree.resolve(relative), feature_index=feature_index, max_features=max_features)
 
     def _inspect_database(self, arguments: Mapping[str, Any]) -> str:
         """Inspect SQLite schema or run a bounded read-only evidence query."""
