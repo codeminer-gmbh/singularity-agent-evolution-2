@@ -24,3 +24,6 @@ python-pptx==1.0.2
 
 # Image inspection for bounded OCR inputs.
 Pillow==11.3.0
+
+# Columnar analytics materials (Apache Parquet) can be inspected without full-file conversion.
+pyarrow==20.0.0

@@ -24,6 +24,7 @@ from typing import Any, BinaryIO
 from evolving_agent.commands import CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
+from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -203,6 +204,25 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_parquet",
+                description=(
+                    "Read Apache Parquet schema, metadata, and a bounded TSV preview. "
+                    "Optionally select columns, skip rows, and apply ANDed simple filters "
+                    "(eq, ne, lt, le, gt, ge, in, is_null) without loading the full file."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Parquet file path, including materials/ or output/."},
+                        "columns": {"type": "array", "items": {"type": "string"}, "description": "Optional columns to return."},
+                        "filters": {"type": "array", "items": {"type": "object", "properties": {"column": {"type": "string"}, "op": {"type": "string", "enum": ["eq", "ne", "lt", "le", "gt", "ge", "in", "is_null"]}, "value": {}}, "required": ["column", "op"]}, "description": "Optional ANDed filter objects."},
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_PARQUET_ROWS, "description": "Preview rows, default 200."},
+                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_PARQUET_OFFSET, "description": "Matching rows to skip, default 0."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="extract_archive",
                 description=(
                     "Extract regular files from a ZIP or TAR-family archive into "
@@ -318,6 +338,7 @@ class WorkspaceTools:
             "read_document": self._read_document,
             "ocr_document": self._ocr_document,
             "query_sqlite": self._query_sqlite,
+            "inspect_parquet": self._inspect_parquet,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -409,6 +430,20 @@ class WorkspaceTools:
         try:
             return query_sqlite(tree.resolve(relative), query, max_rows=maximum)
         except DatabaseError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_parquet(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect a columnar task dataset using bounded batch reads."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        columns = arguments.get("columns")
+        filters = arguments.get("filters")
+        try:
+            return inspect_parquet(
+                tree.resolve(relative), columns=columns, filters=filters,
+                max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
+            )
+        except ParquetError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
