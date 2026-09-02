@@ -1,0 +1,1 @@
+The improvement prompt now prohibits calling a transient command a shipped test or fixture and requires verification claims in memories to name durable tree evidence; one-off command outcomes belong in the final reply. This targets ledger audit findings that notes claimed tests or artifacts absent from the shipped diff.
