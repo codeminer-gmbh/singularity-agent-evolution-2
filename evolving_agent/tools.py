@@ -25,6 +25,7 @@ from evolving_agent.images import ImageError, create_image, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.pdf_creation import PdfCreationError, create_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
+from evolving_agent.presentation_inspection import PresentationInspectionError, inspect_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.spreadsheet_creation import SpreadsheetCreationError, create_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -380,6 +381,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_presentation",
+                description=(
+                    "Inspect a PPTX presentation's core metadata plus bounded slide text, "
+                    "tables, and speaker notes without executing macros, relationships, "
+                    "media, or embedded content. Use a materials/ path for an input deck."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PPTX presentation path."},
+                        "max_slides": {"type": "integer", "description": "Slides to preview, 1 to 100 (default 30)."},
+                        "max_characters": {"type": "integer", "description": "JSON preview characters, 100 to 20000 (default 8000)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="create_presentation",
                 description=(
                     "Create an editable PPTX presentation in the workspace or output/ from "
@@ -468,6 +486,7 @@ class WorkspaceTools:
             "inspect_image": self._inspect_image,
             "inspect_document": self._inspect_document,
             "create_document": self._create_document,
+            "inspect_presentation": self._inspect_presentation,
             "create_presentation": self._create_presentation,
             "run_command": self._run_command,
         }
@@ -726,6 +745,16 @@ class WorkspaceTools:
                 image_path=locate_image, title=arguments.get("title"),
             )
         except DocumentError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_presentation(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect bounded passive evidence from a PPTX in a readable tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_slides = _bounded_integer(arguments, "max_slides", default=30, minimum=1, maximum=100)
+        maximum = _bounded_integer(arguments, "max_characters", default=8_000, minimum=100, maximum=20_000)
+        try:
+            return inspect_presentation(tree.resolve(relative), max_slides=max_slides, max_characters=maximum)
+        except PresentationInspectionError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _create_presentation(self, arguments: Mapping[str, Any]) -> str:

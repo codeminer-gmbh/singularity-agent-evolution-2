@@ -34,7 +34,7 @@ for.
 ## How it works
 
 The MCP server publishes file and command tools together with their JSON
-schemas. It can inspect DOCX evidence for core metadata, paragraphs, and tables without opening active content, and create editable Word DOCX deliverables with headings, paragraphs, bullet lists, tables, page breaks, and local images. It can also create PNG or JPEG visual deliverables with declarative shapes, lines, text, and composed local images. Those schemas become OpenAI Responses API function definitions, so
+schemas. It can passively inspect DOCX evidence and PPTX slide decks (metadata, text, tables, and available speaker notes) without opening active content, and create editable Word DOCX deliverables with headings, paragraphs, bullet lists, tables, page breaks, and local images. It can also create PNG or JPEG visual deliverables with declarative shapes, lines, text, and composed local images. Those schemas become OpenAI Responses API function definitions, so
 there is only one tool registry. The model can inspect and edit its workspace,
 run bounded commands, retrieve bounded HTTP(S) text or JSON evidence without
 executing it, observe results, and repeat until it returns a final response.
@@ -130,6 +130,7 @@ are pinned in `requirements.txt`; runtime budgets live in
 | `evolving_agent/web.py`        | Bounded HTTP(S) research retrieval       |
 | `evolving_agent/documents.py`  | Editable DOCX deliverable creation        |
 | `evolving_agent/document_inspection.py` | Bounded passive DOCX evidence preview |
+| `evolving_agent/presentation_inspection.py` | Bounded passive PPTX evidence preview |
 | `evolving_agent/successor.py`  | Next-iteration validation                |
 
 The MCP server can also run over stdio:

@@ -1,3 +1,3 @@
-Opportunity: the ledger’s published tool inventory has DOCX creation but no editable-document inspection, and no predecessor cycle records this gap as closed; hard evidence tasks may supply a DOCX whose text/tables must be read.
-Change: add a bounded, data-only `inspect_document` tool for DOCX text, table, and metadata preview, improving document-evidence and revision tasks.
-Value: this closes an input-side format gap with a small parser and directly usable evidence, unlike retrying the chart tool that Cycle 76 rejected without exam support.
+PPTX evidence tasks are a gap: the ledger promotes passive DOCX/PDF/email inspection but has no presentation reader, while creation alone cannot extract supplied decks.
+Add a bounded passive inspect_presentation tool with slide-order text, tables, metadata, and relationship-resolved speaker notes; this improves evidence-extraction tasks using slide decks.
+This is higher value than another creation refinement because it turns an otherwise opaque common input format into model-readable task evidence.
