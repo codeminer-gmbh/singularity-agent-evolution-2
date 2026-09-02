@@ -22,6 +22,7 @@ from evolving_agent.documents import DocumentError, inspect_document
 from evolving_agent.emails import EmailError, extract_email_attachment, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
+from evolving_agent.search import SearchReport, search_text
 from evolving_agent.tabular import TabularError, inspect_tabular
 from evolving_agent.web import WebError, download_web_file, fetch_web_page
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -111,6 +112,23 @@ class WorkspaceTools:
                         }
                     },
                     "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="search_text",
+                description=(
+                    "Search literal text across contained workspace files and, when present, "
+                    "materials/ and output/. Returns bounded path, line-number, and matching "
+                    "line evidence; binary files are skipped and coverage limits are reported."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Non-empty literal text to find."},
+                        "case_sensitive": {"type": "boolean", "description": "Match case exactly; defaults to false."},
+                        "max_results": {"type": "integer", "description": "Maximum matches from 1 through 100; defaults to 50."},
+                    },
+                    "required": ["query"],
                 },
             ),
             ToolDefinition(
@@ -366,6 +384,7 @@ class WorkspaceTools:
         handlers = {
             "list_files": self._list_files,
             "read_file": self._read_file,
+            "search_text": self._search_text,
             "inspect_archive": self._inspect_archive,
             "inspect_audio": self._inspect_audio,
             "inspect_document": self._inspect_document,
@@ -422,6 +441,41 @@ class WorkspaceTools:
         """Return one file's text, from whichever tree the path names."""
         tree, relative = self._located(_text_argument(arguments, "path"))
         return tree.read_text(relative)
+
+    def _search_text(self, arguments: Mapping[str, Any]) -> str:
+        """Search each readable tree and label every returned match by its path."""
+        query = _text_argument(arguments, "query")
+        case_sensitive = arguments.get("case_sensitive", False)
+        if not isinstance(case_sensitive, bool):
+            raise ToolFailureError("'case_sensitive' must be true or false when supplied.")
+        max_results = arguments.get("max_results", 50)
+        if (not isinstance(max_results, int) or isinstance(max_results, bool)
+                or not 1 <= max_results <= 100):
+            raise ToolFailureError("'max_results' must be an integer from 1 through 100.")
+        remaining = max_results
+        reports: list[tuple[str, SearchReport]] = []
+        for prefix, tree in (("", self._workspace), (MATERIALS_PREFIX, self._materials), (OUTPUT_PREFIX, self._output)):
+            if tree is None or remaining == 0:
+                continue
+            report = search_text(tree, query, case_sensitive=case_sensitive, max_results=remaining)
+            reports.append((prefix, report))
+            remaining -= len(report.matches)
+        lines: list[str] = []
+        for prefix, report in reports:
+            lines.extend(f"{prefix}{match.path}:{match.line}: {match.text}" for match in report.matches)
+        if not lines:
+            lines.append("No matching text was found.")
+        coverage = "; ".join(
+            f"{prefix or 'workspace'}: {report.files_scanned} text file(s), {report.bytes_scanned} byte(s) scanned"
+            + (f", {report.skipped_binary} binary skipped" if report.skipped_binary else "")
+            + (f", {report.truncated_files} file(s) only partly scanned" if report.truncated_files else "")
+            + (", total scan budget reached" if report.budget_exhausted else "")
+            for prefix, report in reports
+        )
+        lines.append(f"--- coverage: {coverage}")
+        if remaining == 0:
+            lines.append(f"--- stopped after {max_results} match(es); narrow the query for more.")
+        return "\n".join(lines)
 
     def _inspect_archive(self, arguments: Mapping[str, Any]) -> str:
         """Inspect an archive in a readable tree without extracting it to disk."""

@@ -46,6 +46,8 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_tabular` provides the same bounded typed-schema and single-`data`-view SQL workflow for CSV, TSV, JSON, JSONL, and NDJSON attachments.
 
+`search_text` searches literal text across the workspace and any mounted `materials/` and `output/` trees, returning path-qualified matching lines. It searches case-insensitively by default, offers case-sensitive matching when needed, skips binary files, and reports its bounded scan coverage and any partial files so it is useful for evidence discovery without implying an exhaustive search.
+
 `inspect_document` handles common binary attachments directly: DOCX, PPTX, XLSX, ODT, ODS, and ODP package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file

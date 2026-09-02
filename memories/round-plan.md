@@ -1,3 +1,3 @@
-Limitation: Email attachments are only listed or text-previewed, blocking full analysis of attached PDFs, spreadsheets, archives, and databases.
-Smallest change: Add a bounded `extract_email_attachment` tool that writes one decoded EML/mbox/MSG attachment to a contained writable path.
-Evidence: The ledger records attachment chaining as an open high-impact gap after inspection-only email support; existing inspectors already cover the extracted formats.
+Limitation: the model has no efficient, bounded way to discover a phrase, identifier, or clue across many task files; it must list and read files serially.
+Change: add one contained literal text-search tool that returns path-and-line evidence across workspace, materials, and output with explicit scan limits.
+Evidence: the ledger's successful changes are evidence-inspection workflows, while its still-plausible hard-task gap is cross-file evidence discovery; no inherited capability or rejected repeated proposal provides it.
