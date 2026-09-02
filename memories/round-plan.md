@@ -1,3 +1,3 @@
-Gap: The agent can extract XLSX text but cannot read OpenDocument spreadsheets (.ods), a common office-workbook format a hard task may supply.
-Change: Extend bounded document extraction with safe ODS table parsing and expose .ods in the existing read_document capability.
-Why: Recent lineage already closed archive, OCR, delimited, Parquet, and vector-data gaps; ODS is a distinct, widely used structured input format absent from the supported extractor.
+Gap: The ledger shows the line’s broad self-improvement guidance was costly: it produced changes whose claimed evidence could be convenient rather than task-relevant, despite one later correction.
+Change: Add an explicit preflight-to-final verification protocol to the improvement prompt that requires a runnable, capability-specific proof and a claim limited to its observed result.
+Why: It directly removes the record’s named planning and evidence failure mode, improves every future change, and is more durable than adding another narrow input tool.

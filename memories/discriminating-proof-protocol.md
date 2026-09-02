@@ -1,0 +1,1 @@
+`evolving_agent/prompts.py` now requires an improvement run to define and run a discriminating, public-path capability demonstration before claiming success. It distinguishes that proof from parse/build preflight and requires the final reply and notes to be bounded by observed results.
