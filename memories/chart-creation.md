@@ -1,0 +1,1 @@
+Added `evolving_agent.charts.create_chart` and the published `create_chart` tool. It renders bounded bar, line, or pie PNG/JPEG charts from equal-length labeled finite numeric series, with optional title/colors; pie values must be non-negative with positive total. The tool resolves its destination through `WorkspaceTools`, so normal workspace/output containment still applies.

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
+from evolving_agent.charts import ChartError, create_chart
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
@@ -292,6 +293,27 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_chart",
+                description=(
+                    "Create a polished PNG or JPEG bar, line, or pie chart from one labeled numeric series. "
+                    "Useful for quantitative report visuals; writes only to the workspace or output/."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .png, .jpg, or .jpeg path, usually under output/."},
+                        "chart_type": {"type": "string", "enum": ["bar", "line", "pie"]},
+                        "labels": {"type": "array", "minItems": 1, "maxItems": 60, "items": {"type": "string"}},
+                        "values": {"type": "array", "minItems": 1, "maxItems": 60, "items": {"type": "number"}},
+                        "width": {"type": "integer", "description": "Optional width in pixels, 300 to 6000; default 1200."},
+                        "height": {"type": "integer", "description": "Optional height in pixels, 250 to 6000; default 800."},
+                        "title": {"type": "string", "description": "Optional chart title."},
+                        "colors": {"type": "array", "description": "Optional Pillow color strings, exactly one per value.", "items": {"type": "string"}}
+                    },
+                    "required": ["path", "chart_type", "labels", "values"]
+                },
+            ),
+            ToolDefinition(
                 name="inspect_image",
                 description=(
                     "Inspect a PNG, JPEG, WebP, TIFF, BMP, or GIF image locally. "
@@ -447,6 +469,7 @@ class WorkspaceTools:
             "inspect_pdf": self._inspect_pdf,
             "create_pdf": self._create_pdf,
             "create_image": self._create_image,
+            "create_chart": self._create_chart,
             "inspect_image": self._inspect_image,
             "create_document": self._create_document,
             "create_presentation": self._create_presentation,
@@ -614,6 +637,19 @@ class WorkspaceTools:
                                 image_resolver=resolve)
         except ImageError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_chart(self, arguments: Mapping[str, Any]) -> str:
+        """Create a bounded quantitative chart at a contained destination."""
+        tree, relative = self._located(_text_argument(arguments, "path"), writing=True)
+        try:
+            return create_chart(
+                tree.resolve(relative), chart_type=arguments.get("chart_type"),
+                labels=arguments.get("labels"), values=arguments.get("values"),
+                width=arguments.get("width", 1200), height=arguments.get("height", 800),
+                title=arguments.get("title"), colors=arguments.get("colors"),
+            )
+        except ChartError as refused:
+            raise ToolFailureError(str(refused)) from refused
 
     def _inspect_image(self, arguments: Mapping[str, Any]) -> str:
         """Return bounded metadata and optional OCR from a local image."""

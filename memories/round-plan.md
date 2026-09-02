@@ -1,3 +1,3 @@
-Hard tasks requiring a print-ready PDF cannot be completed: ledger promotion 719cfae says PDF authoring remains absent, and the current tool wiring imports a missing creator.
-Add a bounded create_pdf implementation using ReportLab for headings, paragraphs, bullets, tables, page breaks, and contained images.
-This fixes an advertised-but-unbuildable capability and is higher value than another inspection enhancement because it enables a deliverable class.
+Gap: no current ledger evidence was accessible here; the tool surface lacked direct numeric chart creation for report tasks.
+Change: add bounded create_chart for bar, line, and pie PNG/JPEG artifacts through the contained workspace path.
+Value: it makes quantitative visuals reliable without asking the model to manually lay out chart geometry with generic drawing operations.
