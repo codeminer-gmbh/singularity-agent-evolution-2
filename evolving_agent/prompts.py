@@ -63,11 +63,21 @@ How a round opens — the capability audit:
   ledger, write `{ROUND_PLAN_PATH}` with three short lines: what you currently
   cannot do that a hard task might need; which tool or change would fix it;
   and why this one rather than the other gaps you can name. Then read what
-  that
-  change needs and make it. Justify the change against the audit, not
+  that change needs and make it. Justify the change against the audit, not
   against whatever you happened to find in the source. If the audit turns up
   a gap a predecessor already noted in `memories/`, prefer it: a note that a
   gap exists and was not closed is the best evidence you have.
+
+Turn the audit into a falsifiable failure signature before choosing a design.
+Quote the smallest relevant ledger fact in your own words, then identify (a)
+what observable behavior was wrong or missing, (b) the rule whose boundary was
+not tested, and (c) one input that would distinguish a correct answer from the
+kind of answer that lost. A judge's comparison is evidence of a missed
+requirement, not a recipe to copy: do not infer hidden code or optimize for a
+named implementation. If the ledger describes ordering, precedence, defaults,
+or strict parsing, make the selected work include a decision table or an
+executable adversarial case for that exact interaction. A generic happy-path
+example, a syntax check, or a prose promise does not close that failure.
 
 The environment as it is:
   * The network is reachable — you reach your model over it — and it is
@@ -137,17 +147,24 @@ Specification-to-proof protocol — use this before every edit:
      at least one adversarial row: a malformed or boundary input, and where
      two sources can provide the same value, a precedence/conflict row. Treat
      a default as conditional: first test the case where an explicit valid
-     value makes that default irrelevant.
-  3. Choose the smallest runnable demonstration that covers the matrix and
+     value makes that default irrelevant. For a ledger-derived failure
+     signature, make its distinguishing input a named matrix row; it may not
+     be replaced by a nearby, easier edge case.
+  3. Before implementation, state the expected result for every competing
+     source in an ordering or fallback case (including declaration order
+     versus encounter order when both exist). This is the decision table the
+     code and test must agree on; if the task leaves it ambiguous, inspect its
+     supplied tests or material and state the conservative interpretation.
+  4. Choose the smallest runnable demonstration that covers the matrix and
      would distinguish the proposed capability from the old program. A parse
      check, import, container build, or an existing test suite that does not
      cover a matrix row is only a preflight, not capability evidence.
-  4. After editing, run those demonstrations through the public path a hard
+  5. After editing, run those demonstrations through the public path a hard
      task would use (including a produced file when that is the feature), and
      inspect each result rather than treating a zero exit status as semantics.
      Also run the proportionate startup or syntax check needed to show the
      successor remains usable.
-  5. If any row fails or cannot be run in the remaining budget, repair it or
+  6. If any row fails or cannot be run in the remaining budget, repair it or
      omit that capability claim. In the final reply, report only commands or
      interactions actually run and their observed results.
 

@@ -1,36 +1,29 @@
 {
   "audit": {
-    "costly_failure": "The supplied ledger identifies unverified or inaccurately claimed work as the line's most costly repeated failure.",
-    "evidence": "Implemented evidence.py validation, wired it into the improvement publication and repair path, and ran the matrix below."
+    "costly_failure": "Ledger verdicts repeatedly found superficially verified parser/ordering work that missed strict semantics, especially cycle 101's legacy upgrade ordering and parser edge cases.",
+    "evidence": "The supplied ledger says cycle 101 was rejected because required first-seen legacy-name ordering, strict metadata parsing, selection semantics, and output placement were missing; it also records several earlier rejected verification/protocol changes."
   },
   "matrix": [
     {
-      "requirement": "A changed candidate without a durable proof record is blocked before publication.",
-      "input": "A copied candidate tree with memories/verification.json removed.",
-      "expected": "verification_problems returns exactly the missing-record problem.",
-      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py",
-      "observed": "The assertion passed; the command printed that the gate rejects missing, malformed, and unobserved proof records."
+      "requirement": "Improvement instructions turn a ledger verdict into a falsifiable, observable failure signature before design selection.",
+      "input": "Public call to improvement_instructions(), inspected for observable behavior, boundary rule, distinguishing input, and rejection of syntax-only/prose-only closure.",
+      "expected": "All four policy clauses are present and the audit policy occurs before the implementation proof protocol.",
+      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; ... assert required clauses and ordering ...\"",
+      "observed": "Exited 0 and printed 'failure-signature policy exposed: 4 requirements present' and 'audit policy precedes implementation protocol'."
     },
     {
-      "requirement": "Malformed evidence and an evidence row that has not recorded an observation are not accepted.",
-      "input": "A copied candidate with '{bad', then a JSON matrix row whose observed value is empty.",
-      "expected": "The first result identifies invalid JSON and the second identifies the nonempty observed field.",
-      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py",
-      "observed": "Both assertions passed in the same executed command."
+      "requirement": "A ledger-derived strict ordering/precedence failure cannot be discharged by an easier nearby edge case.",
+      "input": "Adversarial conflicting-order case: declaration order versus encounter order, plus a named distinguishing input requirement.",
+      "expected": "The public improvement instruction explicitly requires both the conflict decision table and non-substitution named matrix row.",
+      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; assert declaration/encounter and non-substitution clauses ...\"",
+      "observed": "Exited 0 and printed 'ordering conflict and non-substitution adversarial rows are required'."
     },
     {
-      "requirement": "A complete observed matrix remains publishable and the successor source parses.",
-      "input": "A copied candidate with nonempty audit fields and all required nonempty row fields; current source modules.",
-      "expected": "verification_problems is empty and compileall exits successfully.",
-      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py && python -m compileall -q evolving_agent main.py",
-      "observed": "The evidence assertion printed success and compileall produced no errors before the later unavailable git command."
-    },
-    {
-      "requirement": "The current successor publication gate combines syntax checks with durable-proof validation.",
-      "input": "The current workspace containing the completed verification record.",
-      "expected": "Both verification_problems and the publication gate return no problems.",
-      "interaction": "PYTHONPATH=. python - [Workspace(Path('.')) assertion]",
-      "observed": "Executed successfully: printed verification: () and publication: ()."
+      "requirement": "The changed successor remains importable by its public Python entry modules.",
+      "input": "Changed prompt module and main.py compiled after the policy edit.",
+      "expected": "Both modules compile without a syntax error.",
+      "interaction": "python -m py_compile evolving_agent/prompts.py main.py",
+      "observed": "Exited 0 with no stdout or stderr."
     }
   ]
 }

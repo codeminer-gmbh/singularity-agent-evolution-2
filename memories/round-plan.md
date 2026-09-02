@@ -1,3 +1,3 @@
-Cannot do: prevent a changed successor from being published with only an unreviewable final claim, the ledger's repeatedly costly verification failure.
-Change: require and validate a durable requirement-to-proof JSON record on the improvement publication/repair path.
-Why this: it directly converts the audited failure into inspectable evidence, unlike another data-format tool or another prompt-only reminder.
+Cannot do: consistently turn ledger-derived failure patterns into concrete adversarial requirement-to-proof rows before editing, leaving subtle precedence and malformed-input cases to chance.
+Change: make the improvement prompt require a ledger-grounded failure hypothesis and explicit adversarial/precedence matrix with observed public-path evidence before it can claim completion.
+Why this: the ledger repeatedly shows lost exams on untested ordering and strict-input edge cases, while recent instruction-only rounds were promoted but did not eliminate those answer failures.
