@@ -122,6 +122,7 @@ class ToolAgentSession:
         *,
         deadline: Deadline,
         max_steps: int,
+        final_review: bool = False,
     ) -> None:
         """Hold the model, the tools and the bounds one session runs under.
 
@@ -132,6 +133,7 @@ class ToolAgentSession:
                 is what the model is offered.
             deadline: When the session stops asking for another step.
             max_steps: How many steps it may take at most.
+            final_review: Ask for one adversarial review after the first proposed final answer.
 
         """
         self._model = model
@@ -139,6 +141,7 @@ class ToolAgentSession:
         self._schemas = tool_schemas(published)
         self._deadline = deadline
         self._max_steps = max_steps
+        self._final_review = final_review
         self.tool_calls: dict[str, int] = {}
         """How often each tool was called, over every run of this session.
 
@@ -168,6 +171,7 @@ class ToolAgentSession:
             {"role": "user", "content": opening},
         ]
         steps = 0
+        reviewed = False
         while steps < self._max_steps:
             if self._deadline.expired():
                 return SessionOutcome(
@@ -181,6 +185,28 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
+                if self._final_review and not reviewed and steps < self._max_steps:
+                    # Preserve the draft in the conversation and give the model one
+                    # deliberate chance to find a correctness gap before it becomes
+                    # the externally visible answer.  This is especially valuable for
+                    # code tasks, where a plausible first draft can hide invalid-input
+                    # or boundary semantics that a quick adversarial pass exposes.
+                    conversation.extend(dict(item) for item in reply.output)
+                    conversation.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Before you finalize, do one adversarial review of your "
+                                "draft against the task. Check every explicit requirement, "
+                                "boundary and invalid-input rule; for code, check parsing, "
+                                "state mutation, time/offset semantics, and repeated work in "
+                                "hot loops. If a deliverable can be run, use targeted tests or "
+                                "an oracle now. Then give the corrected complete final answer."
+                            ),
+                        }
+                    )
+                    reviewed = True
+                    continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,

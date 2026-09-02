@@ -132,7 +132,8 @@ def run_probe(settings: AgentSettings) -> RunReport:
     model = ModelClient(settings.model)
     try:
         session = _session(
-            model, _tools(workspace, deadline, settings), deadline, settings
+            model, _tools(workspace, deadline, settings), deadline, settings,
+            final_review=True,
         )
         outcome = session.run(
             instructions=probe_instructions(),
@@ -289,6 +290,8 @@ def _session(
     tools: McpClient,
     deadline: Deadline,
     settings: AgentSettings,
+    *,
+    final_review: bool = False,
 ) -> ToolAgentSession:
     """Return the session one run takes its steps through.
 
@@ -303,6 +306,7 @@ def _session(
         tools.list_tools(),
         deadline=deadline,
         max_steps=settings.max_steps,
+        final_review=final_review,
     )
 
 

@@ -1,3 +1,3 @@
-Limitation: capability-first wording can reward speculative format/tool additions even when selection evidence shows hard-task losses came from end-to-end solution robustness.
-Change: make the improvement prompt and README require ledger-led, evidence-backed selection of recurring task-solving bottlenecks and behavior-level verification.
-Why: the supplied ledger shows a rejected video addition unmentioned by verdicts while judges repeatedly distinguish robustness details; this is a broader recurring decision gap than another input format.
+Limitation: probe answers can terminate on a plausible first draft without an explicit adversarial check of edge cases, specification details, or deliverable behavior.
+Smallest change: add one bounded final-review turn to probe sessions, preserving the draft and directing a requirements/edge-case/test audit before the externally visible answer.
+Evidence: the ledger repeatedly reports code-task failures in offset/time semantics, parsing/invalid input, state mutation, and avoidable hot-loop work, while its accepted inspection additions do not address final-answer correctness.
