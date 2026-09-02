@@ -16,6 +16,20 @@ class ImprovementEvidencePolicyTests(unittest.TestCase):
             " ".join(instructions.split()),
         )
 
+    def test_record_first_policy_replaces_disproven_prompt_bias(self) -> None:
+        instructions = improvement_instructions()
+        self.assertIn("record, hypothesis, commitment", instructions)
+        self.assertIn("read `materials/ledger.md`", instructions)
+        self.assertIn("concrete observable acceptance case", instructions)
+        self.assertIn("rejected change without naming", instructions)
+        self.assertIn("non-empty final report", instructions)
+        self.assertNotIn("A new tool is rarely the answer", instructions)
+        self.assertNotIn("A large, well-verified capability gain", instructions)
+        self.assertLess(
+            instructions.index("read `materials/ledger.md`"),
+            instructions.index("write `memories/round-plan.md`"),
+        )
+
     def test_process_claim_is_limited_to_checks_it_performs(self) -> None:
         # A model summary is not proof and must not become the runner's record.
         answer = _improvement_answer(

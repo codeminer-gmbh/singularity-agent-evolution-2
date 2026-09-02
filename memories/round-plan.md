@@ -1,3 +1,3 @@
-Gap: this lineage repeatedly recorded verification that audits could not find, making future improvement decisions rely on false evidence.
-Change: require observed behaviour-level evidence in improvement instructions and restrict the process-level success claim to checks the runner actually performs.
-Priority: inaccurate verification notes recur across seven audited versions, so trustworthy learning is more valuable here than another unverified capability.
+Gap: earlier policy let agents choose work before mining ledger evidence, repeat rejected approaches, and leave weak/no final records.
+Change: make the self-improvement prompt record-first, acceptance-case-driven, repetition-averse, and require an honest labelled final report.
+Why: this directly improves the next agent's verified decisions and notes; it replaces the disproven novelty/large-diff incentives rather than adding machinery.
