@@ -1,3 +1,3 @@
-Gap: Improvement instructions do not explicitly require the agent to turn task/ledger evidence into a narrow acceptance check, so rounds can produce plausible but unverified edits.
-Change: Rewrite the improvement prompt to require an evidence-led plan, bounded implementation, targeted verification, and a truthful change note/final claim.
-Priority: The requested instruction-only round directly improves every future self-improvement cycle; the ledger has no prior candidate to justify repeating a machinery change.
+Run failures before sessions left no tool-use artifact, blocking trustworthy audit of a failed probe or describe run.
+Initialize `.meta/tool_calls.json` for every output-enabled mode and overwrite it after a live session; test describe plus unavailable probe.
+This record-backed gap is more useful than a speculative new tool and makes later verification inspectable.

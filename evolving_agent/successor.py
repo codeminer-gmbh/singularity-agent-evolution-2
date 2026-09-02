@@ -10,6 +10,11 @@ evaluators are for.
 """
 
 import ast
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -22,6 +27,7 @@ starts runs the entrypoint the first one names.
 
 _MAX_SCANNED_BYTES = 1_000_000
 _PYTHON_SUFFIX = ".py"
+_DESCRIBE_TIMEOUT_SECONDS = 30
 
 
 def successor_problems(workspace: Workspace) -> tuple[str, ...]:
@@ -55,6 +61,8 @@ def successor_problems(workspace: Workspace) -> tuple[str, ...]:
         if present.get(required) == 0
     )
     problems.extend(_unparsable(workspace, path) for path in present)
+    if not problems:
+        problems.append(_describe_problem(workspace))
     return tuple(problem for problem in problems if problem)
 
 
@@ -79,3 +87,50 @@ def _unparsable(workspace: Workspace, relative_path: str) -> str:
     except (SyntaxError, ValueError) as broken:
         return f"{relative_path} does not parse: {broken}"
     return ""
+
+
+def _describe_problem(workspace: Workspace) -> str:
+    """Return why the candidate cannot start its model-free describe mode.
+
+    Parsing catches damaged Python but not broken imports, entry points, or a
+    tool registry that fails during initialization. Describe mode exercises all
+    of those without requiring a model, credentials, or task data.
+    """
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AGENT_MODE": "describe",
+            "AGENT_WORKSPACE": str(workspace.root),
+        }
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "main.py"],
+            cwd=workspace.root,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=_DESCRIBE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as failed:
+        return f"the successor describe-mode smoke check could not run: {failed}"
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        return (
+            "the successor describe-mode smoke check failed "
+            f"(exit {result.returncode}): {_short(detail)}"
+        )
+    try:
+        manifest = json.loads(result.stdout)
+    except json.JSONDecodeError as invalid:
+        return f"the successor describe-mode smoke check emitted invalid JSON: {invalid}"
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("tools"), list):
+        return "the successor describe-mode smoke check emitted no tool manifest"
+    return ""
+
+
+def _short(value: str, limit: int = 500) -> str:
+    """Keep a child-process failure useful without making reports enormous."""
+    return value[:limit] + ("..." if len(value) > limit else "")

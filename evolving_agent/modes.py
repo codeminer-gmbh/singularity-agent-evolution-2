@@ -88,6 +88,7 @@ def run_improvement(settings: AgentSettings) -> RunReport:
     """
     workspace = Workspace(settings.workspace)
     workspace.prepare()
+    _record_tool_call_counts(settings, {})
     restorable = workspace.is_empty()
     if restorable:
         copied = workspace.copy_tree_from(settings.source_root)
@@ -128,6 +129,7 @@ def run_probe(settings: AgentSettings) -> RunReport:
     """
     workspace = Workspace(settings.workspace)
     workspace.prepare()
+    _record_tool_call_counts(settings, {})
     deadline = Deadline(settings.time_budget_seconds)
     model = ModelClient(settings.model)
     try:
@@ -170,6 +172,7 @@ def run_describe(settings: AgentSettings) -> RunReport:
     """
     workspace = Workspace(settings.workspace)
     workspace.prepare()
+    _record_tool_call_counts(settings, {})
     try:
         tools = connect(workspace.root, Deadline(settings.time_budget_seconds))
         published = tools.list_tools()
@@ -235,11 +238,16 @@ def _improve(
 
 
 def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> None:
-    """Leave the count of every tool this run called under its output.
+    """Overwrite the initial tool-call record with one live session's counts."""
+    _record_tool_call_counts(settings, session.tool_calls)
 
-    A run given no output directory has nowhere to leave it; a record that
-    cannot be written is logged and costs the run nothing, because the answer
-    is what the run owes and the record is what it offers.
+
+def _record_tool_call_counts(settings: AgentSettings, counts: dict[str, int]) -> None:
+    """Write a tool-call record, including an empty one before startup.
+
+    Initializing the artifact before a model or MCP connection means every run
+    with an output directory remains auditable even when startup fails before a
+    session exists. A live session overwrites it with its observed counts.
     """
     if settings.output is None:
         return
@@ -247,7 +255,7 @@ def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> No
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
-            json.dumps(dict(sorted(session.tool_calls.items())), sort_keys=True),
+            json.dumps(dict(sorted(counts.items())), sort_keys=True),
             encoding="utf-8",
         )
     except OSError as unwritable:
