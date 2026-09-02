@@ -22,11 +22,11 @@ attach any MCP client to a directory::
 import json
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from evolving_agent.commands import Budget, CommandRunner
+from evolving_agent.commands import Budget, CommandResult, CommandRunner
 from evolving_agent.tools import ToolDefinition, ToolFailureError, WorkspaceTools
 from evolving_agent.workspace import Workspace
 
@@ -224,6 +224,7 @@ def build_server(
     *,
     materials: Path | None = None,
     output: Path | None = None,
+    on_command_result: Callable[[CommandResult], None] | None = None,
 ) -> WorkspaceMcpServer:
     """Build a server whose tools are confined to one directory.
 
@@ -250,6 +251,7 @@ def build_server(
             CommandRunner(workspace.root, budget=budget),
             materials=None if materials is None else Workspace(materials),
             output=output_tree,
+            on_command_result=on_command_result,
         )
     )
 

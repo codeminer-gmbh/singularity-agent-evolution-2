@@ -12,12 +12,12 @@ in error, carrying the sentence the server wrote, which is exactly what the
 model needs in order to try something else.
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evolving_agent.commands import Budget
+from evolving_agent.commands import Budget, CommandResult
 from evolving_agent.mcp_server import WorkspaceMcpServer, build_server
 
 _JSONRPC_VERSION = "2.0"
@@ -145,6 +145,7 @@ def connect(
     *,
     materials: Path | None = None,
     output: Path | None = None,
+    on_command_result: Callable[[CommandResult], None] | None = None,
 ) -> McpClient:
     """Return a client connected to a tool server rooted at one directory.
 
@@ -154,6 +155,7 @@ def connect(
             that no command these tools start outlives it.
         materials: The read-only input files the task was given, if any.
         output: Where the task's deliverables are to be left, if anywhere.
+        on_command_result: Called after each command the published tool runs.
 
     Returns:
         The connected client.
@@ -162,4 +164,7 @@ def connect(
         WorkspaceError: If the workspace itself cannot be used.
 
     """
-    return McpClient(build_server(root, budget, materials=materials, output=output))
+    return McpClient(build_server(
+        root, budget, materials=materials, output=output,
+        on_command_result=on_command_result,
+    ))

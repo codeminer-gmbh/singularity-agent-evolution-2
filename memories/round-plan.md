@@ -1,3 +1,3 @@
-Gap: earlier policy let agents choose work before mining ledger evidence, repeat rejected approaches, and leave weak/no final records.
-Change: make the self-improvement prompt record-first, acceptance-case-driven, repetition-averse, and require an honest labelled final report.
-Why: this directly improves the next agent's verified decisions and notes; it replaces the disproven novelty/large-diff incentives rather than adding machinery.
+Gap: seven ledger audits found verification notes false; current prose policy and runner preserve no durable tool-result receipt.
+Change: record bounded run_command observations to output/.meta/improvement-evidence.json during improve sessions.
+Acceptance: a focused test invokes run_command in improve context and proves the receipt includes command, exit status, and output.

@@ -11,7 +11,7 @@ refuses: "that path leaves the workspace" gets a corrected second attempt, an
 unhandled exception ends the run.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import tarfile
 import zipfile
@@ -21,7 +21,7 @@ from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from typing import Any, BinaryIO
 
-from evolving_agent.commands import CommandRunner
+from evolving_agent.commands import CommandResult, CommandRunner
 from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.delimited import (
     MAX_DELIMITED_OFFSET, MAX_DELIMITED_ROWS, DelimitedError, inspect_delimited,
@@ -90,6 +90,7 @@ class WorkspaceTools:
         *,
         materials: Workspace | None = None,
         output: Workspace | None = None,
+        on_command_result: Callable[[CommandResult], None] | None = None,
     ) -> None:
         """Hold the trees the tools work in and the runner they execute through.
 
@@ -104,6 +105,7 @@ class WorkspaceTools:
         self._commands = commands
         self._materials = materials
         self._output = output
+        self._on_command_result = on_command_result
 
     def definitions(self) -> tuple[ToolDefinition, ...]:
         """Return every tool this agent publishes, in a stable order."""
@@ -740,6 +742,8 @@ class WorkspaceTools:
             )
         except (TypeError, ValueError) as unusable:
             raise ToolFailureError(str(unusable)) from unusable
+        if self._on_command_result is not None:
+            self._on_command_result(result)
         status = (
             "timed out"
             if result.timed_out
