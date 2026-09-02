@@ -160,7 +160,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="read_document",
                 description=(
-                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel XLSX, OpenDocument ODS, PowerPoint PPTX, EPUB, or RFC 822 EML email "
+                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel XLSX, OpenDocument ODS/ODT, PowerPoint PPTX, EPUB, or RFC 822 EML email "
                     "file. Paths may be under materials/ or output/. Output is bounded; "
                     "use max_characters to request a smaller excerpt."
                 ),

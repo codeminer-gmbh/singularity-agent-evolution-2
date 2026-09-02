@@ -50,7 +50,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, EPUB, or EML document.
+    """Extract readable text from a PDF, DOCX, XLSX, ODS, ODT, PPTX, EPUB, or EML document.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -72,6 +72,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".docx": _docx_text,
         ".xlsx": _xlsx_text,
         ".ods": _ods_text,
+        ".odt": _odt_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
         ".eml": _email_text,
@@ -80,7 +81,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), OpenDocument Text (.odt), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
         )
     try:
         text = extractor(path)
@@ -353,6 +354,71 @@ def _ods_text(path: Path) -> str:
                 chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
                 break
     return "\n".join(chunks)
+
+
+def _odt_text(path: Path) -> str:
+    """Extract paragraphs and headings from an OpenDocument Text package.
+
+    ODT is a ZIP/XML format like ODS, but its visible prose lives in
+    ``content.xml``.  Read only that declared, bounded member; embedded
+    images and other package objects are neither needed for text extraction
+    nor safe to expand speculatively.
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ODS_MEMBERS:
+                raise DocumentError(f"OpenDocument text has {len(infos)} package members; limit is {MAX_ODS_MEMBERS}.")
+            content = next((info for info in infos if info.filename == "content.xml"), None)
+            if content is None:
+                raise DocumentError("OpenDocument text has no content.xml member.")
+            if content.file_size > MAX_ODS_CONTENT_BYTES:
+                raise DocumentError(f"OpenDocument text content expands to {content.file_size} bytes; limit is {MAX_ODS_CONTENT_BYTES}.")
+            xml = archive.read(content)
+    except DocumentError:
+        raise
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
+        raise DocumentError(f"Could not parse OpenDocument text {path.name!r}: {error}") from error
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as error:
+        raise DocumentError(f"Could not parse OpenDocument text {path.name!r}: {error}") from error
+
+    paragraphs = root.findall(f".//{_ODS_TEXT}h") + root.findall(f".//{_ODS_TEXT}p")
+    # ElementTree finds each class separately, so restore document order rather
+    # than presenting all headings before all ordinary paragraphs.
+    wanted = {id(element) for element in paragraphs}
+    chunks: list[str] = []
+    for element in root.iter():
+        if id(element) not in wanted:
+            continue
+        text = _odt_inline_text(element).strip()
+        if text:
+            if element.tag == f"{_ODS_TEXT}h":
+                chunks.append(f"--- Heading ---\n{text}")
+            else:
+                chunks.append(text)
+    return "\n".join(chunks)
+
+
+def _odt_inline_text(element: ET.Element) -> str:
+    """Render ODT inline whitespace elements while retaining ordinary text."""
+    pieces: list[str] = [element.text or ""]
+    for child in element:
+        if child.tag == f"{_ODS_TEXT}s":
+            try:
+                count = max(1, int(child.get(f"{_ODS_TEXT}c", "1")))
+            except ValueError:
+                count = 1
+            pieces.append(" " * min(count, 1_000))
+        elif child.tag == f"{_ODS_TEXT}tab":
+            pieces.append("\t")
+        elif child.tag == f"{_ODS_TEXT}line-break":
+            pieces.append("\n")
+        else:
+            pieces.append(_odt_inline_text(child))
+        pieces.append(child.tail or "")
+    return "".join(pieces)
 
 
 def _ods_repeat(element: ET.Element, name: str) -> int:

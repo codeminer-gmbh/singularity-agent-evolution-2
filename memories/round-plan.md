@@ -1,3 +1,3 @@
-Gap: the agent cannot faithfully expose DOCX revision metadata and marginal content (tracked insertions/deletions, comments, footnotes, headers), which a revision-reconciliation hard task may require.
-Change: extend the DOCX extractor with bounded OOXML-part parsing that preserves revision and annotation context alongside visible text.
-Choice: this follows the selected DOCX task class and closes a substantive document-semantic gap rather than duplicating the recent YAML/JSON numeric-fidelity work.
+Gap: `read_document` cannot extract OpenDocument Text (.odt) files, a common task-material format distinct from the existing ODS spreadsheet support.
+Change: add a bounded native ODT package/XML extractor and publish .odt in the document tool contract.
+Priority: this closes an unaddressed input-format gap with no new dependency, whereas recent rounds already expanded JSON/YAML and other structured-data readers.
