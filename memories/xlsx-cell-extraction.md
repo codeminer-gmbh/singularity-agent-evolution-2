@@ -1,0 +1,1 @@
+`inspect_document` now follows XLSX workbook relationships and returns bounded worksheet coordinate/value evidence, covering numeric-only sheets, shared and inline strings, booleans, formulas with cached values, and nonstandard worksheet filenames. It caps worksheet, cell, and XML-part counts; a generated renamed-sheet workbook was exercised successfully.

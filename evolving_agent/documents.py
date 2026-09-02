@@ -16,6 +16,8 @@ MAX_EPUB_MEMBER_BYTES = 1_000_000
 MAX_ODF_CONTENT_BYTES = 4_000_000
 MAX_OOXML_PART_BYTES = 4_000_000
 MAX_OOXML_COMMENT_PARTS = 128
+MAX_XLSX_WORKSHEETS = 64
+MAX_XLSX_CELLS = 4_000
 MAX_HTML_BYTES = 4_000_000
 MAX_HTML_LINKS = 1_000
 MAX_HTML_ROWS = 1_000
@@ -119,9 +121,11 @@ def _ooxml(path: Path, suffix: str) -> str:
                 body_parts = sorted(name for name in names if re.fullmatch(r"ppt/slides/slide\d+\.xml", name))
                 comments = _pptx_comments(archive, names)
             else:
-                body_parts = ["xl/sharedStrings.xml"]
+                text = _xlsx_cells(archive, names)
                 comments = _xlsx_comments(archive, names)
-            text = "\n".join(_xml_text(_ooxml_bytes(archive, part)) for part in body_parts if part in names)
+                body_parts = []
+            if suffix != ".xlsx":
+                text = "\n".join(_xml_text(_ooxml_bytes(archive, part)) for part in body_parts if part in names)
     except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
         raise DocumentError(f"Could not read Office document: {error}") from error
     evidence = "\n".join(part for part in (text, comments) if part.strip())
@@ -188,6 +192,91 @@ def _pptx_comments(archive: zipfile.ZipFile, names: set[str]) -> str:
                 if text:
                     comments.append(f"PPTX comment by {authors.get(_attr(node, 'authorId'), 'unknown author')}: {text}")
     return "\n".join(comments)
+
+
+def _xlsx_cells(archive: zipfile.ZipFile, names: set[str]) -> str:
+    """Return coordinate/value evidence from worksheets named by workbook rels.
+
+    A workbook need not have sharedStrings.xml: numeric-only files and files
+    using inline strings are both common.  Following workbook relationships is
+    intentional: sheet filenames are package implementation details and need
+    not be the conventional ``sheet1.xml`` names.
+    """
+    if "xl/workbook.xml" not in names or "xl/_rels/workbook.xml.rels" not in names:
+        raise DocumentError("XLSX package has no workbook or workbook relationships part.")
+    workbook = element_tree.fromstring(_ooxml_bytes(archive, "xl/workbook.xml"))
+    relationships = element_tree.fromstring(_ooxml_bytes(archive, "xl/_rels/workbook.xml.rels"))
+    targets = {
+        _attr(node, "Id"): _xlsx_part_path("xl/workbook.xml", _attr(node, "Target"))
+        for node in relationships.iter()
+        if _local(node) == "Relationship" and _attr(node, "TargetMode").lower() != "external"
+    }
+    sheets = [node for node in workbook.iter() if _local(node) == "sheet"]
+    if len(sheets) > MAX_XLSX_WORKSHEETS:
+        raise DocumentError(f"XLSX workbook has more than {MAX_XLSX_WORKSHEETS} worksheets.")
+    shared = _xlsx_shared_strings(archive, names)
+    lines: list[str] = []
+    cell_count = 0
+    for sheet in sheets:
+        sheet_name = _attr(sheet, "name", "unnamed sheet")
+        relation_id = _attr(sheet, "id")
+        part = targets.get(relation_id)
+        if not part or part not in names:
+            # A missing relationship makes this sheet unreadable but should not
+            # hide evidence in the remaining, correctly related worksheets.
+            lines.append(f"Worksheet {sheet_name}: unavailable (missing relationship)")
+            continue
+        root = element_tree.fromstring(_ooxml_bytes(archive, part))
+        sheet_lines: list[str] = []
+        for node in root.iter():
+            if _local(node) != "c":
+                continue
+            cell_count += 1
+            if cell_count > MAX_XLSX_CELLS:
+                raise DocumentError(f"XLSX workbook has more than {MAX_XLSX_CELLS} populated cells.")
+            reference = _attr(node, "r", "unknown cell")
+            value = _xlsx_cell_value(node, shared)
+            if value is not None:
+                sheet_lines.append(f"{reference}: {value}")
+        if sheet_lines:
+            lines.append(f"Worksheet {sheet_name}\n" + "\n".join(sheet_lines))
+    return "\n".join(lines)
+
+
+def _xlsx_part_path(base: str, target: str) -> str:
+    """Resolve a package-internal relationship target without touching disk."""
+    # OOXML targets use forward slashes regardless of host operating system.
+    return posixpath.normpath(posixpath.join(posixpath.dirname(base), target)).lstrip("/")
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile, names: set[str]) -> list[str]:
+    if "xl/sharedStrings.xml" not in names:
+        return []
+    root = element_tree.fromstring(_ooxml_bytes(archive, "xl/sharedStrings.xml"))
+    return ["".join(node.text or "" for node in item.iter() if _local(node) == "t") for item in root.iter() if _local(item) == "si"]
+
+
+def _xlsx_cell_value(cell: element_tree.Element, shared: list[str]) -> str | None:
+    kind = _attr(cell, "t")
+    formula = next((node for node in cell if _local(node) == "f"), None)
+    raw = next((node.text or "" for node in cell if _local(node) == "v"), "")
+    if kind == "inlineStr":
+        value = "".join(node.text or "" for node in cell.iter() if _local(node) == "t")
+    elif kind == "s":
+        try:
+            value = shared[int(raw)]
+        except (ValueError, IndexError):
+            value = f"[invalid shared-string index {raw!r}]"
+    elif kind == "b":
+        value = "TRUE" if raw == "1" else "FALSE" if raw == "0" else raw
+    elif kind == "e":
+        value = raw or "#ERROR!"
+    else:
+        value = raw
+    if formula is not None:
+        expression = formula.text or ""
+        return f"={expression}" + (f" (cached: {value})" if value else "")
+    return value if value else None
 
 
 def _xlsx_comments(archive: zipfile.ZipFile, names: set[str]) -> str:
