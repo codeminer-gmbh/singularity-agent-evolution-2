@@ -8,9 +8,11 @@ asks no model at all and prints, as one JSON document, the tools the other two
 modes would offer one — read off the same registry, so the orchestrator can aim
 its exam at what this agent can actually do.
 
-Every run given `AGENT_OUTPUT` also leaves `.meta/tool_calls.json` there — how
-many times it called each tool — so which capabilities an exam exercised is a
-fact on the record.
+Every run given `AGENT_OUTPUT` leaves `.meta/tool_calls.json` there — how
+many times it called each tool — and `.meta/tool_receipts.json`, a bounded
+per-call record of the requested arguments and observed tool result (including
+refusals; fields are capped by the session limits), together with a machine-readable success/error status. This lets later improvement rounds distinguish observations from a
+model's narrative about them.
 
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.

@@ -1,0 +1,3 @@
+# Tool receipts for verifiable observations
+
+`ToolAgentSession` now records each tool request with its step, tool name, requested arguments, returned text, and a machine-readable status (`success`, `tool_error`, `invalid_arguments`, or `boundary_error`); text is bounded by the session limits. `modes._record_tool_calls` writes the bounded receipts as `.meta/tool_receipts.json` next to the required call counts whenever an output directory is supplied. This closes the prior evidence gap where counts showed a capability was invoked but could not establish what it observed; malformed JSON and MCP-boundary errors are receipts too. `tests/test_tool_receipts.py` exercises successful, malformed, and boundary-error records plus persistence.

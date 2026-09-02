@@ -23,7 +23,7 @@ import json
 import logging
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
 from evolving_agent.mcp_client import McpError, ToolDescription, ToolOutcome
@@ -90,6 +90,28 @@ class SessionOutcome:
     reason: str
 
 
+@dataclass(frozen=True)
+class ToolReceipt:
+    """One bounded, machine-readable observation made while using a tool.
+
+    Receipts are deliberately facts rather than model claims: the call was
+    requested, its arguments were parsed (or rejected), and this is the exact
+    bounded observation returned by the tool boundary.
+    """
+
+    step: int
+    name: str
+    arguments: str
+    observation: str
+    is_error: bool
+    status: str
+    """One of ``success``, ``tool_error``, ``invalid_arguments``, or ``boundary_error``."""
+
+    def as_json(self) -> dict[str, object]:
+        """Return the stable JSON-safe shape persisted by run modes."""
+        return asdict(self)
+
+
 class Deadline:
     """The moment after which a run stops asking for another step."""
 
@@ -140,11 +162,12 @@ class ToolAgentSession:
         self._deadline = deadline
         self._max_steps = max_steps
         self.tool_calls: dict[str, int] = {}
-        """How often each tool was called, over every run of this session.
+        """How often each tool was called, over every run of this session."""
+        self.tool_receipts: list[ToolReceipt] = []
+        """Bounded observations made by every call, in execution order.
 
-        Kept on the session rather than in the log, so a run can leave it as a
-        record — the first experiment had to reconstruct which tools an exam
-        ever used from standard error.
+        Unlike a count, a receipt lets a later reviewer distinguish a command
+        that merely ran from one whose inspected result supports a claim.
         """
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
@@ -220,14 +243,51 @@ class ToolAgentSession:
         self.tool_calls[call.name] = self.tool_calls.get(call.name, 0) + 1
         arguments = _arguments(call.arguments)
         if isinstance(arguments, str):
-            return f"[error] {arguments}"
+            observed = f"[error] {arguments}"
+            self._record_receipt(
+                step, call, observed, is_error=True, status="invalid_arguments"
+            )
+            return observed
         try:
             outcome = self._tools.call(call.name, arguments)
         except McpError as broken:
             _LOG.warning("Step %s: the tool boundary failed: %s", step, broken)
-            return f"[error] {broken}"
+            observed = f"[error] {broken}"
+            self._record_receipt(
+                step, call, observed, is_error=True, status="boundary_error"
+            )
+            return observed
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
-        return f"[error] {text}" if outcome.is_error else text
+        observed = f"[error] {text}" if outcome.is_error else text
+        self._record_receipt(
+            step,
+            call,
+            observed,
+            is_error=outcome.is_error,
+            status="tool_error" if outcome.is_error else "success",
+        )
+        return observed
+
+    def _record_receipt(
+        self,
+        step: int,
+        call: ToolCall,
+        observation: str,
+        *,
+        is_error: bool,
+        status: str,
+    ) -> None:
+        """Remember the same bounded observation passed back to the model."""
+        self.tool_receipts.append(
+            ToolReceipt(
+                step=step,
+                name=call.name,
+                arguments=_short(call.arguments),
+                observation=observation,
+                is_error=is_error,
+                status=status,
+            )
+        )
 
 
 def _arguments(raw: str) -> dict[str, Any] | str:

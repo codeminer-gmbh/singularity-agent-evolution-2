@@ -54,6 +54,9 @@ error in two passes is not about to on the third.
 TOOL_CALLS_RECORD = ".meta/tool_calls.json"
 """Where a run leaves the count of every tool it called, under its output."""
 
+TOOL_RECEIPTS_RECORD = ".meta/tool_receipts.json"
+"""Where a run leaves bounded tool observations, under its output."""
+
 MANIFEST_NOTES = (
     "Every tool is reachable from the workspace, from the task's input files "
     "under materials/ and from the deliverables under output/; commands run "
@@ -248,6 +251,15 @@ def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> No
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
             json.dumps(dict(sorted(session.tool_calls.items())), sort_keys=True),
+            encoding="utf-8",
+        )
+        receipts_target = Path(settings.output) / TOOL_RECEIPTS_RECORD
+        receipts_target.write_text(
+            json.dumps(
+                [receipt.as_json() for receipt in session.tool_receipts],
+                ensure_ascii=False,
+                indent=2,
+            ) + "\n",
             encoding="utf-8",
         )
     except OSError as unwritable:
