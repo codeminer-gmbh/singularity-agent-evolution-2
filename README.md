@@ -46,7 +46,7 @@ a probe is told which files it was given and where to put what it delivers.
 
 `inspect_tabular` provides the same bounded typed-schema and single-`data`-view SQL workflow for CSV, TSV, JSON, JSONL, and NDJSON attachments.
 
-`inspect_document` handles common binary attachments directly: DOCX and PPTX package text; XLSX worksheet cells (with coordinates, cached formula values, and shared or inline text); ODT, ODS, and ODP package text; EPUB spine chapters; PDF embedded text and page OCR; and image OCR. This lets a
+`inspect_document` handles common binary attachments directly: DOCX and PPTX package text; XLSX worksheet cells (with coordinates, cached formula values, and shared or inline text); ODT, ODS, and ODP package text; EPUB spine chapters; local HTML/HTM visible text and links; PDF embedded text and page OCR; and image OCR. This lets a
 probe inspect evidence supplied under `materials/` without extracting an
 attachment into the writable tree. Its previews are bounded like other file
 inspection results.

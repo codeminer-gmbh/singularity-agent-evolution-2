@@ -1,3 +1,3 @@
-Limitation: `inspect_document` treats XLSX as a shared-string table, so numeric-only sheets, coordinates, formulas, booleans, inline strings, and the worksheet structure needed for spreadsheet evidence are invisible.
-Change: replace that XLSX branch with bounded relationship-aware worksheet cell extraction, resolving shared and inline strings and showing coordinates, formulas, cached values, and sheet names.
-Evidence: the current code explicitly reads only `xl/sharedStrings.xml`; ledger cycle 74 independently attempted this unclosed gap and recorded the same concrete omissions, while attachment inspection is an exercised end-to-end evidence path rather than a speculative new surface.
+Limitation: a local HTML/HTM attachment under materials cannot be inspected as readable evidence; `fetch_web_page` only helps when the page has an HTTP(S) URL.
+Change: extend the existing bounded document inspector with a standard-library HTML visible-text and link extractor, using the same evidence shape as fetched pages.
+Evidence: the ledger records one prior HTML-inspection candidate whose direct executable capability test passed, while the current source still lacks the branch; this closes a common attachment workflow gap without a dependency or separate tool surface.

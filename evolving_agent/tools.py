@@ -154,15 +154,15 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_document",
                 description=(
-                    "Extract readable evidence from one PDF page, image, DOCX/PPTX/XLSX, ODT/ODS/ODP, or EPUB chapter "
-                    "attachment. PDF embedded text is extracted directly and scanned pages "
-                    "are OCRed; set page to select a PDF page, EPUB chapter, or XLSX worksheet. Results are bounded."
+                    "Extract readable evidence from one PDF page, image, DOCX/PPTX/XLSX, ODT/ODS/ODP, EPUB chapter, or HTML attachment. "
+                    "PDF embedded text is extracted directly and scanned pages are OCRed; set page to select a PDF page, EPUB chapter, "
+                    "XLSX worksheet, or HTML's single document. Results are bounded."
                 ),
                 input_schema={
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "Path in the workspace or materials/."},
-                        "page": {"type": "integer", "description": "One-based PDF page, EPUB spine chapter, or XLSX worksheet (default 1)."},
+                        "page": {"type": "integer", "description": "One-based PDF page, EPUB spine chapter, XLSX worksheet, or the single HTML document (default 1)."},
                         "ocr": {"type": "boolean", "description": "OCR a PDF page even when it has embedded text."},
                     },
                     "required": ["path"],

@@ -1,0 +1,1 @@
+`inspect_document` now accepts local `.html` and `.htm` files. It uses a bounded stdlib HTML parser to return decoded title and visible text plus de-duplicated links, suppressing script/style/template content and element-level hidden, aria-hidden, display:none, and visibility:hidden content. The tool schema advertises HTML and treats it as a one-page document.

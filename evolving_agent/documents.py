@@ -1,9 +1,10 @@
-"""Bounded extraction of evidence from PDFs, images, Office, EPUB, and OpenDocument files."""
+"""Bounded extraction of evidence from PDFs, images, Office, EPUB, HTML, and OpenDocument files."""
 
 from __future__ import annotations
 
 import posixpath
 import re
+from html.parser import HTMLParser
 import tempfile
 import xml.etree.ElementTree as element_tree
 import zipfile
@@ -14,6 +15,8 @@ MAX_TEXT_CHARACTERS = 24_000
 MAX_EPUB_MEMBER_BYTES = 1_000_000
 MAX_ODF_CONTENT_BYTES = 4_000_000
 MAX_XLSX_MEMBER_BYTES = 4_000_000
+MAX_HTML_BYTES = 4_000_000
+MAX_HTML_LINKS = 100
 MAX_XLSX_SHEETS = 32
 MAX_XLSX_CELLS = 2_500
 """Enough evidence for a model, without one attachment consuming a turn."""
@@ -51,10 +54,133 @@ def inspect_document(
         return _odf(path, suffix)
     if suffix == ".epub":
         return _epub(path, page)
+    if suffix in {".html", ".htm"}:
+        return _html(path, page)
     raise DocumentError(
-        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, DOCX/PPTX/XLSX, ODT/ODS/ODP, and EPUB."
+        "Supported document formats are PDF, PNG/JPEG/TIFF/BMP/WebP images, DOCX/PPTX/XLSX, ODT/ODS/ODP, EPUB, and HTML."
     )
 
+
+
+class _HtmlEvidenceParser(HTMLParser):
+    """Collect an attachment's human-visible text and literal link targets.
+
+    HTML attachments are data, not pages to execute.  ``HTMLParser`` therefore
+    gives this inspector the same non-executing, bounded evidence path as a
+    fetched web page, while keeping relative links meaningful to a reader of
+    the attachment rather than inventing a network base URL.
+    """
+
+    _IGNORED = {"script", "style", "noscript", "template", "svg", "canvas"}
+    _BREAKS = {"br", "p", "div", "li", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "header", "footer"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._suppressed_tags: list[str] = []
+        self._in_title = False
+        self.title_parts: list[str] = []
+        self.text_parts: list[str] = []
+        self.links: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
+        attributes = dict(attrs)
+        if tag in self._IGNORED or self._is_hidden(attributes):
+            self._suppressed_tags.append(tag)
+        elif tag == "title":
+            self._in_title = True
+        elif tag == "a" and not self._suppressed_tags:
+            self._add_link(attributes.get("href"))
+        if tag in self._BREAKS and not self._suppressed_tags:
+            self.text_parts.append("\n")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # HTMLParser does not pair this callback with handle_endtag.
+        tag = tag.lower()
+        attributes = dict(attrs)
+        if tag == "a" and not self._is_hidden(attributes) and not self._suppressed_tags:
+            self._add_link(attributes.get("href"))
+        if tag in self._BREAKS and not self._suppressed_tags:
+            self.text_parts.append("\n")
+
+    @staticmethod
+    def _is_hidden(attributes: dict[str, str | None]) -> bool:
+        """Recognize element-level hiding without attempting stylesheet evaluation."""
+        style = (attributes.get("style") or "").replace(" ", "").lower()
+        return (
+            "hidden" in attributes
+            or attributes.get("aria-hidden", "").lower() == "true"
+            or "display:none" in style
+            or "visibility:hidden" in style
+        )
+
+    def _add_link(self, href: str | None) -> None:
+        if href:
+            self.links.append(href)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if self._suppressed_tags and tag == self._suppressed_tags[-1]:
+            self._suppressed_tags.pop()
+        elif tag == "title":
+            self._in_title = False
+        elif tag in self._BREAKS and not self._suppressed_tags:
+            self.text_parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self.title_parts.append(data)
+        if not self._suppressed_tags and not self._in_title:
+            self.text_parts.append(data)
+
+
+def _html(path: Path, page: int) -> str:
+    """Return bounded, non-executing evidence from one local HTML attachment."""
+    if page != 1:
+        raise DocumentError("HTML attachments have one document; only page 1 may be selected.")
+    try:
+        size = path.stat().st_size
+        if size > MAX_HTML_BYTES:
+            raise DocumentError(f"HTML attachment exceeds the {MAX_HTML_BYTES}-byte inspection limit.")
+        raw = path.read_bytes()
+    except OSError as error:
+        raise DocumentError(f"Could not read HTML attachment: {error}") from error
+    if len(raw) > MAX_HTML_BYTES:
+        raise DocumentError(f"HTML attachment exceeds the {MAX_HTML_BYTES}-byte inspection limit.")
+    parser = _HtmlEvidenceParser()
+    try:
+        parser.feed(raw.decode("utf-8", errors="replace"))
+        parser.close()
+    except (ValueError, AssertionError) as error:
+        raise DocumentError(f"Could not parse HTML attachment: {error}") from error
+    title = _html_normalise(" ".join(parser.title_parts))
+    text = _html_normalise(" ".join(parser.text_parts))
+    lines = [f"HTML attachment ({path.name})"]
+    if title:
+        lines.append(f"Title: {title}")
+    lines.extend(("---", text or "[The attachment contains no readable text.]"))
+    links = _html_links(parser.links)
+    if links:
+        lines.extend(("", "Links:"))
+        lines.extend(f"- {link}" for link in links)
+    return _bounded("\n".join(lines))
+
+
+def _html_normalise(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _html_links(hrefs: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for href in hrefs:
+        target = href.strip()
+        if target and target not in seen:
+            seen.add(target)
+            result.append(target)
+            if len(result) == MAX_HTML_LINKS:
+                break
+    return result
 
 def _pdf(path: Path, page: int, ocr: bool, run: Callable[[list[str]], tuple[int | None, str, str]]) -> str:
     code, info, error = run(["pdfinfo", str(path)])
