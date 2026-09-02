@@ -1,3 +1,3 @@
-Gap: the agent cannot read Microsoft Outlook .msg email files, common evidence in office and investigation tasks.
-Change: add bounded .msg extraction through extract-msg to read_document, including message fields, body, and an attachment inventory.
-Priority: earlier rounds already added EML and office readers; Outlook MSG is the adjacent unclosed email format with high task value.
+Gap: Generic capability-audit instructions reward adding a tool even when recent exams primarily differentiate exact task-contract correctness and adversarial edge cases.
+Change: Revise improvement prompts to require ledger-informed selection, an executable task-shaped verification, and explicit semantic-boundary review before claiming a capability.
+Why: The ledger's promoted verdicts repeatedly reward strict parsing, cutoff/rounding semantics, and tests; this targets answer quality rather than another unexercised tool.
