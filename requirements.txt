@@ -30,6 +30,8 @@ pyarrow==20.0.0
 
 # GDAL-backed readers expose spatial vector layers without loading complete datasets.
 Fiona==1.10.1
+# GDAL-backed raster inspection (GeoTIFF and other local raster formats).
+rasterio==1.4.3
 
 # HDF5 and HDF5-backed NetCDF4 scientific dataset inspection.
 h5py==3.12.1

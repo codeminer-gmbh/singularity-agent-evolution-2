@@ -32,6 +32,7 @@ from evolving_agent.hdfdata import (
     MAX_HDF5_ELEMENTS, MAX_HDF5_OFFSET, HDF5Error, inspect_hdf5,
 )
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
+from evolving_agent.rasterdata import MAX_RASTER_PIXELS, RasterError, inspect_raster
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -265,6 +266,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_raster",
+                description=(
+                    "Read metadata and a bounded pixel preview from a local GeoTIFF or other "
+                    "GDAL/rasterio-supported raster. Reads only one selected band and window; "
+                    "reports dimensions, bounds, CRS, transform, nodata, and the preview."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Raster path, including materials/ or output/."},
+                        "band": {"type": "integer", "minimum": 1, "description": "One-indexed band to preview (default 1)."},
+                        "window": {"type": "object", "properties": {"col_off": {"type": "integer", "minimum": 0}, "row_off": {"type": "integer", "minimum": 0}, "width": {"type": "integer", "minimum": 1}, "height": {"type": "integer", "minimum": 1}}, "required": ["col_off", "row_off", "width", "height"], "description": "Optional pixel window; must contain at most max_pixels."},
+                        "max_pixels": {"type": "integer", "minimum": 1, "maximum": MAX_RASTER_PIXELS, "description": "Maximum cells read from the selected band (default 1000)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_geodata",
                 description=(
                     "Read vector geodata metadata and a bounded feature preview from GeoJSON, "
@@ -400,6 +419,7 @@ class WorkspaceTools:
             "inspect_delimited": self._inspect_delimited,
             "inspect_parquet": self._inspect_parquet,
             "inspect_hdf5": self._inspect_hdf5,
+            "inspect_raster": self._inspect_raster,
             "inspect_geodata": self._inspect_geodata,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
@@ -534,6 +554,18 @@ class WorkspaceTools:
                 offset=arguments.get("offset", 0),
             )
         except HDF5Error as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_raster(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect bounded pixels and spatial metadata from a local raster."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        try:
+            return inspect_raster(
+                tree.resolve(relative), band=arguments.get("band", 1),
+                window=arguments.get("window"), max_pixels=arguments.get("max_pixels", 1_000),
+            )
+        except RasterError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:

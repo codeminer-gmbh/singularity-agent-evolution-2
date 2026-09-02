@@ -1,3 +1,3 @@
-Gap: `read_document` cannot extract OpenDocument Text (.odt) files, a common task-material format distinct from the existing ODS spreadsheet support.
-Change: add a bounded native ODT package/XML extractor and publish .odt in the document tool contract.
-Priority: this closes an unaddressed input-format gap with no new dependency, whereas recent rounds already expanded JSON/YAML and other structured-data readers.
+Gap: the agent cannot inspect georeferenced raster imagery such as GeoTIFFs, despite supporting vector geodata and scientific arrays.
+Change: add a bounded rasterio-backed `inspect_raster` tool exposing spatial metadata and a masked one-band pixel window.
+Priority: raster GIS is a distinct common task format not covered by the inherited vector, HDF5, document, or table tools.
