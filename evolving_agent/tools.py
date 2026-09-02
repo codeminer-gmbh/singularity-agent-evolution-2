@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
+from evolving_agent.charts import create_chart
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.document_inspection import DocumentInspectionError, inspect_document
@@ -275,6 +276,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_chart",
+                description=(
+                    "Create a self-contained PNG or JPEG bar, line, or pie chart from labelled numeric data. "
+                    "Supports optional title, canvas size, background, and per-point colors."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .png, .jpg, or .jpeg path, usually under output/."},
+                        "chart_type": {"type": "string", "enum": ["bar", "line", "pie"]},
+                        "data": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "object", "properties": {"label": {"type": "string"}, "value": {"type": "number"}, "color": {"type": "string"}}, "required": ["label", "value"]}},
+                        "width": {"type": "integer", "description": "Canvas width, 300 to 6000 pixels; default 1000."},
+                        "height": {"type": "integer", "description": "Canvas height, 250 to 6000 pixels; default 650."},
+                        "title": {"type": "string"}, "background": {"type": "string"}
+                    }, "required": ["path", "chart_type", "data"]
+                },
+            ),
+            ToolDefinition(
                 name="create_image",
                 description=(
                     "Create a PNG or JPEG visual in the workspace or output/ using a bounded "
@@ -483,6 +502,7 @@ class WorkspaceTools:
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
             "create_pdf": self._create_pdf,
+            "create_chart": self._create_chart,
             "create_image": self._create_image,
             "inspect_image": self._inspect_image,
             "inspect_document": self._inspect_document,
@@ -635,6 +655,17 @@ class WorkspaceTools:
             )
         except ArchiveError as refused:
             raise ToolFailureError(str(refused)) from refused
+
+    def _create_chart(self, arguments: Mapping[str, Any]) -> str:
+        """Create a labelled chart in a contained output location."""
+        tree, relative = self._located(_text_argument(arguments, "path"), writing=True)
+        try:
+            return create_chart(tree.resolve(relative), chart_type=arguments.get("chart_type"),
+                                data=arguments.get("data"), width=arguments.get("width", 1000),
+                                height=arguments.get("height", 650), title=arguments.get("title"),
+                                background=arguments.get("background", "white"))
+        except ImageError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
 
     def _create_image(self, arguments: Mapping[str, Any]) -> str:
         """Create a bounded raster visual, resolving composition inputs safely."""

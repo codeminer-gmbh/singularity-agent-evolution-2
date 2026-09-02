@@ -1,0 +1,1 @@
+Added `create_chart`, a contained PNG/JPEG bar, line, and pie chart tool. It validates finite labelled numeric points (including pie-specific nonnegative/nonzero-total rules), bounded canvas sizes, and optional colors before rendering with Pillow; it is published through the shared tool registry.
