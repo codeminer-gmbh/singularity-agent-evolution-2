@@ -210,6 +210,17 @@ class Workspace:
             ) from unwritable
         return written
 
+    def write_bytes(self, relative_path: str, content: bytes) -> int:
+        """Write binary content inside this workspace after containment checks."""
+        if not isinstance(content, bytes):
+            raise WorkspaceError("Binary content must be bytes.")
+        path = self.resolve(relative_path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            return path.write_bytes(content)
+        except OSError as unwritable:
+            raise WorkspaceError(f"{relative_path!r} could not be written: {unwritable}") from unwritable
+
     def delete(self, relative_path: str) -> None:
         """Remove one file or one directory tree from the workspace.
 

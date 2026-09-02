@@ -1,0 +1,1 @@
+Added `extract_email_attachment`, which decodes a selected EML, mbox, or MSG attachment (bounded to 25 MB) and writes it only through the contained workspace/output path API. It lets the existing archive, document, database, tabular, and audio tools inspect binary email attachments end-to-end; embedded MSG attachments remain safely handled by `inspect_email`.

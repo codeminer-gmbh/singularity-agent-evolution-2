@@ -19,7 +19,7 @@ from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.audio import AudioError, inspect_audio
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, inspect_document
-from evolving_agent.emails import EmailError, inspect_email
+from evolving_agent.emails import EmailError, extract_email_attachment, inspect_email
 from evolving_agent.databases import DatabaseError, inspect_database
 from evolving_agent.parquet import ParquetError, inspect_parquet
 from evolving_agent.tabular import TabularError, inspect_tabular
@@ -182,6 +182,23 @@ class WorkspaceTools:
                         "attachment": {"type": "integer", "description": "One-based attachment to preview when textual."},
                     },
                     "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="extract_email_attachment",
+                description=(
+                    "Copy one decoded binary attachment from an EML, mbox, or MSG message to a writable workspace or output/ path, "
+                    "so it can be inspected with the appropriate evidence tool. Attachment and mbox message numbers are one-based."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Email path in the workspace or materials/."},
+                        "destination": {"type": "string", "description": "Writable workspace or output/ path for decoded bytes."},
+                        "message": {"type": "integer", "description": "One-based mbox message (default 1)."},
+                        "attachment": {"type": "integer", "description": "One-based attachment to extract."},
+                    },
+                    "required": ["path", "destination", "attachment"],
                 },
             ),
             ToolDefinition(
@@ -353,6 +370,7 @@ class WorkspaceTools:
             "inspect_audio": self._inspect_audio,
             "inspect_document": self._inspect_document,
             "inspect_email": self._inspect_email,
+            "extract_email_attachment": self._extract_email_attachment,
             "inspect_database": self._inspect_database,
             "inspect_parquet": self._inspect_parquet,
             "inspect_tabular": self._inspect_tabular,
@@ -446,6 +464,20 @@ class WorkspaceTools:
             if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
                 raise ToolFailureError(f"'{name}' must be an integer when supplied.")
         return inspect_email(tree.resolve(relative), message, attachment)
+
+    def _extract_email_attachment(self, arguments: Mapping[str, Any]) -> str:
+        """Copy a selected decoded email attachment into a writable evidence tree."""
+        source_tree, source_relative = self._located(_text_argument(arguments, "path"))
+        destination = _text_argument(arguments, "destination")
+        destination_tree, destination_relative = self._located(destination, writing=True)
+        message = arguments.get("message", 1)
+        attachment = arguments.get("attachment")
+        for name, value in (("message", message), ("attachment", attachment)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise ToolFailureError(f"'{name}' must be an integer of at least 1.")
+        data = extract_email_attachment(source_tree.resolve(source_relative), message, attachment)
+        written = destination_tree.write_bytes(destination_relative, data)
+        return f"Extracted attachment {attachment} from message {message}: wrote {written} bytes to {destination}."
 
     def _inspect_database(self, arguments: Mapping[str, Any]) -> str:
         """Inspect SQLite schema or run a bounded read-only evidence query."""

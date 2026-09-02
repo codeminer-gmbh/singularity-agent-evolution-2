@@ -85,6 +85,54 @@ def inspect_email(path: Path, message_number: int = 1, attachment_number: int | 
     return _render(email, source, attachment_number)
 
 
+def extract_email_attachment(path: Path, message_number: int, attachment_number: int) -> bytes:
+    """Return one decoded byte attachment for follow-on evidence inspection.
+
+    The source is bounded exactly as normal email inspection is.  Embedded MSG
+    objects have no stable raw byte representation and remain inspectable via
+    :func:`inspect_email` rather than being silently serialized.
+    """
+    if message_number < 1 or attachment_number < 1:
+        raise EmailError("'message' and 'attachment' must be at least 1.")
+    try:
+        size = path.stat().st_size
+    except OSError as error:
+        raise EmailError(f"Cannot read email file: {error}.") from error
+    if size > MAX_SOURCE_BYTES:
+        raise EmailError(f"Email file is {size} bytes; limit is {MAX_SOURCE_BYTES} bytes.")
+    if _is_outlook_msg(path):
+        if message_number != 1:
+            raise EmailError("An Outlook MSG file contains one message; requested message %d." % message_number)
+        try:
+            msg = extract_msg.Message(str(path))
+        except (OSError, ValueError) as error:
+            raise EmailError(f"Cannot parse Outlook MSG file: {error}.") from error
+        try:
+            attachments = [_msg_attachment(item) for item in getattr(msg, "attachments", ())]
+            if attachment_number > len(attachments):
+                raise EmailError(f"Message has {len(attachments)} attachments; requested attachment {attachment_number}.")
+            data = attachments[attachment_number - 1].data
+            if data is None:
+                raise EmailError("The selected attachment is an embedded Outlook message and cannot be extracted as raw bytes.")
+        finally:
+            msg.close()
+    else:
+        if _is_mbox(path):
+            email, _ = _read_mbox(path, message_number)
+        else:
+            try:
+                email = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
+            except (OSError, ValueError) as error:
+                raise EmailError(f"Cannot parse EML file: {error}.") from error
+        attachments = _attachments(email)
+        if attachment_number > len(attachments):
+            raise EmailError(f"Message has {len(attachments)} attachments; requested attachment {attachment_number}.")
+        data = _decoded_bytes(attachments[attachment_number - 1])
+    if len(data) > MAX_SOURCE_BYTES:
+        raise EmailError(f"Decoded attachment is {len(data)} bytes; limit is {MAX_SOURCE_BYTES} bytes.")
+    return data
+
+
 def _is_outlook_msg(path: Path) -> bool:
     if path.suffix.lower() == ".msg":
         return True

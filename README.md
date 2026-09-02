@@ -55,6 +55,8 @@ inspection results.
 
 `inspect_email` reads RFC 822 `.eml` correspondence, Unix mbox exports, and Outlook `.msg` messages without writing them out. It presents decoded headers and body text, inventories attachments, can preview a selected textual attachment, and renders an embedded forwarded Outlook message selected as an attachment.
 
+`extract_email_attachment` copies a selected decoded attachment from EML, mbox, or MSG evidence to the workspace or `output/`. This bridges mail containers to the document, archive, database, tabular, and audio inspectors when an attachment needs full binary analysis.
+
 `fetch_web_page` retrieves a single HTTP(S) page as bounded readable evidence, including its visible text, title, final URL, and HTTP(S) links, without executing page content or saving it to disk.
 
 `download_web_file` acquires one bounded HTTP(S) binary resource (up to 25 MB) into the workspace or `output/` atomically. A probe can use it to bring a web-hosted PDF, office file, archive, or dataset into the existing local inspectors; it sends no credentials, cookies, or request body.
