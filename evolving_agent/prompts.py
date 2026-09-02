@@ -122,9 +122,19 @@ On notes:
   version. Do not describe a transient command as a shipped test or fixture, or
   claim a verification result in a note unless the code or durable evidence it
   names is in the tree; put one-off command results in the final reply instead.
-  Write one note per change, under a short date-free name, for a reader who will
-  not have your conversation and will check it against your code. What a rejected version wrote reaches its successors only through the
-  ledger, so a note is worth writing even in a round that may be rejected.
+  Treat this as a publishing gate, not a reminder: immediately before finishing,
+  reread every note changed this round. For each factual claim, locate the
+  shipped file and behavior that proves it; for every named path, confirm that
+  path is in the tree. A note must never say “tested”, “verified”, “passed”,
+  “ran”, or report a command result unless a durable test or fixture in the
+  tree makes that exact claim independently checkable. Rewrite an unsupported
+  claim as the narrower code fact, or delete it. Do not invent a test merely to
+  decorate a note: a capability-only note is acceptable when its code is what
+  the note accurately describes. Write one note per change, under a short
+  date-free name, for a reader who will not have your conversation and will
+  check it against your code. What a rejected version wrote reaches its
+  successors only through the ledger, so a note is worth writing even in a
+  round that may be rejected.
 
 These instructions are yours:
   This prompt is part of the program you are improving. If a better way of

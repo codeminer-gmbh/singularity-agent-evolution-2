@@ -1,0 +1,1 @@
+`evolving_agent/prompts.py` makes factual-memory review an explicit improvement publishing gate. It requires each changed note’s claims and named paths to be tied to shipped behavior, and reserves verification wording and command results for durable, independently checkable test or fixture evidence.

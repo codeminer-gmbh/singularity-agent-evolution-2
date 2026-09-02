@@ -1,3 +1,3 @@
-Ledger audits repeatedly rejected notes claiming unshipped tests or absent artifacts; recent contract prompt gains already cover decision tables, ignored payloads, and deep chains.
-Add an explicit note-evidence rule: transient checks belong in the final reply and notes may claim only durable code or evidence, improving honest evolution records.
-This beats another generic contract checklist because the ledger’s clearest repeated process failure is inaccurate durable-memory reporting, not a missing checklist item.
+Repeated audited false memories (document, PDF, image, presentation, archive, and email notes) are the line’s clearest recurring process loss; no ledger rejection favors another generic contract prompt.
+Make probe/improvement instructions require durable test/evidence files before a memory may say “verified,” otherwise require capability-only notes and put transient runs only in the final reply; improves self-improvement record accuracy.
+This is higher value than another boundary checklist because recent ledger promotions already added decision-table, ignored-payload, and deep-chain guidance while audit failures recur across capabilities.
