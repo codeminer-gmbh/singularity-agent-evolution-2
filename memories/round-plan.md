@@ -1,3 +1,3 @@
-Limitation: capability-first wording can reward speculative format/tool additions even when selection evidence shows hard-task losses came from end-to-end solution robustness.
-Change: make the improvement prompt and README require ledger-led, evidence-backed selection of recurring task-solving bottlenecks and behavior-level verification.
-Why: the supplied ledger shows a rejected video addition unmentioned by verdicts while judges repeatedly distinguish robustness details; this is a broader recurring decision gap than another input format.
+Limitation: `inspect_document` treats XLSX as a shared-string table, so numeric-only sheets, coordinates, formulas, booleans, inline strings, and the worksheet structure needed for spreadsheet evidence are invisible.
+Change: replace that XLSX branch with bounded relationship-aware worksheet cell extraction, resolving shared and inline strings and showing coordinates, formulas, cached values, and sheet names.
+Evidence: the current code explicitly reads only `xl/sharedStrings.xml`; ledger cycle 74 independently attempted this unclosed gap and recorded the same concrete omissions, while attachment inspection is an exercised end-to-end evidence path rather than a speculative new surface.

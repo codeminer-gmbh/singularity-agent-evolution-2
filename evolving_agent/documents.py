@@ -1,4 +1,4 @@
-"""Bounded extraction of evidence from PDFs, images, Office Open XML, and OpenDocument files."""
+"""Bounded extraction of evidence from PDFs, images, Office, EPUB, and OpenDocument files."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from typing import Callable
 MAX_TEXT_CHARACTERS = 24_000
 MAX_EPUB_MEMBER_BYTES = 1_000_000
 MAX_ODF_CONTENT_BYTES = 4_000_000
+MAX_XLSX_MEMBER_BYTES = 4_000_000
+MAX_XLSX_SHEETS = 32
+MAX_XLSX_CELLS = 2_500
 """Enough evidence for a model, without one attachment consuming a turn."""
 
 
@@ -40,7 +43,9 @@ def inspect_document(
         return _pdf(path, page, ocr, run)
     if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}:
         return _image(path, run)
-    if suffix in {".docx", ".pptx", ".xlsx"}:
+    if suffix == ".xlsx":
+        return _xlsx(path, page)
+    if suffix in {".docx", ".pptx"}:
         return _ooxml(path, suffix)
     if suffix in {".odt", ".ods", ".odp"}:
         return _odf(path, suffix)
@@ -94,20 +99,132 @@ def _image(path: Path, run: Callable[[list[str]], tuple[int | None, str, str]]) 
 
 
 def _ooxml(path: Path, suffix: str) -> str:
+    """Extract the ordinary document text from a DOCX or PPTX package."""
     try:
         with zipfile.ZipFile(path) as archive:
             if suffix == ".docx":
                 parts = ["word/document.xml"]
-            elif suffix == ".pptx":
-                parts = sorted(name for name in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name))
             else:
-                parts = ["xl/sharedStrings.xml"]
+                parts = sorted(name for name in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name))
             text = "\n".join(_xml_text(archive.read(part)) for part in parts if part in archive.namelist())
     except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
         raise DocumentError(f"Could not read Office document: {error}") from error
     if not text.strip():
         raise DocumentError("No readable text was found in this Office document.")
     return f"{suffix[1:].upper()} extracted text ({path.name})\n---\n{_bounded(text)}"
+
+
+def _xlsx(path: Path, sheet_number: int) -> str:
+    """Render populated cells from one XLSX worksheet without unpacking it.
+
+    XLSX stores values in worksheet XML, rather than in ``sharedStrings.xml``:
+    a numeric-only workbook may not even have that latter member.  Resolving the
+    workbook relationship also avoids assuming that every producer calls its
+    sheets ``sheet1.xml``.  ``page`` selects a one-based sheet, matching the
+    incremental evidence workflow used for PDFs and EPUBs.
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            workbook = _xlsx_xml(archive, "xl/workbook.xml")
+            sheets = [node for node in workbook.iter() if node.tag.endswith("sheet")]
+            if not sheets:
+                raise DocumentError("XLSX workbook contains no worksheets.")
+            if len(sheets) > MAX_XLSX_SHEETS:
+                sheets = sheets[:MAX_XLSX_SHEETS]
+            if sheet_number > len(sheets):
+                raise DocumentError(f"The XLSX has {len(sheets)} readable sheet(s); sheet {sheet_number} does not exist.")
+            relationships = _xlsx_relationships(archive)
+            selected = sheets[sheet_number - 1]
+            relationship_id = selected.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+            sheet_path = relationships.get(relationship_id or "")
+            if not sheet_path:
+                raise DocumentError("XLSX worksheet has no usable workbook relationship.")
+            shared = _xlsx_shared_strings(archive)
+            worksheet = _xlsx_xml(archive, sheet_path)
+            cells = _xlsx_cells(worksheet, shared)
+            sheet_name = selected.attrib.get("name", f"Sheet {sheet_number}")
+    except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
+        raise DocumentError(f"Could not read XLSX workbook: {error}") from error
+    lines = cells or ["(no populated cells)"]
+    return f"XLSX sheet {sheet_number} of {len(sheets)}: {sheet_name} ({path.name})\n---\n{_bounded(chr(10).join(lines))}"
+
+
+def _xlsx_xml(archive: zipfile.ZipFile, name: str) -> element_tree.Element:
+    return element_tree.fromstring(_xlsx_bytes(archive, name))
+
+
+def _xlsx_bytes(archive: zipfile.ZipFile, name: str) -> bytes:
+    try:
+        info = archive.getinfo(name)
+    except KeyError as error:
+        raise DocumentError(f"XLSX package is missing {name!r}.") from error
+    if info.is_dir() or info.file_size > MAX_XLSX_MEMBER_BYTES:
+        raise DocumentError(f"XLSX member {name!r} exceeds the inspection limit.")
+    with archive.open(info) as source:
+        data = source.read(MAX_XLSX_MEMBER_BYTES + 1)
+    if len(data) > MAX_XLSX_MEMBER_BYTES:
+        raise DocumentError(f"XLSX member {name!r} exceeds the inspection limit.")
+    return data
+
+
+def _xlsx_relationships(archive: zipfile.ZipFile) -> dict[str, str]:
+    root = _xlsx_xml(archive, "xl/_rels/workbook.xml.rels")
+    relationships: dict[str, str] = {}
+    for node in root.iter():
+        if not node.tag.endswith("Relationship"):
+            continue
+        target = node.attrib.get("Target", "")
+        if node.attrib.get("TargetMode") == "External" or not target:
+            continue
+        normalized = posixpath.normpath(posixpath.join("xl", target))
+        if normalized.startswith("../") or normalized == "..":
+            continue
+        relationships[node.attrib.get("Id", "")] = normalized
+    return relationships
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    root = _xlsx_xml(archive, "xl/sharedStrings.xml")
+    return [_xlsx_rich_text(node) for node in root if node.tag.endswith("si")]
+
+
+def _xlsx_rich_text(node: element_tree.Element) -> str:
+    """Preserve Excel rich-text run spacing, including xml:space=preserve."""
+    return "".join(child.text or "" for child in node.iter() if child.tag.endswith("t"))
+
+
+def _xlsx_cells(root: element_tree.Element, shared: list[str]) -> list[str]:
+    result: list[str] = []
+    for node in root.iter():
+        if not node.tag.endswith("c"):
+            continue
+        reference = node.attrib.get("r", "cell")
+        kind = node.attrib.get("t", "")
+        formula = next((child.text or "" for child in node if child.tag.endswith("f")), "")
+        value_node = next((child for child in node if child.tag.endswith("v")), None)
+        raw = value_node.text if value_node is not None and value_node.text is not None else ""
+        inline = _xlsx_rich_text(node)
+        if kind == "s":
+            try:
+                value = shared[int(raw)]
+            except (ValueError, IndexError):
+                value = f"[invalid shared string {raw!r}]"
+        elif kind == "inlineStr":
+            value = inline
+        elif kind == "b":
+            value = "TRUE" if raw == "1" else "FALSE" if raw == "0" else raw
+        else:
+            value = raw
+        detail = value if value else "(blank)"
+        if formula:
+            detail += f" | formula: ={formula}"
+        result.append(f"{reference}: {detail}")
+        if len(result) >= MAX_XLSX_CELLS:
+            result.append(f"... [truncated after {MAX_XLSX_CELLS} populated cells]")
+            break
+    return result
 
 
 def _odf(path: Path, suffix: str) -> str:
