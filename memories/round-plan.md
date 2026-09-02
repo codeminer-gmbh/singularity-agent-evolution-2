@@ -1,3 +1,3 @@
-Gap: no current ledger evidence was accessible here; the tool surface lacked direct numeric chart creation for report tasks.
-Change: add bounded create_chart for bar, line, and pie PNG/JPEG artifacts through the contained workspace path.
-Value: it makes quantitative visuals reliable without asking the model to manually lay out chart geometry with generic drawing operations.
+Office evidence tasks cannot inspect DOCX/PPTX inputs; ledger has no prior Office-inspection attempt or verdict.
+Add a bounded non-executing OOXML text/table inspector for document and slide-review tasks.
+This beats another creator because these files may be the only task evidence and existing creators cannot read them.

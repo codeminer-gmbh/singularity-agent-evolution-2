@@ -22,6 +22,7 @@ from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, create_image, inspect_image
+from evolving_agent.office import OfficeError, inspect_office
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.pdf_creation import PdfCreationError, create_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
@@ -233,6 +234,22 @@ class WorkspaceTools:
                         "member": {"type": "string", "description": "Optional exact archive member name to preview."},
                         "max_entries": {"type": "integer", "description": "Inventory entries, 1 to 500."},
                         "max_characters": {"type": "integer", "description": "Text preview characters, 1 to 12000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
+                name="inspect_office",
+                description=(
+                    "Inspect a DOCX or PPTX Office file without opening macros, links, embedded files, "
+                    "or media. Returns bounded visible paragraph, table, or slide text. Use a materials/ path."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "DOCX or PPTX file path."},
+                        "max_slides": {"type": "integer", "description": "PPTX slides to preview, 1 to 100 (default 10)."},
+                        "max_characters": {"type": "integer", "description": "Total JSON preview characters, 1 to 20000 (default 8000)."},
                     },
                     "required": ["path"],
                 },
@@ -466,6 +483,7 @@ class WorkspaceTools:
             "create_spreadsheet": self._create_spreadsheet,
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
+            "inspect_office": self._inspect_office,
             "inspect_pdf": self._inspect_pdf,
             "create_pdf": self._create_pdf,
             "create_image": self._create_image,
@@ -664,6 +682,18 @@ class WorkspaceTools:
             return inspect_image(tree.resolve(relative), ocr=ocr, max_characters=maximum)
         except ImageError as refused:
             raise ToolFailureError(str(refused)) from refused
+
+    def _inspect_office(self, arguments: Mapping[str, Any]) -> str:
+        """Return bounded visible text from an OOXML Word or PowerPoint file."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_slides = _bounded_integer(arguments, "max_slides", default=10, minimum=1, maximum=100)
+        max_characters = _bounded_integer(
+            arguments, "max_characters", default=8_000, minimum=1, maximum=20_000
+        )
+        try:
+            return inspect_office(tree.resolve(relative), max_slides=max_slides, max_characters=max_characters)
+        except OfficeError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_pdf(self, arguments: Mapping[str, Any]) -> str:
         """Inspect non-active PDF evidence from a readable contained tree."""

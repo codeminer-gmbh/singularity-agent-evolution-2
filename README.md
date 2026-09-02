@@ -129,6 +129,7 @@ are pinned in `requirements.txt`; runtime budgets live in
 | `evolving_agent/archives.py`   | Safe ZIP/TAR evidence inspection         |
 | `evolving_agent/web.py`        | Bounded HTTP(S) research retrieval       |
 | `evolving_agent/documents.py`  | Editable DOCX deliverable creation        |
+| `evolving_agent/office.py`     | Bounded non-executing DOCX/PPTX evidence inspection |
 | `evolving_agent/successor.py`  | Next-iteration validation                |
 
 The MCP server can also run over stdio:
