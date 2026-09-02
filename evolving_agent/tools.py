@@ -24,6 +24,7 @@ from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
 from evolving_agent.presentations import PresentationError, create_presentation
+from evolving_agent.presentation_inspection import PresentationInspectionError, inspect_presentation
 from evolving_agent.spreadsheets import SpreadsheetError, inspect_spreadsheet
 from evolving_agent.workspace import Workspace, WorkspaceError
 from evolving_agent.web import WebError, fetch_url
@@ -224,6 +225,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_presentation",
+                description=(
+                    "Inspect a PPTX presentation's core metadata and bounded slide, table, group, and speaker-note text "
+                    "without rendering it or opening macros, media, embedded files, or links. Use a materials/ path for evidence."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "PPTX presentation path."},
+                        "slide": {"type": "integer", "description": "Optional one-based slide number."},
+                        "max_slides": {"type": "integer", "description": "Slides to preview when slide is omitted, 1 to 25."},
+                        "max_characters": {"type": "integer", "description": "Text preview characters per slide or notes field, 1 to 12000."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_image",
                 description=(
                     "Inspect a PNG, JPEG, WebP, TIFF, BMP, or GIF image locally. "
@@ -398,6 +416,7 @@ class WorkspaceTools:
             "inspect_archive": self._inspect_archive,
             "inspect_email": self._inspect_email,
             "inspect_pdf": self._inspect_pdf,
+            "inspect_presentation": self._inspect_presentation,
             "inspect_image": self._inspect_image,
             "create_document": self._create_document,
             "create_chart": self._create_chart,
@@ -537,6 +556,22 @@ class WorkspaceTools:
             )
         except ArchiveError as refused:
             raise ToolFailureError(str(refused)) from refused
+
+    def _inspect_presentation(self, arguments: Mapping[str, Any]) -> str:
+        """Return bounded text and metadata from a non-rendered PPTX file."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        selected = arguments.get("slide")
+        if selected is not None and (isinstance(selected, bool) or not isinstance(selected, int)):
+            raise ToolFailureError("'slide' must be a whole number when supplied.")
+        maximum_slides = _bounded_integer(arguments, "max_slides", default=5, minimum=1, maximum=25)
+        maximum = _bounded_integer(arguments, "max_characters", default=8_000, minimum=1, maximum=12_000)
+        try:
+            return inspect_presentation(
+                tree.resolve(relative), slide=selected, max_slides=maximum_slides,
+                max_characters=maximum,
+            )
+        except PresentationInspectionError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
 
     def _inspect_image(self, arguments: Mapping[str, Any]) -> str:
         """Return bounded metadata and optional OCR from a local image."""

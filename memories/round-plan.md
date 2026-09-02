@@ -1,3 +1,3 @@
-Gap: It cannot turn supplied numeric data into a chart image for a report, slide deck, or image deliverable.
-Change: Add a contained `create_chart` tool that renders bounded bar, line, and pie PNG/JPEG charts.
-Why: This closes a deliverable-creation gap not present in the promoted line and needs no new external service or dependency.
+Gap: The agent cannot read the contents or speaker notes of PPTX evidence, so it cannot answer presentation-review tasks before creating a revised deliverable.
+Change: Add a bounded, non-rendering `inspect_presentation` tool for PPTX metadata and slide/table/group/note text.
+Priority: Document and other office evidence now have inspection paths; PPTX is the remaining common supplied format without one.
