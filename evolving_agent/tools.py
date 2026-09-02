@@ -48,7 +48,9 @@ _ARCHIVE_CHUNK_BYTES = 64 * 1024
 _MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_HTTP_TIMEOUT_SECONDS = 30
 _MAX_HTTP_REDIRECTS = 5
+_MAX_HTTP_REQUEST_BYTES = 256 * 1024
 _HTTP_CHUNK_BYTES = 64 * 1024
+_SENSITIVE_REDIRECT_HEADERS = frozenset({"authorization", "cookie", "proxy-authorization"})
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -352,6 +354,27 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="http_request",
+                description=(
+                    "Call a live HTTP or HTTPS endpoint with a bounded request. Supports "
+                    "GET, POST, PUT, PATCH, DELETE, and HEAD; optional headers and UTF-8 "
+                    "text or JSON request bodies; and bounded decoded responses."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "HTTP or HTTPS endpoint URL."},
+                        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"], "description": "HTTP method (default GET)."},
+                        "headers": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Optional request headers, including authorization if the task supplies it."},
+                        "body": {"type": "string", "description": "Optional UTF-8 request body, such as JSON or form data."},
+                        "json": {"description": "Optional JSON value to serialize as the request body. Do not combine with body."},
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 30, "description": "Network timeout, from 1 to 30 seconds."},
+                        "max_bytes": {"type": "integer", "minimum": 1, "maximum": 2097152, "description": "Maximum response bytes to read, from 1 to 2097152."}
+                    },
+                    "required": ["url"],
+                },
+            ),
+            ToolDefinition(
                 name="delete_path",
                 description="Remove one file or directory from the workspace.",
                 input_schema={
@@ -423,6 +446,7 @@ class WorkspaceTools:
             "inspect_geodata": self._inspect_geodata,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
+            "http_request": self._http_request,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
         }
@@ -608,39 +632,61 @@ class WorkspaceTools:
         return f"Extracted {count} files ({total} bytes) to {destination_path}."
 
     def _http_fetch(self, arguments: Mapping[str, Any]) -> str:
-        """Fetch a web resource without delegating networking to a shell command."""
+        """Fetch a web resource with the backwards-compatible GET tool."""
+        return self._perform_http_request(arguments, method="GET", body=None)
+
+    def _http_request(self, arguments: Mapping[str, Any]) -> str:
+        """Call an HTTP API without delegating networking to a shell command."""
+        method = _http_method_argument(arguments)
+        body = _http_request_body_argument(arguments)
+        return self._perform_http_request(arguments, method=method, body=body)
+
+    def _perform_http_request(
+        self, arguments: Mapping[str, Any], *, method: str, body: bytes | None
+    ) -> str:
+        """Perform one bounded request, revalidating every redirect destination."""
         url = _http_url_argument(arguments)
         headers = _http_headers_argument(arguments)
+        if "json" in arguments and not any(name.lower() == "content-type" for name in headers):
+            headers["Content-Type"] = "application/json"
         timeout = _http_bound_argument(arguments, "timeout_seconds", _MAX_HTTP_TIMEOUT_SECONDS, 20)
         maximum = _http_bound_argument(arguments, "max_bytes", _MAX_HTTP_RESPONSE_BYTES, _MAX_HTTP_RESPONSE_BYTES)
         opener = build_opener(_NoRedirect())
         for _ in range(_MAX_HTTP_REDIRECTS + 1):
             request = Request(
-                url,
+                url, data=body, method=method,
                 headers={"User-Agent": "evolving-agent/1.0", "Accept-Encoding": "gzip, deflate", **headers},
             )
             try:
                 response = opener.open(request, timeout=timeout)
             except HTTPError as error:
                 if error.code not in (301, 302, 303, 307, 308):
-                    body = _read_http_body(error, maximum)
+                    response_body = _read_http_body(error, maximum)
                     return _format_http_response(
-                        error.geturl(), error.code, error.headers, _decode_http_body(body, error.headers, maximum)
+                        error.geturl(), error.code, error.headers,
+                        _decode_http_body(response_body, error.headers, maximum),
                     )
                 location = error.headers.get("Location")
                 if not location:
                     raise ToolFailureError(f"HTTP {error.code} response has no Location header.") from error
-                url = _http_url(urljoin(url, location))
+                destination = _http_url(urljoin(url, location))
+                if not _same_http_origin(url, destination):
+                    headers = {name: value for name, value in headers.items() if name.lower() not in _SENSITIVE_REDIRECT_HEADERS}
+                url = destination
+                # Browser-compatible redirect handling for legacy redirects; 307/308
+                # deliberately retain the method and entity for API endpoints.
+                if error.code == 303 or (error.code in (301, 302) and method not in {"GET", "HEAD"}):
+                    method, body = "GET", None
                 continue
             except (URLError, OSError, ValueError) as unavailable:
-                raise ToolFailureError(f"Could not fetch {url!r}: {unavailable}") from unavailable
+                raise ToolFailureError(f"Could not call {url!r}: {unavailable}") from unavailable
             with response:
-                body = _read_http_body(response, maximum)
+                response_body = _read_http_body(response, maximum)
                 return _format_http_response(
                     response.geturl(), response.status, response.headers,
-                    _decode_http_body(body, response.headers, maximum),
+                    _decode_http_body(response_body, response.headers, maximum),
                 )
-        raise ToolFailureError(f"Too many redirects (maximum {_MAX_HTTP_REDIRECTS}) while fetching {url!r}.")
+        raise ToolFailureError(f"Too many redirects (maximum {_MAX_HTTP_REDIRECTS}) while calling {url!r}.")
 
     def _delete_path(self, arguments: Mapping[str, Any]) -> str:
         """Remove one path and report that it is gone."""
@@ -742,6 +788,44 @@ def _http_headers_argument(arguments: Mapping[str, Any]) -> dict[str, str]:
             raise ToolFailureError("Every request header must be a short single-line string.")
         headers[name] = header_value
     return headers
+
+
+def _http_method_argument(arguments: Mapping[str, Any]) -> str:
+    """Return the small, explicit set of request methods this tool offers."""
+    method = arguments.get("method", "GET")
+    if not isinstance(method, str) or method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}:
+        raise ToolFailureError("'method' must be GET, POST, PUT, PATCH, DELETE, or HEAD.")
+    return method.upper()
+
+
+def _http_request_body_argument(arguments: Mapping[str, Any]) -> bytes | None:
+    """Serialize one bounded text or JSON entity, never both representations."""
+    has_body = "body" in arguments
+    has_json = "json" in arguments
+    if has_body and has_json:
+        raise ToolFailureError("Supply either 'body' or 'json', not both.")
+    if has_body:
+        body = arguments["body"]
+        if not isinstance(body, str):
+            raise ToolFailureError("'body' must be a string.")
+        encoded = body.encode("utf-8")
+    elif has_json:
+        import json
+        try:
+            encoded = json.dumps(arguments["json"], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        except (TypeError, ValueError) as unusable:
+            raise ToolFailureError(f"'json' must be JSON-serializable: {unusable}") from unusable
+    else:
+        return None
+    if len(encoded) > _MAX_HTTP_REQUEST_BYTES:
+        raise ToolFailureError(f"Request body exceeds the {_MAX_HTTP_REQUEST_BYTES}-byte limit.")
+    return encoded
+
+
+def _same_http_origin(first: str, second: str) -> bool:
+    """Report whether two validated URLs have the same scheme, host, and port."""
+    initial, destination = urlsplit(first), urlsplit(second)
+    return (initial.scheme.lower(), initial.hostname, initial.port) == (destination.scheme.lower(), destination.hostname, destination.port)
 
 
 def _http_bound_argument(arguments: Mapping[str, Any], name: str, ceiling: int, default: int) -> int:

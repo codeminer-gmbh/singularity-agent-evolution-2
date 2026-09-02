@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect GeoTIFF and other GDAL raster imagery, so it cannot answer tasks about raster pixels, bands, CRS, or georeferenced extents.
-Change: Add a Rasterio-backed inspect_raster tool with bounded single-band window reads and raster metadata.
-Priority: This is an unclosed input-format gap distinct from already-supported vector geodata and scientific HDF5, and hard geospatial tasks commonly use raster products.
+Gap: the agent can only issue bounded HTTP GETs, so it cannot call JSON/form REST endpoints that require POST, PUT, PATCH, DELETE, request headers, or a request body.
+Change: add a bounded `http_request` workspace tool that supports those methods, validated headers and text/JSON bodies, and returns the same safe response summary as GET.
+Priority: interactive web/API tasks are a distinct class from the many local-format readers already present, and this extends the live-network capability rather than duplicating an existing parser.
