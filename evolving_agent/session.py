@@ -44,6 +44,23 @@ _LOGGED_ARGUMENT_CHARACTERS = 200
 
 _TOOL_RESULT = "function_call_output"
 
+_FINAL_REVIEW_PROMPTS = (
+    "Before you finalize, audit your draft for requirements traceability. Re-read the "
+    "task literally and account for every MUST/SHOULD, requested API/file, and "
+    "acceptance condition. For code, specifically look for eager versus lazy "
+    "validation, malformed input, empty and inclusive boundary cases, ordering, "
+    "state isolation, and timezone/unit semantics. Correct any gap you find; use "
+    "a focused test or oracle if a deliverable can be run. Then provide a revised "
+    "complete draft.",
+    "Do a final independent red-team pass before your answer is released. Treat the "
+    "current draft as an implementation another engineer submitted: seek a concrete "
+    "counterexample to its stated contract, then inspect or run the risky path. For "
+    "code, verify that parsing/compilation is not repeated in hot paths and that all "
+    "stored or returned state has the required mutation/immutability behavior. Also "
+    "check exact output paths, formats, and no-extra-output requirements. Fix every "
+    "issue found and then give the corrected complete final answer.",
+)
+
 _CONTINUES_A_TURN = frozenset({"function_call", _TOOL_RESULT})
 """The item kinds that only mean anything alongside the rest of their turn.
 
@@ -133,7 +150,8 @@ class ToolAgentSession:
                 is what the model is offered.
             deadline: When the session stops asking for another step.
             max_steps: How many steps it may take at most.
-            final_review: Ask for one adversarial review after the first proposed final answer.
+            final_review: Ask for two complementary adversarial reviews after a proposed
+                final answer, when the remaining step budget permits.
 
         """
         self._model = model
@@ -171,7 +189,7 @@ class ToolAgentSession:
             {"role": "user", "content": opening},
         ]
         steps = 0
-        reviewed = False
+        reviews_completed = 0
         while steps < self._max_steps:
             if self._deadline.expired():
                 return SessionOutcome(
@@ -185,27 +203,23 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
-                if self._final_review and not reviewed and steps < self._max_steps:
-                    # Preserve the draft in the conversation and give the model one
-                    # deliberate chance to find a correctness gap before it becomes
-                    # the externally visible answer.  This is especially valuable for
-                    # code tasks, where a plausible first draft can hide invalid-input
-                    # or boundary semantics that a quick adversarial pass exposes.
+                if (
+                    self._final_review
+                    and reviews_completed < len(_FINAL_REVIEW_PROMPTS)
+                    and steps < self._max_steps
+                ):
+                    # A single generic reread caught many omissions, but recurring probe
+                    # failures show that requirements coverage and operational behavior are
+                    # distinct checks.  Preserve each draft and ask for both while there is
+                    # budget; a review may still call tools before returning its revision.
                     conversation.extend(dict(item) for item in reply.output)
                     conversation.append(
                         {
                             "role": "user",
-                            "content": (
-                                "Before you finalize, do one adversarial review of your "
-                                "draft against the task. Check every explicit requirement, "
-                                "boundary and invalid-input rule; for code, check parsing, "
-                                "state mutation, time/offset semantics, and repeated work in "
-                                "hot loops. If a deliverable can be run, use targeted tests or "
-                                "an oracle now. Then give the corrected complete final answer."
-                            ),
+                            "content": _FINAL_REVIEW_PROMPTS[reviews_completed],
                         }
                     )
-                    reviewed = True
+                    reviews_completed += 1
                     continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(

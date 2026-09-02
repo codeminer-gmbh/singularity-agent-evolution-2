@@ -1,3 +1,3 @@
-Limitation: probe answers can terminate on a plausible first draft without an explicit adversarial check of edge cases, specification details, or deliverable behavior.
-Smallest change: add one bounded final-review turn to probe sessions, preserving the draft and directing a requirements/edge-case/test audit before the externally visible answer.
-Evidence: the ledger repeatedly reports code-task failures in offset/time semantics, parsing/invalid input, state mutation, and avoidable hot-loop work, while its accepted inspection additions do not address final-answer correctness.
+Limitation: one generic final review still misses explicit code-task semantics such as eager validation, inclusive boundaries, naive-time rejection, and compiled hot-path state.
+Smallest change: make probe finalization use two focused passes—requirements traceability, then executable/operational adversarial testing—before reporting an answer.
+Evidence: ledger cycles 74, 80, and 86 repeatedly identify those exact omissions; the previously promoted one-pass review addressed the class but its descendants still lost on it.
