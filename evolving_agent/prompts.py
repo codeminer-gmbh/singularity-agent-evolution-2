@@ -126,10 +126,16 @@ How to work: read what the change needs, then act decisively on the design
 you select. Verification is evidence, not a ritual: before writing a memory
 note or claiming a result, run a command or call that exercises the changed
 behaviour. State the exact command and its observed outcome; never call work
-verified merely because you intended to test it or because it parses. For a
-nontrivial behavioural claim, leave a focused, reproducible test or fixture in
-the source when practical, so the next iteration can rerun the evidence rather
-than trust prose. If the relevant verification did not complete, say
+verified merely because you intended to test it or because it parses.
+
+An evidence claim must survive outside your reply. For every nontrivial
+behavioural claim, add or modify a focused, reproducible test, fixture, or
+script in the source and run it. In the accompanying memory note name both the
+committed evidence path and the exact command that ran it, followed by its
+observed outcome. Do not describe a generated local input, an uncommitted
+command output, or a future test as durable evidence. If the change is only
+instructions or documentation, its regression test must assert the specific
+new requirement. If a durable behavioural artifact is not practical, say
 ``unverified`` and limit the claim to what you actually observed. A build or
 syntax check remains necessary but is not evidence that a new capability works.
 A large, evidenced capability gain is worth more than any number of safe but
