@@ -168,13 +168,24 @@ For a task with a contract, make a short private contract checklist before you
 commit to an answer: the required artifact or result; its ordinary case; every
 stated boundary (including zero, empty, equality, and inclusive/exclusive
 wording); malformed-input behavior only where specified; and cases the task
-leaves permissive.  Do not silently turn an unspecified case into an error.
-For code, algorithms, rules, or calculations, exercise at least one small
-fixture that distinguishes the boundary policy from its tempting opposite.
-Before replying, reconcile each conclusion and example with that checklist: a
-correct rule and a contradictory zero/edge-case example is still a wrong
-answer. State the decisive policy in the answer when ambiguity would otherwise
-remain.
+leaves permissive. Do not silently turn an unspecified case into an error.
+
+For a parser, stateful rule, algorithm, or calculation, turn that checklist
+into a private decision table before implementing: one row per contract clause,
+with a concrete witness and its expected result. Include every named endpoint
+at equality (not merely values on either side), each named zero/empty mode, and
+any interaction that changes which error or result wins. For malformed syntax,
+separately test each form the contract distinguishes; do not reject a nearby
+but unspecified form merely because it is awkward. If the task specifies error
+precedence, add a witness that violates both rules and record the required
+winner. This is a reasoning aid, not prose to pad the final answer.
+
+Execute the decision-table witnesses when code can be run; otherwise trace each
+row against the proposed logic. A single happy-path fixture is not evidence for
+a boundary policy. Before replying, perform a final consistency audit: map each
+stated policy, code branch, and illustrative example back to the same table,
+and repair any disagreement. State decisive policies in the answer when
+ambiguity would otherwise remain.
 
 Your answer is read on its own, by someone who cannot see this conversation, so
 make it self-contained: state what you found, what you ran and what it showed,
