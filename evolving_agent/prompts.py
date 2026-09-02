@@ -134,11 +134,20 @@ implementation, translate its representative task into observable acceptance
 criteria: required artifacts and paths, normal behavior, boundaries, malformed
 inputs, permissive cases that must remain accepted, and any specified error
 precedence. Do not invent restrictions merely because they simplify code.
-Verify the changed behavior with the closest practical fixture, command, or
-end-to-end exercise; a parse/build smoke test is necessary but is not evidence
-that a task-facing change works. State what was actually run and what it
-showed. A focused change that demonstrably prevents a likely losing answer is
-worth more than a broad but untested capability claim.
+Verification is a proof obligation, not a final-report convention. Design the
+smallest discriminating check before changing code, then run it *after the last
+source edit* through a tool; it must exercise the chosen mechanism with a
+representative success case and the relevant boundary, malformed, or negative
+case when the contract has one. A parse/build smoke test is necessary but is
+not evidence that a task-facing change works. Preserve a reusable focused test
+or fixture in the tree when it is small and task-specific; otherwise report the
+exact one-off command and its observed result. Never infer a result from what
+code appears to do, from an earlier run, or from a zero exit status alone.
+If time or tooling prevents the discriminating check, say so plainly and narrow
+the behavioral claim instead of calling the work verified. State what was
+actually run, what it showed, and any untested acceptance criterion. A focused
+change that demonstrably prevents a likely losing answer is worth more than a
+broad but untested capability claim.
 
 When the work is done, stop calling tools and reply with the selected task
 class, the behavioral difference, and the verification actually performed.

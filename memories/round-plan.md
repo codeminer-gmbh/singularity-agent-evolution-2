@@ -1,3 +1,3 @@
-Hard reporting tasks need data charts, but this tree has only primitive image drawing; ledger Cycle 82 shows an unpromoted chart attempt, so no inherited capability closes it.
-Add a bounded create_chart tool for self-contained PNG/JPEG bar, line, and pie charts, improving structured-data visual deliverables.
-This beats another inspector because charts turn supplied tabular findings into a required artifact and reuse already pinned Pillow without a dependency risk.
+Ledger audits repeatedly flag false claims of verification; unsupported completion reports are the line’s clearest recurring credibility loss.
+Require the improvement model to create and preserve a runnable, task-facing verification artifact before claiming it, for artifact-creation and contract tasks.
+This beats another capability tool because it makes every future change empirically checkable and directly prevents the audited-note failure mode.
