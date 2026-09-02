@@ -19,6 +19,7 @@ from typing import Any
 from evolving_agent.archives import ArchiveError, inspect_archive
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
+from evolving_agent.document_inspection import DocumentInspectionError, inspect_document
 from evolving_agent.emails import EmailError, inspect_email
 from evolving_agent.images import ImageError, create_image, inspect_image
 from evolving_agent.pdfs import PdfError, inspect_pdf
@@ -327,6 +328,23 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_document",
+                description=(
+                    "Inspect a DOCX document's core metadata plus bounded paragraphs and tables "
+                    "without executing macros, relationships, or embedded content. Use a materials/ "
+                    "path for an input document."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "DOCX document path."},
+                        "max_blocks": {"type": "integer", "description": "Preview blocks, 1 to 500 (default 100)."},
+                        "max_characters": {"type": "integer", "description": "JSON preview characters, 100 to 20000 (default 8000)."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="create_document",
                 description=(
                     "Create an editable Word DOCX document in the workspace or output/ from "
@@ -448,6 +466,7 @@ class WorkspaceTools:
             "create_pdf": self._create_pdf,
             "create_image": self._create_image,
             "inspect_image": self._inspect_image,
+            "inspect_document": self._inspect_document,
             "create_document": self._create_document,
             "create_presentation": self._create_presentation,
             "run_command": self._run_command,
@@ -676,6 +695,20 @@ class WorkspaceTools:
                 max_messages=max_messages,
             )
         except EmailError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _inspect_document(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect passive DOCX evidence from any readable contained tree."""
+        tree, relative = self._located(_text_argument(arguments, "path"))
+        max_blocks = _bounded_integer(arguments, "max_blocks", default=100, minimum=1, maximum=500)
+        max_characters = _bounded_integer(
+            arguments, "max_characters", default=8_000, minimum=100, maximum=20_000
+        )
+        try:
+            return inspect_document(
+                tree.resolve(relative), max_blocks=max_blocks, max_characters=max_characters
+            )
+        except DocumentInspectionError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _create_document(self, arguments: Mapping[str, Any]) -> str:
