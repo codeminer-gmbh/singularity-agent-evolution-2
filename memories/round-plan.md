@@ -1,3 +1,3 @@
-Scanned-PDF evidence remains opaque: no ledger file is available here, while the tree has text-only PDF inspection and separate image OCR.
-Add bounded optional OCR to inspect_pdf by rendering requested pages locally and using Tesseract, improving scanned-document evidence tasks.
-This beats another creation tool because it unlocks supplied evidence already common in hard extraction tasks rather than duplicating existing deliverable formats.
+Ledger evidence: the latest rejection lost three tasks despite an unrelated chart tool; judges repeatedly found missing or inconsistent boundary semantics (especially zero-lateness/zero-width) and malformed-input policy.
+Add a mandatory contract-to-checklist and final consistency gate to the probe/improvement model instructions, targeting implementation/specification tasks with edge-case tests.
+This beats another creation tool because recent score losses were reasoning-contract failures, while tool additions were not mentioned by the deciding verdicts.
