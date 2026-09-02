@@ -1,3 +1,3 @@
-Gap: the agent can only issue bounded HTTP GETs, so it cannot call JSON/form REST endpoints that require POST, PUT, PATCH, DELETE, request headers, or a request body.
-Change: add a bounded `http_request` workspace tool that supports those methods, validated headers and text/JSON bodies, and returns the same safe response summary as GET.
-Priority: interactive web/API tasks are a distinct class from the many local-format readers already present, and this extends the live-network capability rather than duplicating an existing parser.
+Cannot do: reliably distinguish a verified behavioural change from a prose-only or parse-only claim, which has repeatedly produced audit findings for this line.
+Change: make improvement instructions require observed command/call evidence, explicit unverified status, and durable focused tests for nontrivial claims; lock that policy with regression tests.
+Why this: the ledger's repeated inaccurate verification notes are the line's clearest recurring cost, and correcting its evidence habit improves every future capability change rather than adding another unproven tool.
