@@ -96,7 +96,7 @@ def run_improvement(settings: AgentSettings) -> RunReport:
         )
     started_from = workspace.digest()
     outcome, refusal = _improve(settings, workspace)
-    problems = successor_problems(workspace)
+    problems = successor_problems(workspace, baseline_root=settings.source_root)
     if problems:
         return _restored(
             settings, workspace, problems, restorable=restorable, refusal=refusal
@@ -226,7 +226,9 @@ def _improve(
                 materials_listing=_materials_listing(settings),
             ),
         )
-        repaired = _repaired(workspace, session, deadline, outcome)
+        repaired = _repaired(
+            workspace, session, deadline, outcome, baseline_root=settings.source_root
+        )
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
         return None, str(unavailable)
@@ -311,6 +313,8 @@ def _repaired(
     session: ToolAgentSession,
     deadline: Deadline,
     outcome: SessionOutcome,
+    *,
+    baseline_root: Path,
 ) -> SessionOutcome:
     """Hand a broken successor back to be fixed, while there is budget for it.
 
@@ -319,7 +323,7 @@ def _repaired(
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
-        problems = successor_problems(workspace)
+        problems = successor_problems(workspace, baseline_root=baseline_root)
         if not problems or deadline.expired():
             return outcome
         _LOG.warning(

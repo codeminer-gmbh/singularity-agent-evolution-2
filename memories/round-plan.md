@@ -1,3 +1,3 @@
-Repeated audited false memories (document, PDF, image, presentation, archive, and email notes) are the line’s clearest recurring process loss; no ledger rejection favors another generic contract prompt.
-Make probe/improvement instructions require durable test/evidence files before a memory may say “verified,” otherwise require capability-only notes and put transient runs only in the final reply; improves self-improvement record accuracy.
-This is higher value than another boundary checklist because recent ledger promotions already added decision-table, ignored-payload, and deep-chain guidance while audit failures recur across capabilities.
+Ledger repeatedly audits notes that claim unshipped evidence; no contrary ledger evidence applies.
+Expand the preflight’s evidence-claim match to catch “verifies” and “verification” wording, covered by `tests/test_successor_memory_gate.py`.
+This beats another tool because it closes a specific publishing-gate evasion behind the line’s recurring false-note mechanism.

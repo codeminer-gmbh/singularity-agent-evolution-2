@@ -1,0 +1,1 @@
+`evolving_agent.successor` now compares changed `memories/*.md` notes with the improvement baseline and rejects a note using verification language unless it names an existing shipped path in a test or fixture directory. `modes.py` supplies that baseline during normal and repair preflight checks; `tests/test_successor_memory_gate.py` records the acceptance and rejection cases.

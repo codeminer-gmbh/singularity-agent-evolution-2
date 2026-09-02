@@ -1,0 +1,1 @@
+`evolving_agent/successor.py` treats verify, verifies, and verification phrasing in newly changed memory notes as evidence-language that requires a named existing test or fixture; `tests/test_successor_memory_gate.py` covers those forms.
