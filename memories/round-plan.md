@@ -1,3 +1,3 @@
-Limitation: capability-first wording can reward speculative format/tool additions even when selection evidence shows hard-task losses came from end-to-end solution robustness.
-Change: make the improvement prompt and README require ledger-led, evidence-backed selection of recurring task-solving bottlenecks and behavior-level verification.
-Why: the supplied ledger shows a rejected video addition unmentioned by verdicts while judges repeatedly distinguish robustness details; this is a broader recurring decision gap than another input format.
+Limitation: `inspect_document` claims XLSX support but reads only `xl/sharedStrings.xml`, so numeric cells, sheet structure, inline strings, formulas, and workbooks without shared strings are invisible.
+Change: replace that XLSX shortcut with bounded workbook/worksheet extraction that reconstructs visible cell values and coordinates from OOXML parts.
+Evidence: README advertises XLSX evidence inspection, while `documents.py` demonstrably selects only sharedStrings; ledger favors concrete end-to-end robustness over speculative new tool surfaces.

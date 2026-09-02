@@ -13,6 +13,9 @@ from typing import Callable
 MAX_TEXT_CHARACTERS = 24_000
 MAX_EPUB_MEMBER_BYTES = 1_000_000
 MAX_ODF_CONTENT_BYTES = 4_000_000
+MAX_XLSX_MEMBER_BYTES = 4_000_000
+MAX_XLSX_SHEETS = 32
+MAX_XLSX_CELLS = 4_000
 """Enough evidence for a model, without one attachment consuming a turn."""
 
 
@@ -101,13 +104,106 @@ def _ooxml(path: Path, suffix: str) -> str:
             elif suffix == ".pptx":
                 parts = sorted(name for name in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name))
             else:
-                parts = ["xl/sharedStrings.xml"]
+                return _xlsx(archive, path.name)
             text = "\n".join(_xml_text(archive.read(part)) for part in parts if part in archive.namelist())
     except (OSError, zipfile.BadZipFile, element_tree.ParseError) as error:
         raise DocumentError(f"Could not read Office document: {error}") from error
     if not text.strip():
         raise DocumentError("No readable text was found in this Office document.")
     return f"{suffix[1:].upper()} extracted text ({path.name})\n---\n{_bounded(text)}"
+
+
+def _xlsx(archive: zipfile.ZipFile, filename: str) -> str:
+    """Render populated XLSX cells, not merely its shared-string dictionary.
+
+    OOXML stores sheet names, relationship targets, strings, and cell values in
+    separate parts.  Joining all XML would lose their association, so this
+    follows only workbook-declared worksheet relationships and prints compact
+    coordinate/value evidence.  It intentionally does not evaluate formulas.
+    """
+    names = set(archive.namelist())
+    if "xl/workbook.xml" not in names:
+        raise DocumentError("XLSX package has no workbook.xml member.")
+    workbook = element_tree.fromstring(_xlsx_bytes(archive, "xl/workbook.xml"))
+    relationships: dict[str, str] = {}
+    rels_name = "xl/_rels/workbook.xml.rels"
+    if rels_name in names:
+        rels = element_tree.fromstring(_xlsx_bytes(archive, rels_name))
+        for relation in rels:
+            relation_id, target = relation.attrib.get("Id"), relation.attrib.get("Target", "")
+            if relation_id and target and not target.startswith("/") and ".." not in target.split("/"):
+                relationships[relation_id] = "xl/" + target.lstrip("/")
+    shared = _xlsx_shared_strings(archive) if "xl/sharedStrings.xml" in names else []
+    output: list[str] = []
+    cells_left = MAX_XLSX_CELLS
+    sheets = [node for node in workbook.iter() if node.tag.endswith("sheet")]
+    for sheet in sheets[:MAX_XLSX_SHEETS]:
+        relation_id = next((value for key, value in sheet.attrib.items() if key.endswith("}id")), None)
+        target = relationships.get(relation_id or "")
+        title = sheet.attrib.get("name", "(unnamed sheet)")
+        if not target or target not in names:
+            output.append(f"Sheet: {title} (worksheet data unavailable)")
+            continue
+        root = element_tree.fromstring(_xlsx_bytes(archive, target))
+        output.append(f"Sheet: {title}")
+        found = False
+        for cell in (node for node in root.iter() if node.tag.endswith("c")):
+            value = _xlsx_cell_value(cell, shared)
+            if value is None:
+                continue
+            found = True
+            coordinate = cell.attrib.get("r", "?")
+            output.append(f"{coordinate}: {value}")
+            cells_left -= 1
+            if cells_left == 0:
+                output.append(f"[cell preview truncated at {MAX_XLSX_CELLS} populated cells]")
+                break
+        if not found:
+            output.append("(no populated cells)")
+        if cells_left == 0:
+            break
+    if not output:
+        raise DocumentError("XLSX workbook contains no worksheets.")
+    return f"XLSX extracted cells ({filename})\n---\n{_bounded(chr(10).join(output))}"
+
+
+def _xlsx_shared_strings(archive: zipfile.ZipFile) -> list[str]:
+    root = element_tree.fromstring(_xlsx_bytes(archive, "xl/sharedStrings.xml"))
+    return ["".join(node.itertext()) for node in root if node.tag.endswith("si")]
+
+
+def _xlsx_cell_value(cell: element_tree.Element, shared: list[str]) -> str | None:
+    kind = cell.attrib.get("t")
+    formula = next(("".join(node.itertext()) for node in cell if node.tag.endswith("f")), None)
+    raw = next(("".join(node.itertext()) for node in cell if node.tag.endswith("v")), None)
+    if kind == "inlineStr":
+        raw = "".join(text for node in cell if node.tag.endswith("is") for text in node.itertext())
+    if raw is None and formula is None:
+        return None
+    if kind == "s" and raw is not None:
+        try:
+            value = shared[int(raw)]
+        except (ValueError, IndexError):
+            value = f"[invalid shared string index: {raw}]"
+    elif kind == "b" and raw is not None:
+        value = "TRUE" if raw == "1" else "FALSE" if raw == "0" else raw
+    else:
+        value = raw or ""
+    return f"={formula} -> {value}" if formula is not None else value
+
+
+def _xlsx_bytes(archive: zipfile.ZipFile, name: str) -> bytes:
+    try:
+        info = archive.getinfo(name)
+    except KeyError as error:
+        raise DocumentError(f"XLSX package has no {name} member.") from error
+    if info.is_dir() or info.file_size > MAX_XLSX_MEMBER_BYTES:
+        raise DocumentError(f"XLSX member {name} exceeds the {MAX_XLSX_MEMBER_BYTES}-byte inspection limit.")
+    with archive.open(info) as source:
+        data = source.read(MAX_XLSX_MEMBER_BYTES + 1)
+    if len(data) > MAX_XLSX_MEMBER_BYTES:
+        raise DocumentError(f"XLSX member {name} exceeds the {MAX_XLSX_MEMBER_BYTES}-byte inspection limit.")
+    return data
 
 
 def _odf(path: Path, suffix: str) -> str:
