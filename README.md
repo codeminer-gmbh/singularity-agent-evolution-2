@@ -15,12 +15,19 @@ fact on the record.
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with a capability audit: three lines in
-`memories/round-plan.md` naming what this agent cannot do that a hard task
-might need, which change would fix it, and why that one — and the round's
-change is justified against that audit rather than against whatever the source
-happened to suggest. Keeping the tree buildable, startable and able to improve
-itself is a gate the orchestrator checks; it is not what a round is for.
+An improvement run opens with an evidence-led audit. When the orchestrator
+supplies `materials/ledger.md`, the agent reads its selection outcomes before
+planning: it distinguishes recurring task failures from unexercised changes
+and does not treat a verdict as proof about an unrelated diff. It then writes
+three lines in `memories/round-plan.md`: a recurring or plausible task-solving
+limitation, the smallest change that removes it, and the evidence for choosing
+it over competing gaps. The objective is a successor more likely to solve hard
+tasks end-to-end — interpreting requests, collecting evidence, using tools,
+writing deliverables, and verifying results — rather than simply one with more
+named tools or supported formats. A new capability remains worthwhile when it
+removes a demonstrated or strongly plausible blocker. Keeping the tree
+buildable, startable and able to improve itself is a gate the orchestrator
+checks; it is not what a round is for.
 
 ## How it works
 
