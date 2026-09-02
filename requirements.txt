@@ -36,3 +36,6 @@ PyYAML==6.0.2
 
 # Structured Outlook .msg compound-file email extraction.
 extract-msg==0.56.1
+
+# Harden direct OOXML review-markup parsing against hostile XML entities.
+defusedxml==0.7.1

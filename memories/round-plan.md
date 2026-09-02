@@ -1,3 +1,3 @@
-Gap: JSON inspection changes fractional/exponent values from ijson into quoted strings (and JSONL can emit Python NaN), so a hard data task cannot safely distinguish numbers from text.
-Change/check: render parsed Decimal values as strict finite JSON numbers and strictly reject JSONL NaN/Infinity; execute root-array, nested-pointer, JSONL, and malformed-constant cases and parse the resulting preview.
-Evidence: the handed ledger has no numeric-fidelity fix among the JSON streaming/gzip additions; this is a semantic boundary in an already exam-relevant structured-data tool, not another file-format novelty.
+Gap: the audit shows rich office extraction but no explicit way to inspect DOCX tracked revisions/comments, a hard-task evidence source needed for revision and claims reconciliation.
+Change/check: add a bounded DOCX revision-aware extraction mode/tool result (insertions, deletions, comments, author/date) and exercise it against a generated DOCX package containing ordinary text plus each revision edge.
+Why this bet: the ledger's recent DOCX reconciliation exams and no inherited/recent revision-aware capability make this a more evidenced unexplored gap than repeatedly extending already-covered generic parsers.

@@ -14,6 +14,8 @@ import posixpath
 import xml.etree.ElementTree as ET
 import zipfile
 
+from defusedxml import ElementTree as DefusedET
+
 from docx import Document
 import extract_msg
 from openpyxl import load_workbook
@@ -44,6 +46,14 @@ MAX_OCR_SECONDS_PER_PAGE = 30
 MAX_EMAIL_PARTS = 1_000
 MAX_EMAIL_TEXT_PART_BYTES = 8 * 1024 * 1024
 MAX_MSG_ATTACHMENTS = 1_000
+MAX_DOCX_MEMBERS = 10_000
+MAX_DOCX_UNCOMPRESSED_BYTES = 128 * 1024 * 1024
+MAX_DOCX_XML_BYTES = 16 * 1024 * 1024
+MAX_DOCX_REVISIONS = 10_000
+MAX_DOCX_COMMENTS = 10_000
+
+_WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_W = f"{{{_WORD_NS}}}"
 _OCR_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
 
 
@@ -323,6 +333,14 @@ def _pdf_text(path: Path) -> str:
 
 
 def _docx_text(path: Path) -> str:
+    """Extract the visible document plus tracked changes and review comments.
+
+    ``python-docx`` deliberately omits paragraphs/runs inside Word revision
+    markup.  Those omissions are surprising for evidence and reconciliation
+    tasks, so the ordinary visible text remains first and the raw OOXML review
+    records are appended in separate, explicitly labelled sections.
+    """
+    _check_docx_package(path)
     try:
         document = Document(str(path))
     except Exception as error:
@@ -332,7 +350,103 @@ def _docx_text(path: Path) -> str:
         chunks.append(f"--- Table {table_number} ---")
         for row in table.rows:
             chunks.append("\t".join(cell.text.replace("\n", " ") for cell in row.cells))
+    try:
+        with zipfile.ZipFile(path) as package:
+            revisions = _docx_revisions(_docx_xml_member(package, "word/document.xml"))
+            comments = _docx_comments(_docx_xml_member(package, "word/comments.xml", optional=True))
+    except DocumentError:
+        raise
+    except (OSError, zipfile.BadZipFile, ET.ParseError, ValueError) as error:
+        raise DocumentError(f"Could not read DOCX review markup in {path.name!r}: {error}") from error
+    if revisions:
+        chunks.append("--- Tracked Revisions ---")
+        chunks.extend(revisions)
+    if comments:
+        chunks.append("--- Comments ---")
+        chunks.extend(comments)
     return "\n".join(chunks)
+
+
+def _check_docx_package(path: Path) -> None:
+    """Reject DOCX zip bombs before either XML parser opens package members."""
+    try:
+        with zipfile.ZipFile(path) as package:
+            members = package.infolist()
+            total = sum(info.file_size for info in members)
+    except (OSError, zipfile.BadZipFile) as error:
+        raise DocumentError(f"Could not parse DOCX {path.name!r}: {error}") from error
+    if len(members) > MAX_DOCX_MEMBERS:
+        raise DocumentError(f"DOCX has {len(members)} members; limit is {MAX_DOCX_MEMBERS}.")
+    if total > MAX_DOCX_UNCOMPRESSED_BYTES:
+        raise DocumentError("DOCX expanded content exceeds the 134217728-byte limit.")
+
+
+def _docx_xml_member(package: zipfile.ZipFile, name: str, *, optional: bool = False) -> bytes | None:
+    try:
+        info = package.getinfo(name)
+    except KeyError:
+        if optional:
+            return None
+        raise DocumentError("DOCX is missing word/document.xml.")
+    if info.file_size > MAX_DOCX_XML_BYTES:
+        raise DocumentError(f"DOCX member {name!r} exceeds the {MAX_DOCX_XML_BYTES}-byte XML limit.")
+    return package.read(info)
+
+
+def _word_text(element: ET.Element, *, deleted: bool = False) -> str:
+    parts: list[str] = []
+    text_tag = _W + ("delText" if deleted else "t")
+    for node in element.iter():
+        if node.tag == text_tag and node.text:
+            parts.append(node.text)
+        elif node.tag == _W + "tab":
+            parts.append("\t")
+        elif node.tag in {_W + "br", _W + "cr"}:
+            parts.append("\n")
+    return "".join(parts).strip()
+
+
+def _review_label(kind: str, element: ET.Element, text: str) -> str:
+    attributes = []
+    for key, label in (("id", "id"), ("author", "author"), ("date", "date")):
+        value = element.get(_W + key)
+        if value:
+            attributes.append(f'{label}="{value}"')
+    suffix = " " + " ".join(attributes) if attributes else ""
+    return f"[{kind}{suffix}] {text or '[no text]'}"
+
+
+def _docx_revisions(data: bytes | None) -> list[str]:
+    if data is None:
+        return []
+    root = DefusedET.fromstring(data)
+    found: list[str] = []
+
+    def visit(element: ET.Element) -> None:
+        nonlocal found
+        kind = "Insertion" if element.tag == _W + "ins" else "Deletion" if element.tag == _W + "del" else None
+        if kind is not None:
+            if len(found) >= MAX_DOCX_REVISIONS:
+                raise DocumentError(f"DOCX has more than {MAX_DOCX_REVISIONS} tracked revisions.")
+            found.append(_review_label(kind, element, _word_text(element, deleted=kind == "Deletion")))
+            return  # A nested revision belongs to its outer change, not twice.
+        for child in element:
+            visit(child)
+
+    visit(root)
+    return found
+
+
+def _docx_comments(data: bytes | None) -> list[str]:
+    if data is None:
+        return []
+    root = DefusedET.fromstring(data)
+    found: list[str] = []
+    for element in root.iter(_W + "comment"):
+        if len(found) >= MAX_DOCX_COMMENTS:
+            raise DocumentError(f"DOCX has more than {MAX_DOCX_COMMENTS} comments.")
+        found.append(_review_label("Comment", element, _word_text(element)))
+    return found
 
 
 def _xlsx_text(path: Path) -> str:
