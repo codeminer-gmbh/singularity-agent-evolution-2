@@ -1,3 +1,3 @@
-Gap: The ledger shows the line’s broad self-improvement guidance was costly: it produced changes whose claimed evidence could be convenient rather than task-relevant, despite one later correction.
-Change: Add an explicit preflight-to-final verification protocol to the improvement prompt that requires a runnable, capability-specific proof and a claim limited to its observed result.
-Why: It directly removes the record’s named planning and evidence failure mode, improves every future change, and is more durable than adding another narrow input tool.
+Cannot yet reliably turn a task specification into explicit adversarial edge-case checks before declaring a deliverable complete; the ledger's lost comparisons exposed hostless URLs and explicit-currency/default-currency precedence.
+Change the improvement instructions to require a compact requirement-to-test matrix with boundary and precedence cases, and require the final claim to cite its observed results.
+This is the most costly gap because the lone recorded cycle already rewards evidence-led work but still lost on untested semantic edge cases; adding another tool would not make the model choose those checks.

@@ -128,24 +128,30 @@ These instructions are yours:
   several rounds on the same kind of change with nothing to show for it in
   the exam, that is exactly the moment to.
 
-Evidence protocol — use this for every improvement:
-  1. Before editing, state privately the smallest runnable demonstration that
-     would distinguish the proposed new capability from the old program: its
-     command or interaction, representative input, and observable expected
-     result. A parse check, import, or container build alone is only a
-     preflight; it does not demonstrate a capability.
-  2. After editing, run that demonstration against the changed tree. Exercise
-     the public path a hard task would use (including a produced file when
-     that is the feature), and inspect the result rather than treating a zero
-     exit status as evidence of semantics. Also run the proportionate startup
-     or syntax check needed to show the successor remains usable.
-  3. If the demonstration fails or cannot be run in the remaining budget,
-     repair it or leave no claim for that capability. Do not substitute a
-     weaker check; select a change whose result can be observed instead.
-  4. In the final reply, report only the command or interaction actually run
-     and its observed result, then limit the claimed improvement to what that
-     evidence establishes. A note records the implemented design and proof,
-     never an intention or an untested edge case.
+Specification-to-proof protocol — use this before every edit:
+  1. Extract the task's observable requirements into a small requirement-to-
+     test matrix. For each requirement, write a concrete representative input,
+     the expected observable result, and the command or interaction that will
+     inspect it. Do this even when a task supplies its own happy-path test.
+  2. For each parsing, validation, routing, selection, or fallback rule, add
+     at least one adversarial row: a malformed or boundary input, and where
+     two sources can provide the same value, a precedence/conflict row. Treat
+     a default as conditional: first test the case where an explicit valid
+     value makes that default irrelevant.
+  3. Choose the smallest runnable demonstration that covers the matrix and
+     would distinguish the proposed capability from the old program. A parse
+     check, import, container build, or an existing test suite that does not
+     cover a matrix row is only a preflight, not capability evidence.
+  4. After editing, run those demonstrations through the public path a hard
+     task would use (including a produced file when that is the feature), and
+     inspect each result rather than treating a zero exit status as semantics.
+     Also run the proportionate startup or syntax check needed to show the
+     successor remains usable.
+  5. If any row fails or cannot be run in the remaining budget, repair it or
+     omit that capability claim. In the final reply, report only commands or
+     interactions actually run and their observed results; a note records the
+     implemented matrix, design, and proof, never an intention or untested
+     edge case.
 
 How to work: read what the change needs, define its discriminating proof, then
 act decisively on the design you select. A large capability with direct,
@@ -224,8 +230,9 @@ def improvement_opening(
         parts.append(
             "You were also handed, read-only under `materials/`:\n\n"
             f"{materials_listing}\n\n"
-            f"Read `materials/{LEDGER_FILE}` before anything else: it says what "
-            "recent rounds on your line tried, what the verdicts said, and what "
+            f"After `README.md` and `RULES.md`, read `materials/{LEDGER_FILE}` "
+            "before choosing work: it says what recent rounds on your line tried, "
+            "what the verdicts said, and what "
             "the rejected versions wrote in the notes you never inherited. A "
             "rejection is a verdict on the exam answers, not on the idea — but "
             "a change attempted several times and accepted never is a change "
