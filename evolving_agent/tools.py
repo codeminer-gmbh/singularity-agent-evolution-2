@@ -27,6 +27,8 @@ from evolving_agent.web import WebError, download_web_file, fetch_web_page
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
+_MAX_EDIT_BYTES = 4_000_000
+
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -289,6 +291,55 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="replace_in_file",
+                description=(
+                    "Replace an exact non-empty text snippet in one existing workspace or output file. "
+                    "The replacement is refused unless the snippet occurs exactly expected_replacements times "
+                    "(default 1), so use it for precise incremental edits rather than rewriting a whole file. "
+                    "materials/ is read-only."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Existing workspace or output file to edit."},
+                        "old_content": {"type": "string", "description": "Exact non-empty text to replace."},
+                        "new_content": {"type": "string", "description": "Text that replaces each occurrence."},
+                        "expected_replacements": {"type": "integer", "description": "Required number of exact matches (default 1)."},
+                    },
+                    "required": ["path", "old_content", "new_content"],
+                },
+            ),
+            ToolDefinition(
+                name="replace_in_file_batch",
+                description=(
+                    "Apply several exact text replacements to one existing workspace or output file "
+                    "atomically. Every old snippet is counted in the same original file and all edits "
+                    "are refused if any count is wrong or their matched ranges overlap; materials/ is read-only."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Existing workspace or output file to edit."},
+                        "replacements": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "description": "Independent replacements, all matched against the original file.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "old_content": {"type": "string", "description": "Exact non-empty text to replace."},
+                                    "new_content": {"type": "string", "description": "Replacement text; may be empty."},
+                                    "expected_replacements": {"type": "integer", "description": "Required exact-match count (default 1)."},
+                                },
+                                "required": ["old_content", "new_content"],
+                            },
+                        },
+                    },
+                    "required": ["path", "replacements"],
+                },
+            ),
+            ToolDefinition(
                 name="delete_path",
                 description="Remove one file or directory from the workspace.",
                 input_schema={
@@ -359,6 +410,8 @@ class WorkspaceTools:
             "fetch_web_page": self._fetch_web_page,
             "download_web_file": self._download_web_file,
             "write_file": self._write_file,
+            "replace_in_file": self._replace_in_file,
+            "replace_in_file_batch": self._replace_in_file_batch,
             "delete_path": self._delete_path,
             "run_command": self._run_command,
         }
@@ -507,6 +560,117 @@ class WorkspaceTools:
             relative, _text_argument(arguments, "content", allow_empty=True)
         )
         return f"Wrote {written} bytes to {path}."
+
+    def _replace_in_file(self, arguments: Mapping[str, Any]) -> str:
+        """Make a deliberate exact replacement without reconstructing a whole file.
+
+        The occurrence check turns a stale or ambiguous edit into an actionable
+        refusal instead of silently changing a different part of a file.
+        """
+        path = _text_argument(arguments, "path")
+        old = _text_argument(arguments, "old_content")
+        new = _text_argument(arguments, "new_content", allow_empty=True)
+        expected = arguments.get("expected_replacements", 1)
+        if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
+            raise ToolFailureError("'expected_replacements' must be a positive integer.")
+        tree, relative = self._located(path, writing=True)
+        resolved = tree.resolve(relative)
+        if not resolved.is_file():
+            raise WorkspaceError(f"{path!r} is not an existing file that can be edited.")
+        try:
+            raw = resolved.read_bytes()
+        except OSError as unreadable:
+            raise WorkspaceError(f"{path!r} could not be read: {unreadable}") from unreadable
+        if len(raw) > _MAX_EDIT_BYTES:
+            raise ToolFailureError(
+                f"{path!r} exceeds the {_MAX_EDIT_BYTES}-byte incremental-edit limit; "
+                "use a command suited to large files."
+            )
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as undecodable:
+            raise ToolFailureError(f"{path!r} is not UTF-8 text and cannot be edited as text.") from undecodable
+        found = content.count(old)
+        if found != expected:
+            raise ToolFailureError(
+                f"The requested old_content occurs {found} times in {path!r}, not the "
+                f"expected {expected}; re-read the file and provide an unambiguous snippet."
+            )
+        written = tree.write_text(relative, content.replace(old, new))
+        return f"Replaced {found} exact occurrence{'s' if found != 1 else ''} in {path}; wrote {written} bytes."
+
+    def _replace_in_file_batch(self, arguments: Mapping[str, Any]) -> str:
+        """Apply independent exact replacements as one all-or-nothing file edit.
+
+        Unlike repeated single replacements, each hunk is located in the
+        original content.  Consequently a later hunk cannot accidentally
+        match text produced by an earlier one, and failure never writes a
+        partial set of source changes.
+        """
+        path = _text_argument(arguments, "path")
+        replacements = arguments.get("replacements")
+        if (not isinstance(replacements, Sequence) or isinstance(replacements, (str, bytes))
+                or not replacements or len(replacements) > 32):
+            raise ToolFailureError("'replacements' must be an array containing from 1 through 32 edits.")
+        tree, relative = self._located(path, writing=True)
+        resolved = tree.resolve(relative)
+        if not resolved.is_file():
+            raise WorkspaceError(f"{path!r} is not an existing file that can be edited.")
+        try:
+            raw = resolved.read_bytes()
+        except OSError as unreadable:
+            raise WorkspaceError(f"{path!r} could not be read: {unreadable}") from unreadable
+        if len(raw) > _MAX_EDIT_BYTES:
+            raise ToolFailureError(
+                f"{path!r} exceeds the {_MAX_EDIT_BYTES}-byte incremental-edit limit; use a command suited to large files."
+            )
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as undecodable:
+            raise ToolFailureError(f"{path!r} is not UTF-8 text and cannot be edited as text.") from undecodable
+
+        matches: list[tuple[int, int, str]] = []
+        total = 0
+        for number, replacement in enumerate(replacements, start=1):
+            if not isinstance(replacement, Mapping):
+                raise ToolFailureError(f"replacement {number} must be an object.")
+            old = _text_argument(replacement, "old_content")
+            new = _text_argument(replacement, "new_content", allow_empty=True)
+            expected = replacement.get("expected_replacements", 1)
+            if isinstance(expected, bool) or not isinstance(expected, int) or expected < 1:
+                raise ToolFailureError(f"replacement {number} has a non-positive expected_replacements value.")
+            starts: list[int] = []
+            start = 0
+            while True:
+                found = content.find(old, start)
+                if found < 0:
+                    break
+                starts.append(found)
+                start = found + len(old)
+            if len(starts) != expected:
+                raise ToolFailureError(
+                    f"replacement {number}'s old_content occurs {len(starts)} times in {path!r}, not the expected {expected}; "
+                    "re-read the file and provide an unambiguous snippet."
+                )
+            matches.extend((found, found + len(old), new) for found in starts)
+            total += len(starts)
+        matches.sort(key=lambda item: (item[0], item[1]))
+        for previous, current in zip(matches, matches[1:]):
+            if current[0] < previous[1]:
+                raise ToolFailureError(
+                    "Batch replacements match overlapping original text; split them into unambiguous edits."
+                )
+        result: list[str] = []
+        cursor = 0
+        for start, end, new in matches:
+            result.extend((content[cursor:start], new))
+            cursor = end
+        result.append(content[cursor:])
+        updated = "".join(result)
+        if len(updated.encode("utf-8")) > _MAX_EDIT_BYTES:
+            raise ToolFailureError(f"The edited {path!r} would exceed the {_MAX_EDIT_BYTES}-byte incremental-edit limit.")
+        written = tree.write_text(relative, updated)
+        return f"Applied {len(replacements)} atomic replacement hunk{'s' if len(replacements) != 1 else ''} ({total} occurrences) in {path}; wrote {written} bytes."
 
     def _delete_path(self, arguments: Mapping[str, Any]) -> str:
         """Remove one path and report that it is gone."""

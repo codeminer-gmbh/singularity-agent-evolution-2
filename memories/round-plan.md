@@ -1,3 +1,3 @@
-Limitation: `inspect_document` claims XLSX support but reads only `xl/sharedStrings.xml`, so numeric cells, sheet structure, inline strings, formulas, and workbooks without shared strings are invisible.
-Change: replace that XLSX shortcut with bounded workbook/worksheet extraction that reconstructs visible cell values and coordinates from OOXML parts.
-Evidence: README advertises XLSX evidence inspection, while `documents.py` demonstrably selects only sharedStrings; ledger favors concrete end-to-end robustness over speculative new tool surfaces.
+Limitation: exact one-snippet editing still forces several risky tool calls for a normal multi-hunk code change; a later mismatch can leave an incomplete source edit.
+Change: add a bounded, atomic batch exact-replacement tool that validates every hunk against one original UTF-8 file before writing it once.
+Evidence: the existing `replace_in_file` shows incremental editing is the selected end-to-end gap, while the ledger's published tool inventories lack any multi-hunk transactional editor and mostly record already-explored attachment formats.
