@@ -33,3 +33,6 @@ Fiona==1.10.1
 
 # HDF5 and HDF5-backed NetCDF4 scientific dataset inspection.
 h5py==3.12.1
+
+# GDAL-backed raster metadata and bounded GeoTIFF/imagery pixel inspection.
+rasterio==1.4.3
