@@ -1,12 +1,14 @@
-"""Validate the durable proof record an improvement leaves for its successor.
+"""Validate and preserve the durable proof record an improvement leaves.
 
-The experiment cannot rerun a model's one-off commands.  A compact record of
-requirements, concrete inputs, expected results, interactions, and observed
-results makes the claimed capability reviewable by the next round instead of
-turning a final reply into the only evidence.
+The experiment cannot rerun a model's one-off commands.  The record therefore
+contains both the model's requirement matrix and a machine-captured transcript
+of the commands that session actually asked the public tool surface to run.
+The latter does not establish that an oracle was good, but prevents a prose
+claim from impersonating an executed demonstration.
 """
 
 import json
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -14,20 +16,16 @@ from evolving_agent.workspace import Workspace, WorkspaceError
 VERIFICATION_RECORD = "memories/verification.json"
 """Workspace-relative location of the evidence required for a changed tree."""
 
-_REQUIRED_TOP_LEVEL = ("audit", "matrix")
+_REQUIRED_TOP_LEVEL = ("audit", "matrix", "tool_transcript")
 _REQUIRED_AUDIT = ("costly_failure", "evidence")
 _REQUIRED_ROW = ("requirement", "input", "expected", "interaction", "observed")
 _MAX_RECORD_BYTES = 100_000
+_MAX_TRANSCRIPT_ENTRIES = 80
+_MAX_TRANSCRIPT_TEXT = 8_000
 
 
 def verification_problems(workspace: Workspace) -> tuple[str, ...]:
-    """Return stable reasons a changed successor lacks reviewable proof.
-
-    The record deliberately reports observations rather than a boolean
-    ``passed`` flag: a reviewer can distinguish a test that was run and failed
-    from one that was never run.  It is intentionally a publication check,
-    not a claim that JSON alone proves a capability.
-    """
+    """Return stable reasons a changed successor lacks reviewable proof."""
     try:
         record_path = workspace.resolve(VERIFICATION_RECORD)
     except WorkspaceError as invalid_workspace:
@@ -46,8 +44,56 @@ def verification_problems(workspace: Workspace) -> tuple[str, ...]:
         return (f"{VERIFICATION_RECORD} is not valid JSON: {malformed}",)
     if not isinstance(record, dict):
         return (f"{VERIFICATION_RECORD} must contain a JSON object",)
-    problems = _shape_problems(record)
-    return tuple(problems)
+    return tuple(_shape_problems(record))
+
+
+def attach_tool_transcript(
+    workspace: Workspace, calls: Iterable[Mapping[str, object]]
+) -> None:
+    """Attach machine-observed command calls to a valid proof record.
+
+    Only ``run_command`` calls are evidence of a runnable demonstration.  The
+    session owns their argument/result capture, so text in the record cannot
+    forge this field.  A malformed or absent record is deliberately left for
+    the normal publication gate to explain and repair.
+    """
+    command_calls = [
+        _safe_call(call)
+        for call in calls
+        if call.get("name") == "run_command"
+    ][-_MAX_TRANSCRIPT_ENTRIES:]
+    if not command_calls:
+        return
+    try:
+        path = workspace.resolve(VERIFICATION_RECORD)
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (WorkspaceError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return
+    if not isinstance(record, dict):
+        return
+    record["tool_transcript"] = command_calls
+    encoded = json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    if len(encoded.encode("utf-8")) > _MAX_RECORD_BYTES:
+        return
+    try:
+        path.write_text(encoded, encoding="utf-8")
+    except OSError:
+        return
+
+
+def _safe_call(call: Mapping[str, object]) -> dict[str, object]:
+    """Bound one captured public command for durable JSON evidence."""
+    return {
+        "step": call.get("step"),
+        "arguments": call.get("arguments"),
+        "is_error": bool(call.get("is_error")),
+        "result": _limited_text(call.get("result")),
+    }
+
+
+def _limited_text(value: object) -> str:
+    text = str(value)
+    return text if len(text) <= _MAX_TRANSCRIPT_TEXT else text[:_MAX_TRANSCRIPT_TEXT] + "\n... [evidence truncated]"
 
 
 def _shape_problems(record: dict[object, object]) -> list[str]:
@@ -65,16 +111,17 @@ def _shape_problems(record: dict[object, object]) -> list[str]:
     matrix = record.get("matrix")
     if not isinstance(matrix, list) or not matrix:
         problems.append(f"{VERIFICATION_RECORD}.matrix must be a nonempty array")
-        return problems
-    for number, row in enumerate(matrix, start=1):
-        if not isinstance(row, dict):
-            problems.append(f"{VERIFICATION_RECORD}.matrix[{number}] must be an object")
-            continue
-        for key in _REQUIRED_ROW:
-            if not _nonempty_text(row.get(key)):
-                problems.append(
-                    f"{VERIFICATION_RECORD}.matrix[{number}].{key} must be nonempty text"
-                )
+    else:
+        for number, row in enumerate(matrix, start=1):
+            if not isinstance(row, dict):
+                problems.append(f"{VERIFICATION_RECORD}.matrix[{number}] must be an object")
+                continue
+            for key in _REQUIRED_ROW:
+                if not _nonempty_text(row.get(key)):
+                    problems.append(f"{VERIFICATION_RECORD}.matrix[{number}].{key} must be nonempty text")
+    transcript = record.get("tool_transcript")
+    if not isinstance(transcript, list) or not transcript:
+        problems.append(f"{VERIFICATION_RECORD}.tool_transcript must contain a captured run_command result")
     return problems
 
 

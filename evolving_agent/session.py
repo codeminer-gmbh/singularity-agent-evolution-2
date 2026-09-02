@@ -140,6 +140,7 @@ class ToolAgentSession:
         self._deadline = deadline
         self._max_steps = max_steps
         self.tool_calls: dict[str, int] = {}
+        self.tool_transcript: list[dict[str, object]] = []
         """How often each tool was called, over every run of this session.
 
         Kept on the session rather than in the log, so a run can leave it as a
@@ -220,14 +221,29 @@ class ToolAgentSession:
         self.tool_calls[call.name] = self.tool_calls.get(call.name, 0) + 1
         arguments = _arguments(call.arguments)
         if isinstance(arguments, str):
-            return f"[error] {arguments}"
+            result = f"[error] {arguments}"
+            self._capture_tool_result(step, call, {}, result, is_error=True)
+            return result
         try:
             outcome = self._tools.call(call.name, arguments)
         except McpError as broken:
             _LOG.warning("Step %s: the tool boundary failed: %s", step, broken)
-            return f"[error] {broken}"
+            result = f"[error] {broken}"
+            self._capture_tool_result(step, call, arguments, result, is_error=True)
+            return result
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
-        return f"[error] {text}" if outcome.is_error else text
+        result = f"[error] {text}" if outcome.is_error else text
+        self._capture_tool_result(step, call, arguments, result, is_error=outcome.is_error)
+        return result
+
+    def _capture_tool_result(
+        self, step: int, call: ToolCall, arguments: dict[str, Any], result: str, *, is_error: bool
+    ) -> None:
+        """Keep the exact public command observation for the publication gate."""
+        if call.name == "run_command":
+            self.tool_transcript.append(
+                {"step": step, "name": call.name, "arguments": arguments, "result": result, "is_error": is_error}
+            )
 
 
 def _arguments(raw: str) -> dict[str, Any] | str:

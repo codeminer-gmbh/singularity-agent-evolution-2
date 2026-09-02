@@ -1,3 +1,3 @@
-Cannot: turn repeated strict-semantics losses into implementation contracts that force tests to detect weakened ordering, parsing, or complexity behavior.
-Change: extend the embedded specification-to-proof protocol with explicit provenance, strict-format, deterministic-bound, and weakening-oracle requirements.
-Why: ledger's most costly recurring loss was parser/ordering work that looked verified while missing strict semantics; this closes the planning-to-test gap rather than adding another reader.
+Cannot do: reliably prevent an improvement run from recording fabricated or stale verification evidence, the ledger's explicitly audited costly failure.
+Change: make the verification record derive its matrix observations from an append-only, command-result evidence ledger rather than model-authored claims.
+Why this: repeated prompt-only proof policies still permitted inaccurate records; durable machine-captured evidence closes the observable honesty gap before adding capabilities.

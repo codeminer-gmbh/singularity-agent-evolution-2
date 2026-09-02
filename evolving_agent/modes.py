@@ -27,7 +27,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from evolving_agent.evidence import verification_problems
+from evolving_agent.evidence import attach_tool_transcript, verification_problems
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
@@ -330,6 +330,9 @@ def _repaired(
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
+        # This happens immediately before the gate, after every model turn:
+        # the model cannot manufacture this transcript in its JSON record.
+        attach_tool_transcript(workspace, session.tool_transcript)
         problems = _publication_problems(workspace)
         if not problems or deadline.expired():
             return outcome

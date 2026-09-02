@@ -182,9 +182,13 @@ Before publishing a changed tree, write `memories/verification.json`. Its
 nonempty `matrix` array must give every row nonempty `requirement`, `input`,
 `expected`, `interaction`, and `observed` text. Record the actual command or
 public interaction and what it showed, including an adversarial row; never
-write planned evidence as though it happened. The publication gate rejects a
-changed successor without this record, so make it after running the matrix and
-update it if a repair changes the proof.
+write planned evidence as though it happened. Run every claimed command through
+`run_command`: immediately before the publication gate the agent appends a
+machine-captured `tool_transcript` of those actual calls to this JSON. The gate
+requires that transcript, so a matrix written without at least one executed
+public command is not publishable. The publication gate rejects a changed
+successor without this record, so make it after running the matrix and update
+it if a repair changes the proof.
 
 How to work: read what the change needs, define its discriminating proof, then
 act decisively on the design you select. A large capability with direct,
