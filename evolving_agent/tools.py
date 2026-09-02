@@ -135,8 +135,8 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_document",
                 description=(
-                    "Extract readable evidence from one PDF page, image, DOCX/PPTX/XLSX, ODT/ODS/ODP, or EPUB chapter "
-                    "attachment. PDF embedded text is extracted directly and scanned pages "
+                    "Extract readable evidence (including DOCX/PPTX/XLSX review comments) from one PDF page, image, DOCX/PPTX/XLSX, ODT/ODS/ODP, EPUB chapter, or HTML/HTM/XHTML "
+                    "attachment. HTML reports visible text, link targets, and table rows. PDF embedded text is extracted directly and scanned pages "
                     "are OCRed; set page to inspect another PDF page. Results are bounded."
                 ),
                 input_schema={

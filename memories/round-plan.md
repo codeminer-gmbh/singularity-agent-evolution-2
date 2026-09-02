@@ -1,3 +1,3 @@
-Gap: the agent cannot inspect OpenDocument evidence (ODT, ODS, or ODP), which a hard task may supply instead of Microsoft Office files.
-Change: add bounded, read-only OpenDocument package text extraction to inspect_document using the existing ZIP/XML approach.
-Priority: inherited work already covers archives, web, SQLite/Parquet/tabular, EPUB, PDFs, images, and OOXML; ODF is a distinct common attachment family with a focused dependency-free solution.
+Gap: supplied HTML/HTM evidence has no semantic inspection, so a hard task cannot reliably extract readable text, links, or table structure from markup without spending model turns on raw source.
+Change: add bounded, dependency-free HTML inspection that returns title, visible text, links, and table rows through the existing `inspect_document` tool.
+Priority: this closes a distinct web-evidence format gap; archives, databases, tabular data, PDFs/images, EPUB, and Office/OpenDocument files already have dedicated inspection.
