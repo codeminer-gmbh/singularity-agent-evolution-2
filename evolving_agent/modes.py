@@ -27,6 +27,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from evolving_agent.evidence import verification_problems
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
@@ -96,7 +97,7 @@ def run_improvement(settings: AgentSettings) -> RunReport:
         )
     started_from = workspace.digest()
     outcome, refusal = _improve(settings, workspace)
-    problems = successor_problems(workspace)
+    problems = _publication_problems(workspace)
     if problems:
         return _restored(
             settings, workspace, problems, restorable=restorable, refusal=refusal
@@ -306,6 +307,16 @@ def _session(
     )
 
 
+def _publication_problems(workspace: Workspace) -> tuple[str, ...]:
+    """Return syntax/build blockers plus the durable proof required to publish.
+
+    A changed candidate is repaired or restored when its claimed improvement
+    has no inspectable requirement-to-proof record.  This keeps the evidence
+    protocol on the same public path as the existing successor gate.
+    """
+    return successor_problems(workspace) + verification_problems(workspace)
+
+
 def _repaired(
     workspace: Workspace,
     session: ToolAgentSession,
@@ -319,7 +330,7 @@ def _repaired(
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
-        problems = successor_problems(workspace)
+        problems = _publication_problems(workspace)
         if not problems or deadline.expired():
             return outcome
         _LOG.warning(

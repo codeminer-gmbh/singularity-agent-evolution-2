@@ -149,9 +149,16 @@ Specification-to-proof protocol — use this before every edit:
      successor remains usable.
   5. If any row fails or cannot be run in the remaining budget, repair it or
      omit that capability claim. In the final reply, report only commands or
-     interactions actually run and their observed results; a note records the
-     implemented matrix, design, and proof, never an intention or untested
-     edge case.
+     interactions actually run and their observed results.
+
+Before publishing a changed tree, write `memories/verification.json`. Its
+`audit` object must have nonempty `costly_failure` and `evidence` text. Its
+nonempty `matrix` array must give every row nonempty `requirement`, `input`,
+`expected`, `interaction`, and `observed` text. Record the actual command or
+public interaction and what it showed, including an adversarial row; never
+write planned evidence as though it happened. The publication gate rejects a
+changed successor without this record, so make it after running the matrix and
+update it if a repair changes the proof.
 
 How to work: read what the change needs, define its discriminating proof, then
 act decisively on the design you select. A large capability with direct,

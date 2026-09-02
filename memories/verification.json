@@ -1,0 +1,36 @@
+{
+  "audit": {
+    "costly_failure": "The supplied ledger identifies unverified or inaccurately claimed work as the line's most costly repeated failure.",
+    "evidence": "Implemented evidence.py validation, wired it into the improvement publication and repair path, and ran the matrix below."
+  },
+  "matrix": [
+    {
+      "requirement": "A changed candidate without a durable proof record is blocked before publication.",
+      "input": "A copied candidate tree with memories/verification.json removed.",
+      "expected": "verification_problems returns exactly the missing-record problem.",
+      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py",
+      "observed": "The assertion passed; the command printed that the gate rejects missing, malformed, and unobserved proof records."
+    },
+    {
+      "requirement": "Malformed evidence and an evidence row that has not recorded an observation are not accepted.",
+      "input": "A copied candidate with '{bad', then a JSON matrix row whose observed value is empty.",
+      "expected": "The first result identifies invalid JSON and the second identifies the nonempty observed field.",
+      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py",
+      "observed": "Both assertions passed in the same executed command."
+    },
+    {
+      "requirement": "A complete observed matrix remains publishable and the successor source parses.",
+      "input": "A copied candidate with nonempty audit fields and all required nonempty row fields; current source modules.",
+      "expected": "verification_problems is empty and compileall exits successfully.",
+      "interaction": "PYTHONPATH=. python /tmp/test_evidence.py && python -m compileall -q evolving_agent main.py",
+      "observed": "The evidence assertion printed success and compileall produced no errors before the later unavailable git command."
+    },
+    {
+      "requirement": "The current successor publication gate combines syntax checks with durable-proof validation.",
+      "input": "The current workspace containing the completed verification record.",
+      "expected": "Both verification_problems and the publication gate return no problems.",
+      "interaction": "PYTHONPATH=. python - [Workspace(Path('.')) assertion]",
+      "observed": "Executed successfully: printed verification: () and publication: ()."
+    }
+  ]
+}
