@@ -1,3 +1,3 @@
-Gap: The agent cannot extract readable content from RFC 822 `.eml` email messages, a common task material containing headers, multipart bodies, and attached documents.
-Change: Add bounded standard-library EML parsing to `read_document`, selecting decoded plain/HTML body text and reporting attachment metadata.
-Why: ODS, EPUB, OCR, delimited, Parquet, geodata, and ZIP/TAR inputs are already covered; EML is a distinct ubiquitous office-record format that needs no fragile new runtime dependency.
+Gap: the agent cannot faithfully expose DOCX revision metadata and marginal content (tracked insertions/deletions, comments, footnotes, headers), which a revision-reconciliation hard task may require.
+Change: extend the DOCX extractor with bounded OOXML-part parsing that preserves revision and annotation context alongside visible text.
+Choice: this follows the selected DOCX task class and closes a substantive document-semantic gap rather than duplicating the recent YAML/JSON numeric-fidelity work.

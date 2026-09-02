@@ -28,6 +28,9 @@ from evolving_agent.delimited import (
 )
 from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
 from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
+from evolving_agent.hdfdata import (
+    MAX_HDF5_ELEMENTS, MAX_HDF5_OFFSET, HDF5Error, inspect_hdf5,
+)
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -244,6 +247,24 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_hdf5",
+                description=(
+                    "Read HDF5 or HDF5-backed NetCDF4 dataset names, shapes, dtypes, "
+                    "and attribute names, then preview a bounded flat slice. Optionally "
+                    "select one dataset path without loading complete arrays."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "HDF5 or NetCDF4 file path, including materials/ or output/."},
+                        "dataset": {"type": "string", "description": "Optional HDF5 dataset path to preview."},
+                        "max_elements": {"type": "integer", "minimum": 1, "maximum": MAX_HDF5_ELEMENTS, "description": "Values to preview, default 100."},
+                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_HDF5_OFFSET, "description": "Flat element offset, default 0."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="inspect_geodata",
                 description=(
                     "Read vector geodata metadata and a bounded feature preview from GeoJSON, "
@@ -378,6 +399,7 @@ class WorkspaceTools:
             "query_sqlite": self._query_sqlite,
             "inspect_delimited": self._inspect_delimited,
             "inspect_parquet": self._inspect_parquet,
+            "inspect_hdf5": self._inspect_hdf5,
             "inspect_geodata": self._inspect_geodata,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
@@ -496,6 +518,22 @@ class WorkspaceTools:
                 max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
             )
         except ParquetError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_hdf5(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect scientific HDF5/NetCDF4 containers without materialising arrays."""
+        path = _text_argument(arguments, "path")
+        tree, relative = self._located(path)
+        dataset = arguments.get("dataset")
+        if dataset is not None and not isinstance(dataset, str):
+            raise ToolFailureError("dataset must be a string.")
+        try:
+            return inspect_hdf5(
+                tree.resolve(relative), dataset=dataset,
+                max_elements=arguments.get("max_elements", 100),
+                offset=arguments.get("offset", 0),
+            )
+        except HDF5Error as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:
