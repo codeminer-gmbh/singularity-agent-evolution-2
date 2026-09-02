@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from evolving_agent.archives import ArchiveError, inspect_archive
+from evolving_agent.charts import ChartError, create_chart
 from evolving_agent.commands import CommandRunner
 from evolving_agent.documents import DocumentError, create_document
 from evolving_agent.emails import EmailError, inspect_email
@@ -293,6 +294,28 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="create_chart",
+                description=(
+                    "Create a bar, line, or pie PNG/JPEG chart from bounded labels and "
+                    "finite numeric values. The destination may be under output/ and the "
+                    "image can be embedded in a document or presentation."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Destination .png, .jpg, or .jpeg path, usually under output/."},
+                        "chart_type": {"type": "string", "enum": ["bar", "line", "pie"]},
+                        "labels": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string"}},
+                        "values": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "number"}},
+                        "title": {"type": "string"},
+                        "width": {"type": "integer", "minimum": 200, "maximum": 2400},
+                        "height": {"type": "integer", "minimum": 200, "maximum": 2400},
+                        "colors": {"type": "array", "items": {"type": "string", "description": "#RRGGBB"}},
+                    },
+                    "required": ["path", "chart_type", "labels", "values"],
+                },
+            ),
+            ToolDefinition(
                 name="create_presentation",
                 description=(
                     "Create an editable PPTX presentation in the workspace or output/ from "
@@ -377,6 +400,7 @@ class WorkspaceTools:
             "inspect_pdf": self._inspect_pdf,
             "inspect_image": self._inspect_image,
             "create_document": self._create_document,
+            "create_chart": self._create_chart,
             "create_presentation": self._create_presentation,
             "run_command": self._run_command,
         }
@@ -575,6 +599,20 @@ class WorkspaceTools:
                 image_path=locate_image, title=arguments.get("title"),
             )
         except DocumentError as unusable:
+            raise ToolFailureError(str(unusable)) from unusable
+
+    def _create_chart(self, arguments: Mapping[str, Any]) -> str:
+        """Create a raster data chart at a writable contained path."""
+        requested = _text_argument(arguments, "path")
+        destination_tree, relative = self._located(requested, writing=True)
+        try:
+            return create_chart(
+                destination_tree.resolve(relative), arguments.get("chart_type"),
+                arguments.get("labels"), arguments.get("values"), title=arguments.get("title", ""),
+                width=arguments.get("width", 1200), height=arguments.get("height", 720),
+                colors=arguments.get("colors"),
+            )
+        except ChartError as unusable:
             raise ToolFailureError(str(unusable)) from unusable
 
     def _create_presentation(self, arguments: Mapping[str, Any]) -> str:
