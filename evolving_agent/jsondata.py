@@ -11,6 +11,8 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import math
+from decimal import Decimal
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -72,7 +74,7 @@ def inspect_json(path: Path, *, pointer: str = "", max_rows: int = 200, offset: 
         "rows": rows,
     }
     try:
-        text = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+        text = _render_json(result)
     except (TypeError, ValueError) as error:
         raise JsonDataError(f"Could not render JSON preview: {error}") from error
     if len(text) > MAX_JSON_TEXT_CHARACTERS:
@@ -141,9 +143,11 @@ def _json_lines(path: Path, offset: int, maximum: int) -> Iterator[Any]:
                 if len(line.encode("utf-8")) > MAX_JSON_RECORD_BYTES:
                     raise JsonDataError(f"JSON Lines record {line_number} exceeds the {MAX_JSON_RECORD_BYTES}-byte record limit.")
                 try:
-                    value = json.loads(line)
+                    value = json.loads(line, parse_float=Decimal, parse_constant=_reject_json_constant)
                 except json.JSONDecodeError as error:
                     raise JsonDataError(f"Invalid JSON on line {line_number}: {error.msg}.") from error
+                except ValueError as error:
+                    raise JsonDataError(f"Invalid JSON on line {line_number}: {error}.") from error
                 if skipped < offset:
                     skipped += 1
                     continue
@@ -201,7 +205,7 @@ def _take(values: Iterator[Any], offset: int, maximum: int) -> list[Any]:
                 continue
             # ijson materialises each selected item.  Refuse pathological
             # single records before a preview can make the tool output huge.
-            if len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")) > MAX_JSON_RECORD_BYTES:
+            if len(_render_json(value).encode("utf-8")) > MAX_JSON_RECORD_BYTES:
                 raise JsonDataError(f"A selected JSON record exceeds the {MAX_JSON_RECORD_BYTES}-byte record limit.")
             rows.append(value)
             if len(rows) >= maximum:
@@ -224,7 +228,74 @@ def _types(rows: list[Any]) -> dict[str, str]:
 
 
 def _type_name(values: list[Any]) -> str:
-    kinds = {type(value).__name__ if value is not None else "null" for value in values}
+    """Return JSON type names rather than parser implementation types."""
+    kinds = {_json_type_name(value) for value in values}
     if not kinds:
         return "unknown"
     return next(iter(kinds)) if len(kinds) == 1 else "mixed(" + ", ".join(sorted(kinds)) + ")"
+
+
+def _json_type_name(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float, Decimal)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _reject_json_constant(token: str) -> None:
+    """Refuse Python's non-standard JSON constants (NaN and infinities)."""
+    raise ValueError(f"{token} is not a valid JSON number")
+
+
+def _render_json(value: Any, level: int = 0) -> str:
+    """Render preview data as strict JSON without converting Decimal numbers.
+
+    ijson deliberately returns ``Decimal`` for fractional/exponent JSON numbers.
+    The standard encoder has no numeric Decimal mode, and ``default=str`` turns
+    those numbers into strings.  Rendering the finite Decimal lexical form here
+    keeps a value such as 1e999 a JSON number instead of overflowing to infinity
+    or changing its type.
+    """
+    if value is None:
+        return "null"
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("Non-finite Decimal values are not valid JSON numbers.")
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("Non-finite floating-point values are not valid JSON numbers.")
+        return json.dumps(value, ensure_ascii=False, allow_nan=False)
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return "[]"
+        padding = "  " * (level + 1)
+        return "[\n" + padding + (",\n" + padding).join(_render_json(item, level + 1) for item in value) + "\n" + "  " * level + "]"
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        padding = "  " * (level + 1)
+        fields: list[str] = []
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("JSON object keys must be strings.")
+            fields.append(json.dumps(key, ensure_ascii=False) + ": " + _render_json(item, level + 1))
+        return "{\n" + padding + (",\n" + padding).join(fields) + "\n" + "  " * level + "}"
+    raise TypeError(f"{type(value).__name__} cannot be represented as JSON.")

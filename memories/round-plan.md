@@ -1,3 +1,3 @@
-Gap: YAML JSON Pointer decoding wrongly rejected valid keys whose RFC 6901 encoding is `~01`, so configuration values under literal `~1` keys were unreachable.
-Change/check: decode pointer escapes in one left-to-right pass; invoke `inspect_yaml` through the published tool for both `/routes/api~1v1/timeout_ms` and `/routes/~01literal`, plus reject a malformed argument.
-Evidence: the ledger identifies structured YAML configuration as a viable unclosed task class; this precise escaping boundary makes its existing YAML inspector correct for adversarial configuration keys rather than adding another overlapping reader.
+Gap: JSON inspection changes fractional/exponent values from ijson into quoted strings (and JSONL can emit Python NaN), so a hard data task cannot safely distinguish numbers from text.
+Change/check: render parsed Decimal values as strict finite JSON numbers and strictly reject JSONL NaN/Infinity; execute root-array, nested-pointer, JSONL, and malformed-constant cases and parse the resulting preview.
+Evidence: the handed ledger has no numeric-fidelity fix among the JSON streaming/gzip additions; this is a semantic boundary in an already exam-relevant structured-data tool, not another file-format novelty.
