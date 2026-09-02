@@ -1,3 +1,3 @@
-Cannot do: consistently turn ledger-derived failure patterns into concrete adversarial requirement-to-proof rows before editing, leaving subtle precedence and malformed-input cases to chance.
-Change: make the improvement prompt require a ledger-grounded failure hypothesis and explicit adversarial/precedence matrix with observed public-path evidence before it can claim completion.
-Why this: the ledger repeatedly shows lost exams on untested ordering and strict-input edge cases, while recent instruction-only rounds were promoted but did not eliminate those answer failures.
+Cannot: turn repeated strict-semantics losses into implementation contracts that force tests to detect weakened ordering, parsing, or complexity behavior.
+Change: extend the embedded specification-to-proof protocol with explicit provenance, strict-format, deterministic-bound, and weakening-oracle requirements.
+Why: ledger's most costly recurring loss was parser/ordering work that looked verified while missing strict semantics; this closes the planning-to-test gap rather than adding another reader.

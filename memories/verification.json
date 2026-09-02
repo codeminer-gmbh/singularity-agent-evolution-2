@@ -5,18 +5,18 @@
   },
   "matrix": [
     {
-      "requirement": "Improvement instructions turn a ledger verdict into a falsifiable, observable failure signature before design selection.",
-      "input": "Public call to improvement_instructions(), inspected for observable behavior, boundary rule, distinguishing input, and rejection of syntax-only/prose-only closure.",
-      "expected": "All four policy clauses are present and the audit policy occurs before the implementation proof protocol.",
-      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; ... assert required clauses and ordering ...\"",
-      "observed": "Exited 0 and printed 'failure-signature policy exposed: 4 requirements present' and 'audit policy precedes implementation protocol'."
+      "requirement": "The successor's public improvement policy requires an implementation contract for ordering provenance, strict parsing, and deterministic performance rather than relying on a generic decision table.",
+      "input": "Public call to improvement_instructions(), normalized for wrapped prose, inspected for semantic-contract, global-index, strict-JSON, deterministic-bound, and weakening-oracle clauses.",
+      "expected": "All five clauses are present, and the semantic-contract step precedes selection of a runnable demonstration.",
+      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; ... assert five clauses and ordering ...\"",
+      "observed": "Exited 0 and printed 'semantic-contract policy exposed: ordering provenance, strict JSON, deterministic bound, and weakening oracle clauses present'."
     },
     {
-      "requirement": "A ledger-derived strict ordering/precedence failure cannot be discharged by an easier nearby edge case.",
-      "input": "Adversarial conflicting-order case: declaration order versus encounter order, plus a named distinguishing input requirement.",
-      "expected": "The public improvement instruction explicitly requires both the conflict decision table and non-substitution named matrix row.",
-      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; assert declaration/encounter and non-substitution clauses ...\"",
-      "observed": "Exited 0 and printed 'ordering conflict and non-substitution adversarial rows are required'."
+      "requirement": "Adversarial strict-format work cannot treat standard-looking invalid input as a happy path or omit an oracle that detects weakened validation.",
+      "input": "Public improvement_instructions() output with the formatting-boundary phrases for invalid standard-looking formats, separate non-finite and duplicate-member hazards, and a weakening-detecting matrix oracle.",
+      "expected": "The policy explicitly requires all three safeguards.",
+      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; normalize line-wrap; assert strict-format and oracle clauses ...\"",
+      "observed": "Exited 0 and printed 'adversarial strict-format policy requires separate NaN and duplicate-member hazards plus a weakening-detecting oracle'."
     },
     {
       "requirement": "The changed successor remains importable by its public Python entry modules.",

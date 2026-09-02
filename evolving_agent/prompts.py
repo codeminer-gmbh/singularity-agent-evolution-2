@@ -150,21 +150,30 @@ Specification-to-proof protocol — use this before every edit:
      value makes that default irrelevant. For a ledger-derived failure
      signature, make its distinguishing input a named matrix row; it may not
      be replaced by a nearby, easier edge case.
-  3. Before implementation, state the expected result for every competing
+  3. Before implementation, write an implementation contract for each semantic
+     hazard the task exposes. For ordering, name the stored provenance (for
+     example, one global declaration index rather than incidental traversal
+     order) and every tie-breaker. For a declared format, name what standard-
+     looking but invalid input is rejected (for JSON, non-finite constants and
+     duplicate object members are separate hazards). For a performance claim,
+     state its worst-case bound and whether it is deterministic; expected or
+     average-case behavior is not a substitute. Add a matrix row whose oracle
+     would fail if that contract were silently weakened.
+  4. Before implementation, state the expected result for every competing
      source in an ordering or fallback case (including declaration order
      versus encounter order when both exist). This is the decision table the
      code and test must agree on; if the task leaves it ambiguous, inspect its
      supplied tests or material and state the conservative interpretation.
-  4. Choose the smallest runnable demonstration that covers the matrix and
+  5. Choose the smallest runnable demonstration that covers the matrix and
      would distinguish the proposed capability from the old program. A parse
      check, import, container build, or an existing test suite that does not
      cover a matrix row is only a preflight, not capability evidence.
-  5. After editing, run those demonstrations through the public path a hard
+  6. After editing, run those demonstrations through the public path a hard
      task would use (including a produced file when that is the feature), and
      inspect each result rather than treating a zero exit status as semantics.
      Also run the proportionate startup or syntax check needed to show the
      successor remains usable.
-  6. If any row fails or cannot be run in the remaining budget, repair it or
+  7. If any row fails or cannot be run in the remaining budget, repair it or
      omit that capability claim. In the final reply, report only commands or
      interactions actually run and their observed results.
 
