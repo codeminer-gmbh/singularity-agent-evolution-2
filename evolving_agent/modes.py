@@ -428,10 +428,20 @@ def _listing(workspace: Workspace) -> str:
 
 
 def _improvement_answer(outcome: SessionOutcome | None) -> str:
-    """Return what an improvement run prints about what it changed."""
-    if outcome is None or not outcome.summary.strip():
-        return "A successor was left in the workspace."
-    return outcome.summary.strip()
+    """Return only the runtime fact the improvement runner independently knows.
+
+    A model's closing prose is useful to its immediate reader but is not
+    evidence: previous rounds repeatedly recorded verification that the tree
+    did not contain.  The process-level claim is consequently limited to the
+    validator ``successor_problems`` has returned no problems. The model is
+    separately instructed to put command-level evidence in its memories and
+    final reply.
+    """
+    del outcome
+    return (
+        "A successor was left after automatic usability validation: "
+        "successor_problems returned no problems."
+    )
 
 
 def _detail(headline: str, outcome: SessionOutcome | None, refusal: str | None) -> str:

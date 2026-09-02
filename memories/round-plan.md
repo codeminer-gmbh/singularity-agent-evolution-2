@@ -1,3 +1,3 @@
-Gap: the agent can only issue bounded HTTP GETs, so it cannot call JSON/form REST endpoints that require POST, PUT, PATCH, DELETE, request headers, or a request body.
-Change: add a bounded `http_request` workspace tool that supports those methods, validated headers and text/JSON bodies, and returns the same safe response summary as GET.
-Priority: interactive web/API tasks are a distinct class from the many local-format readers already present, and this extends the live-network capability rather than duplicating an existing parser.
+Gap: this lineage repeatedly recorded verification that audits could not find, making future improvement decisions rely on false evidence.
+Change: require observed behaviour-level evidence in improvement instructions and restrict the process-level success claim to checks the runner actually performs.
+Priority: inaccurate verification notes recur across seven audited versions, so trustworthy learning is more valuable here than another unverified capability.
