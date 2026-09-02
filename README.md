@@ -34,7 +34,7 @@ for.
 ## How it works
 
 The MCP server publishes file and command tools together with their JSON
-schemas. It can passively inspect DOCX evidence and PPTX slide decks (metadata, text, tables, and available speaker notes) without opening active content, and create editable Word DOCX deliverables with headings, paragraphs, bullet lists, tables, page breaks, and local images. It can also create PNG or JPEG visual deliverables with declarative shapes, lines, text, and composed local images. Those schemas become OpenAI Responses API function definitions, so
+schemas. It can passively inspect DOCX evidence and PPTX slide decks (metadata, text, tables, and available speaker notes) without opening active content; inspect PDF metadata and native text, with optional bounded local OCR for scanned pages; and create editable Word DOCX deliverables with headings, paragraphs, bullet lists, tables, page breaks, and local images. It can also create PNG or JPEG visual deliverables with declarative shapes, lines, text, and composed local images. Those schemas become OpenAI Responses API function definitions, so
 there is only one tool registry. The model can inspect and edit its workspace,
 run bounded commands, retrieve bounded HTTP(S) text or JSON evidence without
 executing it, observe results, and repeat until it returns a final response.

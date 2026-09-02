@@ -241,9 +241,9 @@ class WorkspaceTools:
             ToolDefinition(
                 name="inspect_pdf",
                 description=(
-                    "Inspect a PDF's metadata, embedded-file names, and bounded extracted page text without "
-                    "rendering it or opening JavaScript, forms, links, or attachments. "
-                    "Use a materials/ path for an input PDF."
+                    "Inspect a PDF's metadata, embedded-file names, and bounded extracted page text. "
+                    "Optional OCR renders at most five requested pages locally; JavaScript, forms, links, "
+                    "and attachments are not opened. Use a materials/ path for an input PDF."
                 ),
                 input_schema={
                     "type": "object",
@@ -251,7 +251,8 @@ class WorkspaceTools:
                         "path": {"type": "string", "description": "PDF file path."},
                         "page": {"type": "integer", "description": "Optional one-based page number."},
                         "max_pages": {"type": "integer", "description": "Pages to preview when page is omitted, 1 to 25."},
-                        "max_characters": {"type": "integer", "description": "Text preview characters per page, 1 to 12000."},
+                        "max_characters": {"type": "integer", "description": "Text or OCR preview characters per page, 1 to 12000."},
+                        "ocr": {"type": "boolean", "description": "OCR rendered pages with English Tesseract (default false; at most five pages)."},
                     },
                     "required": ["path"],
                 },
@@ -677,10 +678,13 @@ class WorkspaceTools:
         max_characters = _bounded_integer(
             arguments, "max_characters", default=8_000, minimum=1, maximum=12_000
         )
+        ocr = arguments.get("ocr", False)
+        if not isinstance(ocr, bool):
+            raise ToolFailureError("'ocr' must be true or false when supplied.")
         try:
             return inspect_pdf(
                 tree.resolve(relative), page=page, max_pages=max_pages,
-                max_characters=max_characters,
+                max_characters=max_characters, ocr=ocr,
             )
         except PdfError as unusable:
             raise ToolFailureError(str(unusable)) from unusable

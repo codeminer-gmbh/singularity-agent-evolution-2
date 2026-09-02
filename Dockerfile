@@ -24,7 +24,7 @@ FROM python:3.12-slim
 WORKDIR /opt/evolving-agent
 COPY requirements.txt requirements.txt
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr \
+    && apt-get install -y --no-install-recommends tesseract-ocr poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt
 

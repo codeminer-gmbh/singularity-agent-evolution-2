@@ -1,3 +1,3 @@
-PPTX evidence tasks are a gap: the ledger promotes passive DOCX/PDF/email inspection but has no presentation reader, while creation alone cannot extract supplied decks.
-Add a bounded passive inspect_presentation tool with slide-order text, tables, metadata, and relationship-resolved speaker notes; this improves evidence-extraction tasks using slide decks.
-This is higher value than another creation refinement because it turns an otherwise opaque common input format into model-readable task evidence.
+Scanned-PDF evidence remains opaque: no ledger file is available here, while the tree has text-only PDF inspection and separate image OCR.
+Add bounded optional OCR to inspect_pdf by rendering requested pages locally and using Tesseract, improving scanned-document evidence tasks.
+This beats another creation tool because it unlocks supplied evidence already common in hard extraction tasks rather than duplicating existing deliverable formats.

@@ -10,6 +10,8 @@ without starting a viewer or retrieving an attachment payload.
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,10 @@ _MAX_SOURCE_BYTES = 32 * 1024 * 1024
 _MAX_PAGES = 25
 _MAX_PAGE_CHARACTERS = 12_000
 _MAX_METADATA_VALUE = 1_000
+_MAX_OCR_PAGES = 5
+_RENDER_TIMEOUT_SECONDS = 25
+_OCR_TIMEOUT_SECONDS = 30
+_RENDER_MAX_DIMENSION = 2_400
 
 
 class PdfError(ValueError):
@@ -32,20 +38,24 @@ def inspect_pdf(
     page: int | None = None,
     max_pages: int = 5,
     max_characters: int = 8_000,
+    ocr: bool = False,
 ) -> str:
-    """Return metadata and bounded extracted text for one or several PDF pages.
+    """Return metadata, extracted text, and optional bounded rendered-page OCR.
 
     ``page`` is one-based when supplied.  Encrypted PDFs are identified but not
     decrypted: this tool has no password parameter and never attempts to bypass
     document access controls.
     """
-    if not 1 <= max_pages <= _MAX_PAGES:
+    if not isinstance(ocr, bool):
+        raise PdfError("ocr must be true or false.")
+    if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= _MAX_PAGES:
         raise PdfError(f"max_pages must be between 1 and {_MAX_PAGES}.")
-    if not 1 <= max_characters <= _MAX_PAGE_CHARACTERS:
+    if (not isinstance(max_characters, int) or isinstance(max_characters, bool)
+            or not 1 <= max_characters <= _MAX_PAGE_CHARACTERS):
         raise PdfError(
             f"max_characters must be between 1 and {_MAX_PAGE_CHARACTERS}."
         )
-    if page is not None and page < 1:
+    if page is not None and (not isinstance(page, int) or isinstance(page, bool) or page < 1):
         raise PdfError("page must be one or greater (PDF pages are one-based).")
     if not path.is_file():
         raise PdfError(f"{path.name!r} is not a readable PDF file.")
@@ -86,8 +96,9 @@ def inspect_pdf(
         indices = range(page - 1, page)
     else:
         indices = range(min(page_count, max_pages))
+    page_indices = list(indices)
     pages: list[dict[str, Any]] = []
-    for index in indices:
+    for index in page_indices:
         try:
             text = reader.pages[index].extract_text(extraction_mode="layout") or ""
         except (PdfReadError, ValueError, KeyError, TypeError) as exc:
@@ -100,6 +111,21 @@ def inspect_pdf(
                 "text_preview_truncated": len(text) > max_characters,
             }
         )
+    if ocr:
+        # Rendering is deliberately opt-in: native text extraction remains the
+        # inexpensive default, while scans become useful evidence on request.
+        ocr_indices = page_indices[:_MAX_OCR_PAGES]
+        recognized = _ocr_rendered_pages(path, ocr_indices)
+        for item in pages:
+            if item["page_number"] in recognized:
+                text = recognized[item["page_number"]]
+                item["ocr_text_preview"] = text[:max_characters]
+                item["ocr_text_truncated"] = len(text) > max_characters
+        report["ocr_note"] = (
+            "OCR renders pages locally at a bounded resolution with English "
+            "Tesseract; only the first five selected pages are OCRed."
+        )
+        report["ocr_pages_truncated"] = len(page_indices) > len(ocr_indices)
     report["pages"] = pages
     report["pages_truncated"] = page is None and page_count > len(pages)
     report["note"] = (
@@ -108,6 +134,56 @@ def inspect_pdf(
     )
     return json.dumps(report, ensure_ascii=False, indent=2)
 
+
+def _ocr_rendered_pages(path: Path, indices: list[int]) -> dict[int, str]:
+    """Render selected pages into a private temporary directory and OCR them.
+
+    Poppler and Tesseract are invoked with argument vectors, not a shell.  The
+    rendered files never enter the workspace and are removed immediately.
+    """
+    recognized: dict[int, str] = {}
+    try:
+        with tempfile.TemporaryDirectory(prefix="pdf-ocr-") as temporary:
+            directory = Path(temporary)
+            for index in indices:
+                image_stem = directory / f"page-{index + 1}"
+                _run_bounded(
+                    [
+                        "pdftoppm", "-f", str(index + 1), "-l", str(index + 1),
+                        "-singlefile", "-png", "-r", "144", "-scale-to",
+                        str(_RENDER_MAX_DIMENSION), str(path), str(image_stem),
+                    ],
+                    _RENDER_TIMEOUT_SECONDS,
+                    "PDF rendering",
+                )
+                image = image_stem.with_suffix(".png")
+                if not image.is_file():
+                    raise PdfError("PDF rendering did not produce a page image.")
+                recognized[index + 1] = _run_bounded(
+                    ["tesseract", str(image), "stdout", "-l", "eng"],
+                    _OCR_TIMEOUT_SECONDS,
+                    "PDF OCR",
+                ).strip()
+    except OSError as exc:
+        raise PdfError(f"PDF OCR could not start: {exc}") from exc
+    return recognized
+
+
+def _run_bounded(command: list[str], timeout: int, label: str) -> str:
+    """Run one local conversion stage with a bounded error message."""
+    try:
+        completed = subprocess.run(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, timeout=timeout, check=False,
+        )
+    except FileNotFoundError as exc:
+        raise PdfError(f"{label} is unavailable: {command[0]} is not installed.") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise PdfError(f"{label} exceeded the {timeout}-second limit.") from exc
+    if completed.returncode:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise PdfError(f"{label} failed: {detail[:500] or 'conversion tool returned an error.'}")
+    return completed.stdout.decode("utf-8", errors="replace")
 
 def _metadata(reader: PdfReader) -> dict[str, str]:
     """Return a short, predictable subset of document information fields."""
