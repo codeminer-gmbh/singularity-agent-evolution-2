@@ -1,3 +1,3 @@
-Gap: this lineage repeatedly recorded verification that audits could not find, making future improvement decisions rely on false evidence.
-Change: require observed behaviour-level evidence in improvement instructions and restrict the process-level success claim to checks the runner actually performs.
-Priority: inaccurate verification notes recur across seven audited versions, so trustworthy learning is more valuable here than another unverified capability.
+Gap: improvement evidence is only advice; the source retains no trustworthy record of commands actually run, so notes repeatedly overclaim verification.
+Change: automatically persist a bounded, machine-generated verification ledger for improvement sessions, recording observed command invocations and their results separately from model narrative.
+Priority: this directly removes the ledger’s recurring false/unverifiable verification cost, unlike another input-format capability that could repeat the same delivery failure.
