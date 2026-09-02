@@ -146,6 +146,12 @@ class ToolAgentSession:
         record — the first experiment had to reconstruct which tools an exam
         ever used from standard error.
         """
+        self.tool_call_history: list[tuple[str, dict[str, Any]]] = []
+        """Model tool requests in order, for improvement quality gates.
+
+        Unlike aggregate counts, order lets a caller distinguish a test run
+        after a source edit from a command that happened before it.
+        """
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
@@ -221,6 +227,7 @@ class ToolAgentSession:
         arguments = _arguments(call.arguments)
         if isinstance(arguments, str):
             return f"[error] {arguments}"
+        self.tool_call_history.append((call.name, arguments))
         try:
             outcome = self._tools.call(call.name, arguments)
         except McpError as broken:

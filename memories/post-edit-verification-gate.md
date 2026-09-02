@@ -1,0 +1,1 @@
+The improvement workflow now records ordered model tool requests and opens a verification-only follow-up if a non-memory write_file has no later run_command. The gate deliberately ignores planning notes and preserves existing repair behavior; it asks for a focused behavioral command, not a build-only claim.

@@ -291,6 +291,19 @@ def probe_opening(
     return "\n\n".join(parts)
 
 
+def verification_opening() -> str:
+    """Ask for evidence after a source edit escaped the initial work loop."""
+    return (
+        "You changed successor source but have not run a command after the "
+        "last such edit. Do that now before finishing: run the smallest "
+        "focused fixture, assertion, or end-to-end command that exercises the "
+        "behavior you changed, inspect its result, and repair a failure. A "
+        "parse/build-only command is not sufficient evidence unless the "
+        "change was specifically about parsing or building. Do not begin a "
+        "new feature."
+    )
+
+
 def repair_opening(problems: tuple[str, ...]) -> str:
     """Return the message that asks for a broken successor to be repaired.
 

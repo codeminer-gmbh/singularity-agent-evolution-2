@@ -36,6 +36,7 @@ from evolving_agent.prompts import (
     probe_instructions,
     probe_opening,
     repair_opening,
+    verification_opening,
 )
 from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession
 from evolving_agent.settings import AgentSettings
@@ -226,6 +227,7 @@ def _improve(
                 materials_listing=_materials_listing(settings),
             ),
         )
+        outcome = _verification_followup(session, deadline, outcome)
         repaired = _repaired(workspace, session, deadline, outcome)
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
@@ -304,6 +306,38 @@ def _session(
         deadline=deadline,
         max_steps=settings.max_steps,
     )
+
+
+def _verification_followup(
+    session: ToolAgentSession, deadline: Deadline, outcome: SessionOutcome
+) -> SessionOutcome:
+    """Require a post-edit command when the initial session left source untested.
+
+    The model's final prose often claims verification after editing, but an
+    ordered tool trace is a cheap, observable check.  Memory-only planning
+    writes do not need a command; every other ``write_file`` does.
+    """
+    last_source_write = max(
+        (
+            index
+            for index, (name, arguments) in enumerate(session.tool_call_history)
+            if name == "write_file"
+            and isinstance(arguments.get("path"), str)
+            and not arguments["path"].startswith("memories/")
+        ),
+        default=-1,
+    )
+    has_post_edit_command = any(
+        name == "run_command"
+        for name, _arguments in session.tool_call_history[last_source_write + 1 :]
+    )
+    if last_source_write < 0 or has_post_edit_command or deadline.expired():
+        return outcome
+    _LOG.warning("Source was edited without a subsequent verification command.")
+    return session.run(
+        instructions=improvement_instructions(), opening=verification_opening()
+    )
+
 
 
 def _repaired(
