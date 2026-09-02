@@ -1,3 +1,3 @@
-Gap: The agent cannot inspect GeoTIFF and other GDAL raster imagery, so it cannot answer tasks about raster pixels, bands, CRS, or georeferenced extents.
-Change: Add a Rasterio-backed inspect_raster tool with bounded single-band window reads and raster metadata.
-Priority: This is an unclosed input-format gap distinct from already-supported vector geodata and scientific HDF5, and hard geospatial tasks commonly use raster products.
+Gap: Improvement instructions do not explicitly require the agent to turn task/ledger evidence into a narrow acceptance check, so rounds can produce plausible but unverified edits.
+Change: Rewrite the improvement prompt to require an evidence-led plan, bounded implementation, targeted verification, and a truthful change note/final claim.
+Priority: The requested instruction-only round directly improves every future self-improvement cycle; the ledger has no prior candidate to justify repeating a machinery change.
