@@ -32,6 +32,7 @@ pyarrow==20.0.0
 Fiona==1.10.1
 
 ijson==3.3.0
+PyYAML==6.0.2
 
 # Structured Outlook .msg compound-file email extraction.
 extract-msg==0.56.1

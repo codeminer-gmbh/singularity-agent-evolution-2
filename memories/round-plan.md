@@ -1,3 +1,3 @@
-Gap: Generic capability-audit instructions reward adding a tool even when recent exams primarily differentiate exact task-contract correctness and adversarial edge cases.
-Change: Revise improvement prompts to require ledger-informed selection, an executable task-shaped verification, and explicit semantic-boundary review before claiming a capability.
-Why: The ledger's promoted verdicts repeatedly reward strict parsing, cutoff/rounding semantics, and tests; this targets answer quality rather than another unexercised tool.
+Gap: YAML JSON Pointer decoding wrongly rejected valid keys whose RFC 6901 encoding is `~01`, so configuration values under literal `~1` keys were unreachable.
+Change/check: decode pointer escapes in one left-to-right pass; invoke `inspect_yaml` through the published tool for both `/routes/api~1v1/timeout_ms` and `/routes/~01literal`, plus reject a malformed argument.
+Evidence: the ledger identifies structured YAML configuration as a viable unclosed task class; this precise escaping boundary makes its existing YAML inspector correct for adversarial configuration keys rather than adding another overlapping reader.

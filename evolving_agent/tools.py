@@ -30,6 +30,7 @@ from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_doc
 from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
 from evolving_agent.jsondata import MAX_JSON_OFFSET, MAX_JSON_ROWS, JsonDataError, inspect_json
 from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
+from evolving_agent.yamldata import YamlDataError, inspect_yaml
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -309,6 +310,22 @@ class WorkspaceTools:
                 },
             ),
             ToolDefinition(
+                name="inspect_yaml",
+                description=(
+                    "Parse one strict YAML data document and return a bounded JSON-shaped value. "
+                    "Supports RFC 6901 pointer selection into mappings and arrays; rejects aliases, "
+                    "anchors, explicit tags, duplicate keys, and multiple documents."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "YAML file path, including materials/ or output/."},
+                        "pointer": {"type": "string", "description": "Optional RFC 6901 pointer to a YAML value."},
+                    },
+                    "required": ["path"],
+                },
+            ),
+            ToolDefinition(
                 name="http_fetch",
                 description=(
                     "Fetch a live HTTP or HTTPS URL with a bounded GET request. "
@@ -399,6 +416,7 @@ class WorkspaceTools:
             "inspect_parquet": self._inspect_parquet,
             "inspect_geodata": self._inspect_geodata,
             "inspect_json": self._inspect_json,
+            "inspect_yaml": self._inspect_yaml,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -540,6 +558,16 @@ class WorkspaceTools:
                 max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
             )
         except JsonDataError as unreadable:
+            raise ToolFailureError(str(unreadable)) from unreadable
+
+    def _inspect_yaml(self, arguments: Mapping[str, Any]) -> str:
+        """Inspect strict YAML data and optionally select one nested value."""
+        path = _text_argument(arguments, "path")
+        pointer = arguments.get("pointer", "")
+        tree, relative = self._located(path)
+        try:
+            return inspect_yaml(tree.resolve(relative), pointer=pointer)
+        except YamlDataError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
