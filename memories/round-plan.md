@@ -1,3 +1,4 @@
-Gap: The lineage repeatedly shipped inaccurate memory claims or no final claim because verification was postponed or disconnected from the planned behavior.
-Change: Rewrite the improvement workflow to precommit a ledger-grounded, falsifiable proof and run it before optional work.
-Why: Five audited inaccurate notes and the newest empty rejected run are stronger repeated costs than any single missing data tool.
+Record: Two of the three most recent trials produced no final output after tool work, while the one promoted trial completed and won on executable task correctness; the unpromoted final-exchange attempt starts a fresh conversation and therefore discards all completed work and proof.
+Gap: When the model uses every normal exchange for tools, the agent cannot reliably turn those completed actions and observations into the required final answer because finalization cannot see them.
+Change: Move the separately budgeted, tool-free finalization call into ToolAgentSession, where it can receive the intact recent conversation and tool results; this fixes the concrete defect in the rejected fresh-conversation design without sacrificing a work exchange.
+Proof: A focused mocked ToolAgentSession run will consume its full normal exchange budget with tool calls, then return the nonempty response from one additional call; assertions will check call count, that the final call exposes no tools, and that its conversation contains the last tool result.

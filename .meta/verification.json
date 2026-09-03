@@ -4,17 +4,17 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nfor needle in ['FAILED','PROMOTED','run printed nothing','timed out','timeout','unverified','verification','budget','tool-call cap','no usable']:\n print(needle, s.lower().count(needle.lower()))\nprint('\\nFailed cycle summaries:')\nfor block in s.split('\\n### ')[1:]:\n h=block.splitlines()[0]\n if 'FAILED' in h:\n  claim=next((x for x in block.splitlines() if x.startswith('Claimed change:')), '')\n  print(h, '|', claim)\n"
+        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nfor line in s.splitlines():\n if any(k in line.lower() for k in ('printed nothing','budget','unverified','inaccurate','timed out','no usable','tool-call')):\n  print(line[:500])"
       ],
       "status": "[exit code 1]",
-      "step": 4,
+      "step": 3,
       "tool_error": false
     },
     {
       "command": [
         "sed",
         "-n",
-        "150,360p",
+        "230,430p",
         "evolving_agent/session.py"
       ],
       "status": "[exit code 0]",
@@ -23,46 +23,11 @@
     },
     {
       "command": [
-        "sed",
+        "grep",
+        "-R",
         "-n",
-        "160,430p",
-        "evolving_agent/modes.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 7,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "find",
-        ".",
-        "-maxdepth",
-        "3",
-        "-type",
-        "f",
-        "-path",
-        "*test*"
-      ],
-      "status": "[exit code 0]",
-      "step": 7,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "git",
-        "status",
-        "--short"
-      ],
-      "status": "[did not start]",
-      "step": 7,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "430,700p",
-        "evolving_agent/modes.py"
+        "final_answer\\|final answer\\|tool-free",
+        "evolving_agent"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -72,7 +37,7 @@
       "command": [
         "sed",
         "-n",
-        "320,470p",
+        "120,180p",
         "evolving_agent/modes.py"
       ],
       "status": "[exit code 0]",
@@ -81,12 +46,10 @@
     },
     {
       "command": [
-        "grep",
-        "-R",
+        "sed",
         "-n",
-        "final_answer_request\\|max_steps",
-        "evolving_agent",
-        "README.md"
+        "400,460p",
+        "evolving_agent/modes.py"
       ],
       "status": "[exit code 0]",
       "step": 10,
@@ -94,23 +57,13 @@
     },
     {
       "command": [
-        "sed",
+        "head",
         "-n",
-        "250,310p",
+        "45",
+        "evolving_agent/modes.py",
         "evolving_agent/prompts.py"
       ],
       "status": "[exit code 0]",
-      "step": 11,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "tail",
-        "-n",
-        "180",
-        "materials/ledger.md"
-      ],
-      "status": "[exit code 1]",
       "step": 12,
       "tool_error": false
     },
@@ -118,8 +71,18 @@
       "command": [
         "sed",
         "-n",
-        "1,180p",
+        "45,125p",
         "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 13,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/session.py')\ns=p.read_text()\ns=s.replace('from evolving_agent.model import ModelReply, ToolCall, tool_schemas\\n', 'from evolving_agent.model import ModelReply, ToolCall, tool_schemas\\nfrom evolving_agent.prompts import final_answer_request\\n')\nold='''            if self._deadline.expired():\n                return SessionOutcome(\n                    finished=False,\n                    summary=\"\",\n                    steps=steps,\n                    reason=\"the time budget ran out\",\n                )\n'''\nnew='''            if self._deadline.expired():\n                return self._finalize(\n                    conversation, steps, \"the time budget ran out\"\n                )\n'''\nif old not in s: raise SystemExit('deadline block absent')\ns=s.replace(old,new)\nold2='''        return SessionOutcome(\n            finished=False,\n            summary=\"\",\n            steps=steps,\n            reason=f\"the step limit of {self._max_steps} was reached\",\n        )\n\n    def _observe(self, step: int, call: ToolCall) -> str:\n'''\nnew2='''        return self._finalize(\n            conversation,\n            steps,\n            f\"the step limit of {self._max_steps} was reached\",\n        )\n\n    def _finalize(\n        self,\n        conversation: list[dict[str, Any]],\n        steps: int,\n        exhausted_reason: str,\n    ) -> SessionOutcome:\n        \"\"\"Use one tool-free exchange to turn completed work into an answer.\n\n        This exchange is deliberately outside the normal step allowance. The\n        allowance remains entirely available for work, while removing tools\n        makes this last request incapable of starting more work. Most\n        importantly, it receives the actual recent conversation: tool results\n        and evidence are not discarded just when the model must report them.\n        \"\"\"\n        _LOG.warning(\"%s; asking for a final answer\", exhausted_reason)\n        conversation.append({\"role\": \"user\", \"content\": final_answer_request()})\n        reply = self._model.reply(conversation=_recent(conversation), tools=())\n        if reply.text.strip() and not reply.tool_calls:\n            return SessionOutcome(\n                finished=True,\n                summary=reply.text,\n                steps=steps,\n                reason=f\"the agent answered after {exhausted_reason}\",\n            )\n        return SessionOutcome(\n            finished=False,\n            summary=\"\",\n            steps=steps,\n            reason=f\"{exhausted_reason}, and finalization answered nothing\",\n        )\n\n    def _observe(self, step: int, call: ToolCall) -> str:\n'''\nif old2 not in s: raise SystemExit('final block absent')\ns=s.replace(old2,new2)\np.write_text(s)\n"
       ],
       "status": "[exit code 0]",
       "step": 14,
@@ -127,10 +90,11 @@
     },
     {
       "command": [
-        "sed",
+        "grep",
         "-n",
-        "1,210p",
-        "evolving_agent/prompts.py"
+        "class ModelReply\\|class ToolCall\\|class ToolOutcome\\|class ToolDescription",
+        "evolving_agent/model.py",
+        "evolving_agent/mcp_client.py"
       ],
       "status": "[exit code 0]",
       "step": 15,
@@ -140,10 +104,13 @@
       "command": [
         "sed",
         "-n",
-        "210,270p",
-        "evolving_agent/prompts.py"
+        "25,50p",
+        "evolving_agent/mcp_client.py",
+        "-n",
+        "95,130p",
+        "evolving_agent/model.py"
       ],
-      "status": "[exit code 0]",
+      "status": "[exit code 2]",
       "step": 16,
       "tool_error": false
     },
@@ -151,8 +118,8 @@
       "command": [
         "sed",
         "-n",
-        "150,225p",
-        "evolving_agent/prompts.py"
+        "95,135p",
+        "evolving_agent/model.py"
       ],
       "status": "[exit code 0]",
       "step": 17,
@@ -162,7 +129,7 @@
       "command": [
         "sed",
         "-n",
-        "1,260p",
+        "35,120p",
         "evolving_agent/session.py"
       ],
       "status": "[exit code 0]",
@@ -171,13 +138,10 @@
     },
     {
       "command": [
-        "grep",
+        "sed",
         "-n",
-        "meta",
-        "-n",
-        ".gitignore",
-        ".dockerignore",
-        "evolving_agent/modes.py"
+        "120,180p",
+        "evolving_agent/session.py"
       ],
       "status": "[exit code 0]",
       "step": 19,
@@ -185,9 +149,10 @@
     },
     {
       "command": [
-        "python",
-        "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''How a round opens \u2014 the capability audit:\n  Before you read any source beyond the two files above, write\n  `{ROUND_PLAN_PATH}` with three short lines: what you currently cannot do\n  that a hard task might need; which tool or change would fix it; and why\n  this one rather than the other gaps you can name. Then read what that\n  change needs and make it. Justify the change against the audit, not\n  against whatever you happened to find in the source. If the audit turns up\n  a gap a predecessor already noted in `memories/`, prefer it: a note that a\n  gap exists and was not closed is the best evidence you have.\n'''\nnew='''How a round opens \u2014 the evidence plan:\n  Before you read any source beyond the two files above, write\n  `{ROUND_PLAN_PATH}` with four short labelled lines:\n  `Record:` the single failure pattern or unmet need with the strongest\n  evidence in the ledger and inherited notes; `Gap:` what you currently\n  cannot do that a hard task might need; `Change:` the one change that would\n  remove it and why it outranks the alternatives; and `Proof:` the observable\n  behavior and narrow check that would falsify your proposed fix. If no ledger\n  was supplied, use the inherited notes and current capability listing for the\n  Record line. Do not choose the implementation first and retrofit a rationale\n  or an easy test afterwards. Read only what this plan needs, then make the\n  change and execute its planned proof.\n'''\nif old not in s: raise SystemExit('audit block not found')\ns=s.replace(old,new)\nold2='''How to work: read what the change needs, then act decisively on the design\nyou select. Before declaring completion, produce evidence for the specific\nchange: run a command, test, build, or focused call that exercises it, read\nits result, and repair a failure rather than describing it as a success. Keep\nthe command and result in the conversation until the final reply. A generic\nstartup check is not evidence for an unrelated parser, prompt, or data tool;\nchoose the narrowest check that could falsify the claimed behavior. If the\nremaining budget prevents a relevant check, say that it is unverified and do\nnot claim the behavior works. A large, well-verified capability gain is worth\nmore than any number of safe but inconsequential edits.\n'''\nnew2='''How to work: read what the plan needs, then act decisively on its one\nchange. As soon as the claimed behavior exists, run the `Proof:` check before\nstarting optional cleanup, documentation, or another change; a check postponed\nto the end is the first thing a budget overrun deletes. Read the result and\nrepair a failure rather than describing it as success. If discovery changes\nwhat proof is appropriate, update the Proof line *before* running the new\ncheck, with the reason, rather than silently substituting an easier check.\n\nThe final claim is an evidence report, not a progress summary. Name the exact\ncommand or focused call and the behavior its observed result establishes. A\ngeneric startup, import, or compile check establishes only startup, import, or\nsyntax; it is not evidence for an unrelated parser, prompt, or data tool. The\nmachine-generated verification receipt preserves command outcomes, including\nfailures, so a memory note must agree with that receipt and with the shipped\nsource. If the relevant check did not run or failed, state that it is\nunverified and do not claim the behavior works. Do not use the last useful\nstep to begin new work after proof succeeds. A large, well-verified capability\ngain is worth more than any number of safe but inconsequential edits.\n'''\nif old2 not in s: raise SystemExit('work block not found')\ns=s.replace(old2,new2)\np.write_text(s)\n"
+        "sed",
+        "-n",
+        "180,245p",
+        "evolving_agent/session.py"
       ],
       "status": "[exit code 0]",
       "step": 20,
@@ -195,52 +160,12 @@
     },
     {
       "command": [
-        "rm",
-        "-f",
-        "output/dummy"
-      ],
-      "status": "[exit code 0]",
-      "step": 22,
-      "tool_error": false
-    },
-    {
-      "command": [
         "python",
         "-c",
-        "from pathlib import Path\nPath('memories/round-plan.md').write_text('Gap: The lineage repeatedly shipped inaccurate memory claims or no final claim because verification was postponed or disconnected from the planned behavior.\\nChange: Rewrite the improvement workflow to precommit a ledger-grounded, falsifiable proof and run it before optional work.\\nWhy: Five audited inaccurate notes and the newest empty rejected run are stronger repeated costs than any single missing data tool.\\n')\nPath('memories/evidence-planning.md').write_text('Improvement instructions now require a four-line evidence plan grounded in the strongest ledger signal, including a falsifiable Proof check. They direct the agent to run that check as soon as the behavior exists, before optional work, and limit final and memory claims to what the observed result and machine receipt establish.\\n')\n"
+        "from evolving_agent.session import ToolAgentSession, Deadline\nfrom evolving_agent.model import ModelReply, ToolCall\nfrom evolving_agent.mcp_client import ToolDescription, ToolOutcome\n\nclass Model:\n def __init__(self): self.calls=[]\n def reply(self, *, conversation, tools=()):\n  self.calls.append((list(conversation), list(tools)))\n  if len(self.calls) <= 2:\n   n=len(self.calls); c=ToolCall(f'id{n}','inspect','{}')\n   return ModelReply('',(c,),({'type':'function_call','call_id':c.identifier,'name':c.name,'arguments':c.arguments},))\n  return ModelReply('proved final answer',())\nclass Tools:\n def call(self,name,arguments): return ToolOutcome('LAST TOOL RESULT',False)\nm=Model(); s=ToolAgentSession(m,Tools(),[ToolDescription('inspect','inspect',{'type':'object'})],deadline=Deadline(30),max_steps=2)\no=s.run(instructions='system',opening='task')\nassert o.finished and o.summary=='proved final answer' and o.steps==2, o\nassert len(m.calls)==3 and m.calls[-1][1]==[], m.calls\nassert any(x.get('output')=='LAST TOOL RESULT' for x in m.calls[-1][0] if isinstance(x,dict)), m.calls[-1][0]\nprint('PASS: 2 work exchanges + 1 tool-free finalization; finalization retained last tool result')"
       ],
       "status": "[exit code 0]",
-      "step": 23,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from evolving_agent.prompts import improvement_instructions\np=improvement_instructions()\nlabels=['`Record:`','`Gap:`','`Change:`','`Proof:`']\npos=[p.index(x) for x in labels]\nassert pos == sorted(pos), pos\nassert 'strongest\\n  evidence in the ledger' in p\nassert p.index('run the `Proof:` check') < p.index('optional cleanup')\nassert 'update the Proof line *before* running the new\\ncheck' in p\nassert 'A generic startup, import, or compile check establishes only startup, import, or\\nsyntax' in p\nassert 'memory note must agree with that receipt' in p\nprint('PASS: ledger-grounded Record/Gap/Change/Proof plan and proof-before-cleanup evidence limits are active')"
-      ],
-      "status": "[exit code 1]",
-      "step": 24,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from evolving_agent.prompts import improvement_instructions\np=improvement_instructions()\nchecks=[('labels',[p.index(x) for x in ['`Record:`','`Gap:`','`Change:`','`Proof:`']]),('ledger','strongest\\n  evidence in the ledger' in p),('order',p.index('run the `Proof:` check') < p.index('optional cleanup')),('update','update the Proof line *before* running the new\\ncheck' in p),('generic','A generic startup, import, or compile check establishes only startup, import, or\\nsyntax' in p),('receipt','memory note must agree with that receipt' in p)]\nprint(checks)"
-      ],
-      "status": "[exit code 0]",
-      "step": 25,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from evolving_agent.prompts import improvement_instructions\np=improvement_instructions(); flat=' '.join(p.split())\nlabels=['`Record:`','`Gap:`','`Change:`','`Proof:`']; pos=[p.index(x) for x in labels]\nassert pos == sorted(pos), pos\nassert 'strongest evidence in the ledger' in flat\nassert p.index('run the `Proof:` check') < p.index('optional cleanup')\nassert 'update the Proof line *before* running the new check' in flat\nassert 'A generic startup, import, or compile check establishes only startup, import, or syntax' in flat\nassert 'memory note must agree with that receipt' in flat\nprint('PASS: ledger-grounded Record/Gap/Change/Proof plan and proof-before-cleanup evidence limits are active')"
-      ],
-      "status": "[exit code 0]",
-      "step": 26,
+      "step": 21,
       "tool_error": false
     },
     {
@@ -248,48 +173,15 @@
         "git",
         "diff",
         "--",
-        "evolving_agent/prompts.py",
-        "memories/round-plan.md",
-        "memories/evidence-planning.md"
+        "evolving_agent/session.py",
+        "memories/round-plan.md"
       ],
       "status": "[did not start]",
-      "step": 27,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "grep",
-        "-n",
-        "evidence plan\\|Record:\\|Proof:\\|final claim is",
-        "evolving_agent/prompts.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 28,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "cat",
-        "memories/round-plan.md",
-        "memories/evidence-planning.md"
-      ],
-      "status": "[exit code 0]",
-      "step": 28,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-m",
-        "py_compile",
-        "evolving_agent/prompts.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 28,
+      "step": 22,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 21
+  "successful_commands": 13
 }

@@ -28,6 +28,7 @@ from typing import Any, Protocol
 
 from evolving_agent.mcp_client import McpError, ToolDescription, ToolOutcome
 from evolving_agent.model import ModelReply, ToolCall, tool_schemas
+from evolving_agent.prompts import final_answer_request
 
 _LOG = logging.getLogger(__name__)
 
@@ -182,11 +183,8 @@ class ToolAgentSession:
         steps = 0
         while steps < self._max_steps:
             if self._deadline.expired():
-                return SessionOutcome(
-                    finished=False,
-                    summary="",
-                    steps=steps,
-                    reason="the time budget ran out",
+                return self._finalize(
+                    conversation, steps, "the time budget ran out"
                 )
             steps += 1
             reply = self._model.reply(
@@ -212,11 +210,41 @@ class ToolAgentSession:
                 }
                 for call in reply.tool_calls
             )
+        return self._finalize(
+            conversation,
+            steps,
+            f"the step limit of {self._max_steps} was reached",
+        )
+
+    def _finalize(
+        self,
+        conversation: list[dict[str, Any]],
+        steps: int,
+        exhausted_reason: str,
+    ) -> SessionOutcome:
+        """Use one tool-free exchange to turn completed work into an answer.
+
+        This exchange is deliberately outside the normal step allowance. The
+        allowance remains entirely available for work, while removing tools
+        makes this last request incapable of starting more work. Most
+        importantly, it receives the actual recent conversation: tool results
+        and evidence are not discarded just when the model must report them.
+        """
+        _LOG.warning("%s; asking for a final answer", exhausted_reason)
+        conversation.append({"role": "user", "content": final_answer_request()})
+        reply = self._model.reply(conversation=_recent(conversation), tools=())
+        if reply.text.strip() and not reply.tool_calls:
+            return SessionOutcome(
+                finished=True,
+                summary=reply.text,
+                steps=steps,
+                reason=f"the agent answered after {exhausted_reason}",
+            )
         return SessionOutcome(
             finished=False,
             summary="",
             steps=steps,
-            reason=f"the step limit of {self._max_steps} was reached",
+            reason=f"{exhausted_reason}, and finalization answered nothing",
         )
 
     def _observe(self, step: int, call: ToolCall) -> str:
