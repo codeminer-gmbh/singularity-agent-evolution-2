@@ -54,6 +54,9 @@ error in two passes is not about to on the third.
 TOOL_CALLS_RECORD = ".meta/tool_calls.json"
 """Where a run leaves the count of every tool it called, under its output."""
 
+VERIFICATION_RECEIPT = ".meta/verification.json"
+"""Where an improvement run leaves machine-captured command evidence."""
+
 MANIFEST_NOTES = (
     "Every tool is reachable from the workspace, from the task's input files "
     "under materials/ and from the deliverables under output/; commands run "
@@ -95,7 +98,7 @@ def run_improvement(settings: AgentSettings) -> RunReport:
             "Initialized the workspace with %s files of this agent's source.", copied
         )
     started_from = workspace.digest()
-    outcome, refusal = _improve(settings, workspace)
+    outcome, refusal, session = _improve(settings, workspace)
     problems = successor_problems(workspace)
     if problems:
         return _restored(
@@ -109,6 +112,8 @@ def run_improvement(settings: AgentSettings) -> RunReport:
                 "the run left its own source exactly as it found it", outcome, refusal
             ),
         )
+    if session is not None:
+        _write_verification_receipt(workspace, session)
     return RunReport(
         succeeded=refusal is None,
         answer=_improvement_answer(outcome),
@@ -195,7 +200,7 @@ def run_describe(settings: AgentSettings) -> RunReport:
 
 def _improve(
     settings: AgentSettings, workspace: Workspace
-) -> tuple[SessionOutcome | None, str | None]:
+) -> tuple[SessionOutcome | None, str | None, ToolAgentSession | None]:
     """Run the improvement session, reporting a dependency that failed instead.
 
     A model that cannot be reached and a tool server that will not publish its
@@ -229,9 +234,48 @@ def _improve(
         repaired = _repaired(workspace, session, deadline, outcome)
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
-        return None, str(unavailable)
+        return None, str(unavailable), None
     _record_tool_calls(settings, session)
-    return repaired, None
+    return repaired, None, session
+
+
+def _write_verification_receipt(workspace: Workspace, session: ToolAgentSession) -> None:
+    """Persist what commands actually reported, independently of final prose.
+
+    The receipt intentionally contains command arguments and their status line,
+    not stdout: it remains small and avoids copying task data or accidental
+    secrets into the successor. A failed or absent command is evidence too.
+    """
+    commands = []
+    for observed in session.observations:
+        if observed.name != "run_command":
+            continue
+        command = observed.arguments.get("command")
+        if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
+            command = None
+        status = next(
+            (line for line in observed.text.splitlines() if line.startswith("[")),
+            "[tool error]" if observed.is_error else "[no status returned]",
+        )
+        commands.append(
+            {"step": observed.step, "command": command, "status": status,
+             "tool_error": observed.is_error}
+        )
+    receipt = {
+        "format": 1,
+        "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
+        "commands": commands,
+        "successful_commands": sum(
+            not item["tool_error"] and item["status"] == "[exit code 0]"
+            for item in commands
+        ),
+    }
+    target = workspace.root / VERIFICATION_RECEIPT
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as unwritable:
+        _LOG.warning("The verification receipt could not be written: %s", unwritable)
 
 
 def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> None:

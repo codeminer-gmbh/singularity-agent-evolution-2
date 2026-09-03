@@ -90,6 +90,17 @@ class SessionOutcome:
     reason: str
 
 
+@dataclass(frozen=True)
+class ToolObservation:
+    """One tool result retained as durable run evidence."""
+
+    step: int
+    name: str
+    arguments: Mapping[str, Any]
+    is_error: bool
+    text: str
+
+
 class Deadline:
     """The moment after which a run stops asking for another step."""
 
@@ -140,11 +151,12 @@ class ToolAgentSession:
         self._deadline = deadline
         self._max_steps = max_steps
         self.tool_calls: dict[str, int] = {}
-        """How often each tool was called, over every run of this session.
+        self.observations: list[ToolObservation] = []
+        """Tool outcomes across all runs, retained for an evidence receipt.
 
-        Kept on the session rather than in the log, so a run can leave it as a
-        record — the first experiment had to reconstruct which tools an exam
-        ever used from standard error.
+        The receipt is made by the improvement mode, not by the model's final
+        prose, so an unsupported claim cannot turn a failed command into a
+        passing one after the fact.
         """
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
@@ -220,13 +232,22 @@ class ToolAgentSession:
         self.tool_calls[call.name] = self.tool_calls.get(call.name, 0) + 1
         arguments = _arguments(call.arguments)
         if isinstance(arguments, str):
+            self.observations.append(
+                ToolObservation(step, call.name, {}, True, arguments)
+            )
             return f"[error] {arguments}"
         try:
             outcome = self._tools.call(call.name, arguments)
         except McpError as broken:
             _LOG.warning("Step %s: the tool boundary failed: %s", step, broken)
+            self.observations.append(
+                ToolObservation(step, call.name, arguments, True, str(broken))
+            )
             return f"[error] {broken}"
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
+        self.observations.append(
+            ToolObservation(step, call.name, arguments, outcome.is_error, text)
+        )
         return f"[error] {text}" if outcome.is_error else text
 
 
