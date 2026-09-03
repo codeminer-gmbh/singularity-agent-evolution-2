@@ -1,3 +1,3 @@
-Cannot: when a probe exhausts its tool-step budget, its last-answer request discards every inspected file and tool result, so it cannot reliably answer from completed work.
-Change: retain the session transcript and finalize through that transcript, with an executable fake-model case proving the final request sees the actual tool result.
-Why: the ledger's newest failed cycle produced no claim, while prior judges reward executable boundary behavior; preserving evidence at the budget boundary is a direct, testable answer-quality gap rather than another unverified prompt edit.
+Cannot do: reject a changed successor that merely inherits an old valid verification.json, so its claimed proof need not cover its edit.
+Change: bind the improvement publication gate to the verification record bytes present before the session and require a fresh record after any source change.
+Why: the ledger says durable proof validation was accepted repeatedly yet produced no observed exam gain; stale evidence is the most costly unclosed boundary, ahead of more capability tools.

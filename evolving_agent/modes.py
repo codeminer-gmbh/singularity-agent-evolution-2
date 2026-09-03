@@ -27,7 +27,11 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from evolving_agent.evidence import verification_problems
+from evolving_agent.evidence import (
+    verification_problems,
+    verification_record_bytes,
+    verification_update_problem,
+)
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
@@ -96,8 +100,11 @@ def run_improvement(settings: AgentSettings) -> RunReport:
             "Initialized the workspace with %s files of this agent's source.", copied
         )
     started_from = workspace.digest()
-    outcome, refusal = _improve(settings, workspace)
-    problems = _publication_problems(workspace)
+    inherited_verification = verification_record_bytes(workspace)
+    outcome, refusal = _improve(settings, workspace, inherited_verification, started_from)
+    problems = _publication_problems(
+        workspace, inherited_verification, workspace.digest() != started_from
+    )
     if problems:
         return _restored(
             settings, workspace, problems, restorable=restorable, refusal=refusal
@@ -195,7 +202,8 @@ def run_describe(settings: AgentSettings) -> RunReport:
 
 
 def _improve(
-    settings: AgentSettings, workspace: Workspace
+    settings: AgentSettings, workspace: Workspace, inherited_verification: bytes | None,
+    started_from: str,
 ) -> tuple[SessionOutcome | None, str | None]:
     """Run the improvement session, reporting a dependency that failed instead.
 
@@ -227,7 +235,9 @@ def _improve(
                 materials_listing=_materials_listing(settings),
             ),
         )
-        repaired = _repaired(workspace, session, deadline, outcome)
+        repaired = _repaired(
+            workspace, session, deadline, outcome, inherited_verification, started_from
+        )
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
         return None, str(unavailable)
@@ -307,14 +317,23 @@ def _session(
     )
 
 
-def _publication_problems(workspace: Workspace) -> tuple[str, ...]:
+def _publication_problems(
+    workspace: Workspace, inherited_verification: bytes | None, candidate_changed: bool
+) -> tuple[str, ...]:
     """Return syntax/build blockers plus the durable proof required to publish.
 
     A changed candidate is repaired or restored when its claimed improvement
     has no inspectable requirement-to-proof record.  This keeps the evidence
     protocol on the same public path as the existing successor gate.
     """
-    return successor_problems(workspace) + verification_problems(workspace)
+    freshness = (
+        verification_update_problem(workspace, inherited_verification)
+        if candidate_changed
+        else None
+    )
+    return successor_problems(workspace) + verification_problems(workspace) + (
+        (freshness,) if freshness else ()
+    )
 
 
 def _repaired(
@@ -322,6 +341,8 @@ def _repaired(
     session: ToolAgentSession,
     deadline: Deadline,
     outcome: SessionOutcome,
+    inherited_verification: bytes | None,
+    started_from: str,
 ) -> SessionOutcome:
     """Hand a broken successor back to be fixed, while there is budget for it.
 
@@ -330,7 +351,9 @@ def _repaired(
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
-        problems = _publication_problems(workspace)
+        problems = _publication_problems(
+            workspace, inherited_verification, workspace.digest() != started_from
+        )
         if not problems or deadline.expired():
             return outcome
         _LOG.warning(

@@ -1,35 +1,35 @@
 {
   "audit": {
-    "costly_failure": "The ledger's repeated rejection was that a probe ended at a bound and then asked for its final answer in a fresh conversation, so the answer could not use observations it had already paid to obtain.",
-    "evidence": "Ledger failure signature: 'The final call was not a continuation of the tool session.' The recorded distinguishing case says the last allowed tool call returns a fact needed in the answer."
+    "costly_failure": "The most costly repeated ledger failure was accepting a changed successor with inherited verification evidence, leaving the claimed proof unrelated to the edit.",
+    "evidence": "Ledger signature in my words: durable verification was repeatedly accepted without an observed exam gain; the missed boundary is whether verification.json changed when the source did. The distinguishing case is a source-changed candidate paired with byte-for-byte inherited verification.json."
   },
   "matrix": [
     {
-      "requirement": "A bound-triggered reserve answer continues from the session's inspected evidence.",
-      "input": "A one-step session whose only model turn calls read and whose tool result is the literal 'DISTINGUISHING INSPECTED FACT'.",
-      "expected": "The next (reserve) model conversation contains that literal result and returns the model's final answer.",
-      "interaction": "python -m unittest tests/test_final_answer_context.py -v",
-      "observed": "test_step_limit_final_answer_keeps_tool_observation_and_disables_tools passed; it inspected the recorded final conversation, found the literal tool result, and observed answer based on inspected result."
+      "requirement": "A changed successor must not publish using the verification record it inherited before the improvement session.",
+      "input": "The current workspace and its inherited verification bytes, evaluated as candidate_changed=True with no record rewrite.",
+      "expected": "The publication problems include 'memories/verification.json was not updated for this changed successor'.",
+      "interaction": "python -m pytest -q tests/test_publication_freshness.py tests/test_final_answer_context.py",
+      "observed": "4 passed; test_changed_candidate_requires_record_different_from_inherited_one asserted the exact freshness rejection."
     },
     {
-      "requirement": "The reserve answer is reporting-only and cannot spend its one exchange making a new tool call.",
-      "input": "The same step-limit case, with a recording model that captures the tools argument on the reserve call.",
-      "expected": "The final call receives an empty tool sequence, even though the normal first call was offered the session tool schema.",
-      "interaction": "python -m unittest tests/test_final_answer_context.py -v",
-      "observed": "test_step_limit_final_answer_keeps_tool_observation_and_disables_tools passed and asserted final_tools == ()."
+      "requirement": "The freshness default is conditional: a valid inherited record remains acceptable when no successor source changed.",
+      "input": "The same current workspace and inherited verification bytes, evaluated as candidate_changed=False.",
+      "expected": "No verification-update problem is reported.",
+      "interaction": "python -m pytest -q tests/test_publication_freshness.py tests/test_final_answer_context.py",
+      "observed": "4 passed; test_unchanged_tree_does_not_require_a_new_verification_record observed no freshness message."
     },
     {
-      "requirement": "Final-context state does not leak across or precede an unrun session.",
-      "input": "A newly constructed session calls final_reply('finish') before run().",
-      "expected": "The model receives only the final user request, not invented system/task/tool history.",
-      "interaction": "python -m unittest tests/test_final_answer_context.py -v",
-      "observed": "test_unrun_session_final_answer_has_no_stale_context passed and observed exactly [{'role': 'user', 'content': 'finish'}]."
+      "requirement": "Publication freshness compares the pre-session verification record rather than merely requiring a file to exist.",
+      "input": "Current verification bytes supplied as inherited evidence, first with candidate_changed=False and then candidate_changed=True.",
+      "expected": "The unchanged case has no freshness rejection and the changed case rejects the same bytes as stale.",
+      "interaction": "python -c from pathlib import Path\nfrom evolving_agent.modes import _publication_problems\nfrom evolving_agent.workspace import Workspace\nfrom evolving_agent.evidence import verification_record_bytes\nw=Workspace(Path('.')); inherited=verification_record_bytes(w); print('unchanged freshness:', [p for p in _publication_problems(w,inherited,False) if 'updated' in p.lower()]); print('changed freshness:', [p for p in _publication_problems(w,inherited,True) if 'updated' in p.lower()])",
+      "observed": "Observed `unchanged freshness: []` and `changed freshness: ['memories/verification.json was not updated for this changed successor']`."
     },
     {
-      "requirement": "The edited successor remains importable and syntactically usable.",
-      "input": "All Python modules under main.py, evolving_agent, and tests.",
-      "expected": "Byte compilation completes without errors.",
-      "interaction": "python -m compileall -q main.py evolving_agent tests",
+      "requirement": "The revised improvement-path module remains syntactically usable.",
+      "input": "evolving_agent/modes.py after adding the candidate digest argument to the repair call.",
+      "expected": "Python byte-compiles the module without an error.",
+      "interaction": "python -m py_compile evolving_agent/modes.py",
       "observed": "Command exited 0 with no compiler output."
     }
   ]

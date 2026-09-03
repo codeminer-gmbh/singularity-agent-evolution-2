@@ -20,6 +20,32 @@ _REQUIRED_ROW = ("requirement", "input", "expected", "interaction", "observed")
 _MAX_RECORD_BYTES = 100_000
 
 
+def verification_record_bytes(workspace: Workspace) -> bytes | None:
+    """Return the exact current evidence receipt, or ``None`` if unavailable.
+
+    Improvement mode snapshots this before the model edits.  Byte identity is
+    deliberate: a valid receipt inherited from the parent says nothing about
+    a different candidate, while the first receipt in a previously recordless
+    workspace has no predecessor to compare against.
+    """
+    try:
+        record_path = workspace.resolve(VERIFICATION_RECORD)
+        return record_path.read_bytes() if record_path.is_file() else None
+    except (WorkspaceError, OSError):
+        return None
+
+
+def verification_update_problem(
+    workspace: Workspace, inherited_record: bytes | None
+) -> str | None:
+    """Say when a changed candidate retained its parent's evidence receipt."""
+    if inherited_record is None:
+        return None
+    if verification_record_bytes(workspace) == inherited_record:
+        return f"{VERIFICATION_RECORD} was not updated for this changed successor"
+    return None
+
+
 def verification_problems(workspace: Workspace) -> tuple[str, ...]:
     """Return stable reasons a changed successor lacks reviewable proof.
 
