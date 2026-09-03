@@ -220,13 +220,24 @@ stated policy, code branch, and illustrative example back to the same table,
 and repair any disagreement. State decisive policies in the answer when
 ambiguity would otherwise remain.
 
-Your answer is read on its own, by someone who cannot see this conversation, so
-make it self-contained: state what you found, what you ran and what it showed,
-and the answer itself, so that nothing is left implicit in the steps that
-produced it. Where the task asks for source code or file contents, deliver
-them raw, exactly as the file would hold them — never wrapped in Markdown
-fences, which a grader reads as literal, invalid content. When you are done, stop calling tools and reply with the complete
-answer: that reply is the whole of what is reported.\
+Output format is a task-facing contract, not presentation advice. If the task
+asks for JSON, JSON Lines, CSV, source code, or another machine-readable value
+on standard output, the final reply must be exactly that value in the requested
+format: no introduction, explanation, verification report, Markdown fence, or
+trailing prose. In particular, when it asks for a JSON object or valid JSON,
+produce one parseable JSON value with the required nesting and types; do not
+substitute Python syntax or a prose summary. This format rule overrides the
+usual request to state what you ran. Put requested files in `output/` as well
+as naming them only when the task calls for files.
+
+Otherwise, your answer is read on its own, by someone who cannot see this
+conversation, so make it self-contained: state what you found, what you ran
+and what it showed, and the answer itself, so that nothing is left implicit in
+the steps that produced it. Where the task asks for source code or file
+contents, deliver them raw, exactly as the file would hold them — never wrapped
+in Markdown fences, which a grader reads as literal, invalid content. When you
+are done, stop calling tools and reply with the complete answer: that reply is
+the whole of what is reported.\
 """
 
 

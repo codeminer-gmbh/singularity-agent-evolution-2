@@ -26,7 +26,7 @@ class MemoryEvidenceGateTests(unittest.TestCase):
 
             self.assertEqual(
                 problems,
-                ("memories/change.md claims verification but names no shipped test or fixture",),
+                ("memories/change.md claims execution evidence but names no shipped test or fixture",),
             )
 
     def test_verification_conjugations_need_named_evidence(self) -> None:
@@ -46,6 +46,26 @@ class MemoryEvidenceGateTests(unittest.TestCase):
                     (
                         "memories/change.md claims verification but names no shipped "
                         "test or fixture",
+                    ),
+                )
+
+
+    def test_smoke_or_integration_claim_needs_named_shipped_evidence(self) -> None:
+        for claim in (
+            "An integration check covers the change.\n",
+            "An end-to-end exercise covers the change.\n",
+        ):
+            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                baseline = self._workspace(root / "baseline")
+                candidate = self._workspace(root / "candidate")
+                candidate.write_text("memories/change.md", claim)
+
+                self.assertEqual(
+                    successor_problems(candidate, baseline_root=baseline.root),
+                    (
+                        "memories/change.md claims execution evidence but names no "
+                        "shipped test or fixture",
                     ),
                 )
 

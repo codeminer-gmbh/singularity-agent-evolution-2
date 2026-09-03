@@ -1,3 +1,3 @@
-Ledger repeatedly audits notes that claim unshipped evidence; no contrary ledger evidence applies.
-Expand the preflight’s evidence-claim match to catch “verifies” and “verification” wording, covered by `tests/test_successor_memory_gate.py`.
-This beats another tool because it closes a specific publishing-gate evasion behind the line’s recurring false-note mechanism.
+Cycle 106 records a JSON-extraction failure: a probe's final prose sometimes omits the JSON a contract requires.
+Make probe instructions require a contract-shaped final response and forbid explanatory prose where the task demands a sole JSON value.
+This directly fixes an observed lost answer class, unlike another general evolution-note reminder.

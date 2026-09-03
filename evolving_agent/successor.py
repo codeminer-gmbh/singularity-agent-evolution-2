@@ -31,7 +31,10 @@ _MEMORY_DIRECTORY = "memories/"
 # result rather than that it was "verified".
 _VERIFICATION_LANGUAGE = re.compile(
     r"\b(?:tested|verified|verifies|verify|verification|passed|ran)\b"
-    r"|\bcommand results?\b",
+    r"|\bcommand results?\b"
+    # A note can make an execution claim without using a conjugation above.
+    # These are the audit's common descriptions of that same transient work.
+    r"|\b(?:smoke|integration|end[- ]to[- ]end|e2e)\s+(?:test|check|exercise|validation)\b",
     re.IGNORECASE,
 )
 _CODE_SPAN = re.compile(r"`([^`\n]+)`")
@@ -75,13 +78,13 @@ def successor_problems(
 def _memory_claim_problems(
     workspace: Workspace, baseline_root: Path, present: dict[str, int]
 ) -> tuple[str, ...]:
-    """Reject changed verification claims with no named durable evidence.
+    """Reject changed execution claims with no named durable evidence.
 
     The judge audits memories against the published tree, not against an
-    improvement model's transient tool output. A note which says it was tested
-    or verified therefore has to name a test or fixture that is actually in
-    this tree. The deliberately narrow check leaves capability-only notes and
-    ordinary prose untouched.
+    improvement model's transient tool output. A note which reports testing,
+    a smoke/integration check, or similar execution therefore has to name a
+    test or fixture that is actually in this tree. The deliberately narrow
+    check leaves capability-only notes and ordinary prose untouched.
     """
     baseline = Workspace(baseline_root)
     baseline_sizes = {entry.relative_path: entry.byte_size for entry in baseline.entries()}
@@ -98,7 +101,7 @@ def _memory_claim_problems(
             continue
         if _VERIFICATION_LANGUAGE.search(text) and not _names_durable_evidence(text, present):
             problems.append(
-                f"{path} claims verification but names no shipped test or fixture"
+                f"{path} claims execution evidence but names no shipped test or fixture"
             )
     return tuple(problems)
 

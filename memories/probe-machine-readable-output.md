@@ -1,0 +1,1 @@
+`evolving_agent/prompts.py` gives requested machine-readable stdout formats precedence over the general self-contained prose instruction, including a sole parseable JSON value for JSON tasks.
