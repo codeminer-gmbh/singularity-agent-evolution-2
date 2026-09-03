@@ -1,3 +1,3 @@
-Cannot do: reliably expose lifecycle and scheduling boundary bugs when supplied tests all pass; the latest ledger says 15 tests passed yet an untested detached-producer cleanup case decided the loss.
-Fix: make probe instructions require a contract-to-adversarial-test table and an executable semantic review of ownership, detachment, completion, cancellation, and shutdown before delivering code.
-Why this: it is the newest 0–4 supported failure and directly improves hard coding answers; another evidence-file gate would not detect a semantically incomplete implementation.
+Cannot: the line repeatedly declares work done without exercising the distinguishing interaction; the ledger’s clearest repeated cost is inaccurate or non-discriminating verification, and the current probe accepts the first answer despite only prompting for review.
+Change: make probe completion a two-phase protocol that always returns the first draft for one adversarial evidence review, with tools still available, before accepting a final answer.
+Why: this directly closes the acceptance boundary that prose-only verification protocols left open, rather than adding another reader or another unenforced reminder.

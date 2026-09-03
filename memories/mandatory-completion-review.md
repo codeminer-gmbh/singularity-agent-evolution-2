@@ -1,0 +1,3 @@
+# Mandatory probe completion review
+
+Probe sessions no longer publish the model's first tool-less draft. `run_probe` supplies a one-time adversarial completion audit; the session preserves the draft, keeps all tools available, reserves one extra exchange, and publishes only the reviewed response. The audit explicitly checks requirements, precedence/fallback/lifecycle conflicts, malformed or boundary cases, artifacts, and evidence. `tests/test_completion_review.py` proves both correction of a plausible wrong draft and review-time tool use that replaces an unsupported answer with material evidence.

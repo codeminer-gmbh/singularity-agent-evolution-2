@@ -149,12 +149,21 @@ class ToolAgentSession:
         ever used from standard error.
         """
 
-    def run(self, *, instructions: str, opening: str) -> SessionOutcome:
+    def run(
+        self,
+        *,
+        instructions: str,
+        opening: str,
+        completion_review: str | None = None,
+    ) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
 
         Args:
             instructions: The system instruction the session is held under.
             opening: The first message, describing the work.
+            completion_review: When supplied, the first tool-less draft is
+                returned to the model with this adversarial review request.
+                One extra exchange is reserved for that review.
 
         Returns:
             How the session ended and what it reported.
@@ -170,7 +179,11 @@ class ToolAgentSession:
             {"role": "user", "content": opening},
         ]
         steps = 0
-        while steps < self._max_steps:
+        review_due = completion_review is not None
+        # A completion review is not allowed to steal the final ordinary tool
+        # step: reserve one exchange beyond the configured work bound.
+        step_limit = self._max_steps + (1 if review_due else 0)
+        while steps < step_limit:
             if self._deadline.expired():
                 return SessionOutcome(
                     finished=False,
@@ -184,12 +197,27 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
+                if review_due:
+                    # A draft is evidence of intent, not completion. Carry the
+                    # provider's turn when available (and a portable assistant
+                    # message for deterministic test doubles), then force one
+                    # independent requirement/evidence pass with tools intact.
+                    if reply.output:
+                        conversation.extend(dict(item) for item in reply.output)
+                    else:
+                        conversation.append({"role": "assistant", "content": reply.text})
+                    conversation.append({"role": "user", "content": completion_review})
+                    review_due = False
+                    continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,
                     summary=reply.text,
                     steps=steps,
-                    reason="the agent reported that the work was done",
+                    reason=(
+                        "the agent reported that the work was done"
+                        + (" after completion review" if completion_review is not None else "")
+                    ),
                     conversation=tuple(_recent(conversation)),
                 )
             # The turn goes back as the model made it — the calls it asked for
@@ -208,7 +236,7 @@ class ToolAgentSession:
             finished=False,
             summary="",
             steps=steps,
-            reason=f"the step limit of {self._max_steps} was reached",
+            reason=f"the step limit of {step_limit} was reached",
             conversation=tuple(_recent(conversation)),
         )
 

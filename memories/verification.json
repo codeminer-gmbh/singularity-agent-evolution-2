@@ -1,42 +1,42 @@
 {
   "audit": {
-    "costly_failure": "The line's most costly supported failure was shallow task verification: an implementation could pass all supplied tests while missing explicit interaction semantics that decided the exam.",
-    "evidence": "In the ledger's clearest recent case, the coalescing implementation passed all 4 supplied tests but the grader found three contract failures and scored it 3.5 versus 7.8. The missing observable behavior was correct ownership across completion, detachment/cancellation, and close; the untested rule boundary was whether a resource remains live after disappearing from the public key map; the distinguishing input is a last waiter cancelled with cancellation suppressed, followed by close while the detached producer is still running. Earlier protocol edits reached improvement mode only, so this change targets the actual probe-mode task prompt."
+    "costly_failure": "The line's most costly supported failure is that probe answers stop at the model's first plausible draft without an enforced independent completion-and-evidence review.",
+    "evidence": "In the ledger's words, seven improvement-only verification/protocol changes earned no promotion, while a coalescing answer passed 4 supplied tests yet missed three explicit lifecycle semantics and scored 3.5 versus 7.8. Observable behavior missing: a first answer was publishable without rechecking the task, conflict rules, artifacts, or evidence. Untested boundary: a tool-less model response meant both 'draft ready for audit' and 'safe to publish.' Distinguishing input: a first draft claims material code ALPHA, while review-time read_file observes OMEGA-913; the published answer must contain OMEGA-913 rather than ALPHA."
   },
   "matrix": [
     {
-      "requirement": "Software probe tasks receive a rule-by-rule contract table and must test omitted ordering/default interactions after supplied tests pass.",
-      "input": "run_probe with task 'Implement the requested parser.' and a capturing model, checking the delivered system message.",
-      "expected": "The message requires representative events, expected observable results, checks, malformed/conflicting precedence rows, an explicit winner, and rejects supplied-test success as sufficient evidence.",
-      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_public_probe_receives_contract_matrix_and_non_happy_path_rule)",
-      "observed": "Exited 0; the named public-path test passed and inspected the conversation actually sent by run_probe."
+      "requirement": "A probe's plausible first draft is not published until a separate adversarial review checks an ordering/conflict interaction.",
+      "input": "Public run_probe with max_steps=1; fake model first says the first declared source wins, then corrects it only after receiving the completion audit.",
+      "expected": "run_probe succeeds with the second, corrected answer; the review conversation contains the draft and a request not merely to endorse it.",
+      "interaction": "python -m unittest tests.test_completion_review -v (test_probe_returns_reviewed_answer_not_first_draft)",
+      "observed": "Exited 0; the test observed exactly two model exchanges and the published answer was 'Corrected after conflict review: the last encountered valid source wins.'"
     },
     {
-      "requirement": "Concurrent/stateful tasks receive adversarial state-event cases that distinguish the ledger's detached-resource failure from a happy path.",
-      "input": "run_probe with task 'Repair the concurrent lifecycle.', checking owned, detached-running, completed-unsettled, and terminated states plus completion-before-callback, cancellation suppression, and close-during-detached-work cases.",
-      "expected": "Every state and distinguishing race is present, with cleanup required to reach all live resources and completed operations barred from new participants.",
-      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_lifecycle_decision_table_covers_detached_and_scheduling_races)",
-      "observed": "Exited 0; the lifecycle adversarial test passed after asserting all four states and all three distinguishing races in the live probe prompt."
+      "requirement": "The mandatory review retains tool access and can replace an unsupported draft with newly inspected evidence.",
+      "input": "Public run_probe over materials/fact.txt containing OMEGA-913; fake model first claims ALPHA, requests read_file only during review, then answers from the tool observation.",
+      "expected": "The review tool executes, a third exchange receives its observation, and only 'Verified during review: OMEGA-913' is published.",
+      "interaction": "python -m unittest tests.test_completion_review -v (test_review_keeps_tools_and_replaces_unsupported_draft_with_evidence)",
+      "observed": "Exited 0; the test observed three model exchanges and exact final answer 'Verified during review: OMEGA-913', proving the unsupported ALPHA draft was not returned."
     },
     {
-      "requirement": "The software-specific protocol does not force fabricated implementation tests onto unrelated tasks.",
-      "input": "run_probe with task 'Summarize the supplied article.' and inspect the delivered system message.",
-      "expected": "The protocol explicitly says not to invent software tests for factual or creative questions.",
-      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_protocol_is_conditional_for_non_software_questions)",
-      "observed": "Exited 0; the conditional-scope test passed."
+      "requirement": "The review prompt explicitly covers adversarial boundary and conflicting-source checks rather than a generic self-endorsement.",
+      "input": "Render probe_completion_review and inspect its required checks.",
+      "expected": "Prompt includes malformed/boundary input, ordering/precedence/fallback/concurrency/lifecycle conflicts, and directs use of available tools.",
+      "interaction": "python -c from evolving_agent.prompts import probe_completion_review; p=probe_completion_review(); print('adversarial=', 'malformed/boundary' in p); print('conflicts=', 'ordering, precedence, fallback, concurrency, or lifecycle' in p); print('tools=', 'Use the available tools now' in p)",
+      "observed": "Exited 0 and printed adversarial=True, conflicts=True, tools=True."
     },
     {
-      "requirement": "The existing step-limit finalization behavior remains intact beside the prompt change.",
-      "input": "A run_probe session whose first model exchange consumes its only step with a tool call.",
-      "expected": "The agent performs the dedicated finalization exchange and returns the answer.",
-      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_run_probe_finalizes_from_the_tool_transcript_at_step_limit)",
-      "observed": "Exited 0; the existing finalization regression test passed; the complete explicit suite reported 4 tests OK."
+      "requirement": "Mandatory review does not regress existing probe finalization or contract-review behavior.",
+      "input": "All repository tests, including a tool call at the ordinary step limit and prior lifecycle prompt decision-table checks.",
+      "expected": "Every regression and new completion-review test passes.",
+      "interaction": "python -m unittest discover -s tests -v",
+      "observed": "Exited 0; 6 tests ran and all passed, including step-limit finalization, three contract-review tests, and both mandatory completion-review tests."
     },
     {
-      "requirement": "Changed source, entry point, and proof test remain syntactically loadable.",
-      "input": "main.py, changed prompt module, probe/session modules, and new test module.",
-      "expected": "All files compile without syntax errors.",
-      "interaction": "python -m py_compile main.py evolving_agent/prompts.py evolving_agent/modes.py evolving_agent/session.py tests/test_probe_contract_review.py",
+      "requirement": "The changed successor remains syntactically loadable.",
+      "input": "main.py, evolving_agent package, and tests package.",
+      "expected": "Recursive byte-compilation succeeds.",
+      "interaction": "python -m compileall -q main.py evolving_agent tests",
       "observed": "Exited 0 with no stdout or stderr."
     }
   ]

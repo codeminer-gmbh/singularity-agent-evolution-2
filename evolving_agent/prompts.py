@@ -352,6 +352,19 @@ def repair_opening(problems: tuple[str, ...]) -> str:
     )
 
 
+
+def probe_completion_review() -> str:
+    """Return the mandatory adversarial pass over a probe's first draft."""
+    return (
+        "Treat your preceding answer as a draft, not as completion. Re-read the "
+        "user's exact task and audit every observable requirement against actual "
+        "evidence. In particular, test malformed/boundary inputs and any ordering, "
+        "precedence, fallback, concurrency, or lifecycle interaction; a nearby "
+        "happy path does not count. Use the available tools now to inspect or run "
+        "anything not yet proved. Do not merely endorse the draft. Then give the "
+        "corrected final answer, claiming only results you actually observed."
+    )
+
 def final_answer_request() -> str:
     """Return the message that asks for an answer when the steps ran out."""
     return (
