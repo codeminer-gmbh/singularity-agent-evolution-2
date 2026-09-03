@@ -4,30 +4,27 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nfor line in s.splitlines():\n if any(k in line.lower() for k in ('printed nothing','budget','unverified','inaccurate','timed out','no usable','tool-call')):\n  print(line[:500])"
+        "from pathlib import Path\ns=Path('/workspace/materials/ledger.md').read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool']): print(line[:500])"
       ],
       "status": "[exit code 1]",
-      "step": 3,
+      "step": 4,
       "tool_error": false
     },
     {
       "command": [
-        "sed",
-        "-n",
-        "230,430p",
-        "evolving_agent/session.py"
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('materials/ledger.md'); s=p.read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or (line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool'])): print(line[:500])"
       ],
-      "status": "[exit code 0]",
-      "step": 7,
+      "status": "[exit code 1]",
+      "step": 5,
       "tool_error": false
     },
     {
       "command": [
-        "grep",
-        "-R",
-        "-n",
-        "final_answer\\|final answer\\|tool-free",
-        "evolving_agent"
+        "python",
+        "-c",
+        "import evolving_agent.prompts as p\nfor n in dir(p):\n if n.startswith('_') and isinstance(getattr(p,n),str):\n  print(n, len(getattr(p,n))); print(getattr(p,n)[-3500:])"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -35,10 +32,9 @@
     },
     {
       "command": [
-        "sed",
-        "-n",
-        "120,180p",
-        "evolving_agent/modes.py"
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nfor i,l in enumerate(s.splitlines(),1):\n if l.startswith('def ') or '_PROBE_ROLE' in l or 'How to work:' in l: print(i,l)"
       ],
       "status": "[exit code 0]",
       "step": 9,
@@ -46,10 +42,9 @@
     },
     {
       "command": [
-        "sed",
-        "-n",
-        "400,460p",
-        "evolving_agent/modes.py"
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''How to work: read what the plan needs, then act decisively on its one\nchange. As soon as the claimed behavior exists, run the `Proof:` check before\nstarting optional cleanup, documentation, or another change; a check postponed\nto the end is the first thing a budget overrun deletes. Read the result and\nrepair a failure rather than describing it as success. If discovery changes\nwhat proof is appropriate, update the Proof line *before* running the new\ncheck, with the reason, rather than silently substituting an easier check.\n'''\nnew='''How to work: read what the plan needs, then act decisively on its one\nchange. For an implementation or exact-output change, convert the task's\ncontract into an acceptance checklist before editing: every MUST, prohibition,\nexact literal or byte sequence, boundary, error case, and side-effect rule gets\na corresponding executable check. Include adversarial values where the host\nlanguage permits user-controlled hooks (such as subclasses, overloaded\noperators, iterators, or callbacks), rather than testing only ordinary built-in\nvalues. Run the narrow checks against the changed behavior\u2014not merely a syntax,\nimport, or happy-path smoke check. If one fails, inspect the observed mismatch,\nrepair it, and rerun the same check; do not weaken the oracle to fit the code.\n\nAs soon as the claimed behavior exists, run the `Proof:` check before starting\noptional cleanup, documentation, or another change; a check postponed to the\nend is the first thing a budget overrun deletes. Read the result and repair a\nfailure rather than describing it as success. If discovery changes what proof\nis appropriate, update the Proof line *before* running the new check, with the\nreason, rather than silently substituting an easier check.\n'''\nassert old in s\ns=s.replace(old,new,1)\nold2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n'''\nnew2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n\nFor implementation, repair, parser, or exact-output tasks, first make an\nacceptance checklist from the actual contract. Give every MUST, prohibition,\nexact literal or byte sequence, boundary, malformed-input rule, and observable\nside effect an executable check. Exercise adversarial language behavior where\ninputs can override ordinary operations (for example subclasses, overloaded\noperators, iterators, callbacks, aliasing, or mutation), not just happy-path\nbuilt-in values. Run supplied tests plus focused checks for the checklist; a\ncompile, import, or sample run alone is not behavioral evidence. On failure,\nrepair the observed mismatch and rerun the same oracle rather than weakening\nit. Only then produce the requested answer or deliverable.\n'''\nassert old2 in s\np.write_text(s.replace(old2,new2,1))\n"
       ],
       "status": "[exit code 0]",
       "step": 10,
@@ -57,115 +52,12 @@
     },
     {
       "command": [
-        "head",
-        "-n",
-        "45",
-        "evolving_agent/modes.py",
-        "evolving_agent/prompts.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 12,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "45,125p",
-        "evolving_agent/modes.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 13,
-      "tool_error": false
-    },
-    {
-      "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/session.py')\ns=p.read_text()\ns=s.replace('from evolving_agent.model import ModelReply, ToolCall, tool_schemas\\n', 'from evolving_agent.model import ModelReply, ToolCall, tool_schemas\\nfrom evolving_agent.prompts import final_answer_request\\n')\nold='''            if self._deadline.expired():\n                return SessionOutcome(\n                    finished=False,\n                    summary=\"\",\n                    steps=steps,\n                    reason=\"the time budget ran out\",\n                )\n'''\nnew='''            if self._deadline.expired():\n                return self._finalize(\n                    conversation, steps, \"the time budget ran out\"\n                )\n'''\nif old not in s: raise SystemExit('deadline block absent')\ns=s.replace(old,new)\nold2='''        return SessionOutcome(\n            finished=False,\n            summary=\"\",\n            steps=steps,\n            reason=f\"the step limit of {self._max_steps} was reached\",\n        )\n\n    def _observe(self, step: int, call: ToolCall) -> str:\n'''\nnew2='''        return self._finalize(\n            conversation,\n            steps,\n            f\"the step limit of {self._max_steps} was reached\",\n        )\n\n    def _finalize(\n        self,\n        conversation: list[dict[str, Any]],\n        steps: int,\n        exhausted_reason: str,\n    ) -> SessionOutcome:\n        \"\"\"Use one tool-free exchange to turn completed work into an answer.\n\n        This exchange is deliberately outside the normal step allowance. The\n        allowance remains entirely available for work, while removing tools\n        makes this last request incapable of starting more work. Most\n        importantly, it receives the actual recent conversation: tool results\n        and evidence are not discarded just when the model must report them.\n        \"\"\"\n        _LOG.warning(\"%s; asking for a final answer\", exhausted_reason)\n        conversation.append({\"role\": \"user\", \"content\": final_answer_request()})\n        reply = self._model.reply(conversation=_recent(conversation), tools=())\n        if reply.text.strip() and not reply.tool_calls:\n            return SessionOutcome(\n                finished=True,\n                summary=reply.text,\n                steps=steps,\n                reason=f\"the agent answered after {exhausted_reason}\",\n            )\n        return SessionOutcome(\n            finished=False,\n            summary=\"\",\n            steps=steps,\n            reason=f\"{exhausted_reason}, and finalization answered nothing\",\n        )\n\n    def _observe(self, step: int, call: ToolCall) -> str:\n'''\nif old2 not in s: raise SystemExit('final block absent')\ns=s.replace(old2,new2)\np.write_text(s)\n"
+        "from evolving_agent.prompts import probe_instructions, improvement_instructions\np=probe_instructions(); i=improvement_instructions()\nfor name,text in [('probe',p),('improvement',i)]:\n    low=text.lower()\n    assert 'acceptance checklist' in low, name\n    assert 'exact literal or byte sequence' in low, name\n    assert 'adversarial' in low and 'subclasses' in low and 'overloaded' in low, name\n    assert 'side effect' in low or 'side-effect' in low, name\n    assert 'run' in low and ('focused checks' in low or 'narrow checks' in low), name\n    assert 'rerun the same' in low, name\n    assert ('compile, import, or sample run alone is not' in low or 'not merely a syntax,\\nimport, or happy-path smoke check' in low), name\nprint('PASS: probe and improvement prompts enforce checklist, exact-byte, adversarial, behavioral execution, and repair/retest requirements')"
       ],
       "status": "[exit code 0]",
-      "step": 14,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "grep",
-        "-n",
-        "class ModelReply\\|class ToolCall\\|class ToolOutcome\\|class ToolDescription",
-        "evolving_agent/model.py",
-        "evolving_agent/mcp_client.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 15,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "25,50p",
-        "evolving_agent/mcp_client.py",
-        "-n",
-        "95,130p",
-        "evolving_agent/model.py"
-      ],
-      "status": "[exit code 2]",
-      "step": 16,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "95,135p",
-        "evolving_agent/model.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 17,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "35,120p",
-        "evolving_agent/session.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 18,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "120,180p",
-        "evolving_agent/session.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 19,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "sed",
-        "-n",
-        "180,245p",
-        "evolving_agent/session.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 20,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from evolving_agent.session import ToolAgentSession, Deadline\nfrom evolving_agent.model import ModelReply, ToolCall\nfrom evolving_agent.mcp_client import ToolDescription, ToolOutcome\n\nclass Model:\n def __init__(self): self.calls=[]\n def reply(self, *, conversation, tools=()):\n  self.calls.append((list(conversation), list(tools)))\n  if len(self.calls) <= 2:\n   n=len(self.calls); c=ToolCall(f'id{n}','inspect','{}')\n   return ModelReply('',(c,),({'type':'function_call','call_id':c.identifier,'name':c.name,'arguments':c.arguments},))\n  return ModelReply('proved final answer',())\nclass Tools:\n def call(self,name,arguments): return ToolOutcome('LAST TOOL RESULT',False)\nm=Model(); s=ToolAgentSession(m,Tools(),[ToolDescription('inspect','inspect',{'type':'object'})],deadline=Deadline(30),max_steps=2)\no=s.run(instructions='system',opening='task')\nassert o.finished and o.summary=='proved final answer' and o.steps==2, o\nassert len(m.calls)==3 and m.calls[-1][1]==[], m.calls\nassert any(x.get('output')=='LAST TOOL RESULT' for x in m.calls[-1][0] if isinstance(x,dict)), m.calls[-1][0]\nprint('PASS: 2 work exchanges + 1 tool-free finalization; finalization retained last tool result')"
-      ],
-      "status": "[exit code 0]",
-      "step": 21,
+      "step": 11,
       "tool_error": false
     },
     {
@@ -173,15 +65,28 @@
         "git",
         "diff",
         "--",
-        "evolving_agent/session.py",
+        "evolving_agent/prompts.py",
         "memories/round-plan.md"
       ],
       "status": "[did not start]",
-      "step": 22,
+      "step": 12,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "main.py",
+        "evolving_agent"
+      ],
+      "status": "[exit code 0]",
+      "step": 12,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 13
+  "successful_commands": 5
 }
