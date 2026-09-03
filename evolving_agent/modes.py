@@ -152,7 +152,7 @@ def run_probe(settings: AgentSettings) -> RunReport:
             answer=outcome.summary.strip(),
             detail=f"answered in {outcome.steps} steps",
         )
-    return _final_answer(model, settings, outcome)
+    return _final_answer(session, outcome)
 
 
 def run_describe(settings: AgentSettings) -> RunReport:
@@ -389,9 +389,7 @@ def _restored(
     )
 
 
-def _final_answer(
-    model: ModelClient, settings: AgentSettings, outcome: SessionOutcome
-) -> RunReport:
+def _final_answer(session: ToolAgentSession, outcome: SessionOutcome) -> RunReport:
     """Ask once more for an answer when the session ran out before giving one.
 
     The agent's own budget stops it short of the limit the orchestrator holds
@@ -402,13 +400,7 @@ def _final_answer(
         "The session ended because %s; asking for a final answer.", outcome.reason
     )
     try:
-        reply = model.reply(
-            conversation=[
-                {"role": "system", "content": probe_instructions()},
-                {"role": "user", "content": probe_opening(settings.task)},
-                {"role": "user", "content": final_answer_request()},
-            ]
-        )
+        reply = session.final_reply(final_answer_request())
     except ModelUnavailableError as unreachable:
         return RunReport(
             succeeded=False, answer="", detail=f"{outcome.reason}; {unreachable}"

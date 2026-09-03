@@ -146,6 +146,9 @@ class ToolAgentSession:
         record — the first experiment had to reconstruct which tools an exam
         ever used from standard error.
         """
+        self._conversation: list[dict[str, Any]] = []
+        # The complete current run is retained for the budget-boundary answer;
+        # its recent view includes actual observations rather than a new opening.
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
@@ -167,6 +170,7 @@ class ToolAgentSession:
             {"role": "system", "content": instructions},
             {"role": "user", "content": opening},
         ]
+        self._conversation = conversation
         steps = 0
         while steps < self._max_steps:
             if self._deadline.expired():
@@ -206,6 +210,16 @@ class ToolAgentSession:
             steps=steps,
             reason=f"the step limit of {self._max_steps} was reached",
         )
+
+    def final_reply(self, request: str) -> ModelReply:
+        """Ask for a final text answer using observations this session obtained.
+
+        This deliberately offers no tools: the reserve exchange is for reporting,
+        not for starting work that it cannot observe.  ``_recent`` preserves the
+        system/opening items and complete call/result pairs at the cut boundary.
+        """
+        conversation = [*self._conversation, {"role": "user", "content": request}]
+        return self._model.reply(conversation=_recent(conversation))
 
     def _observe(self, step: int, call: ToolCall) -> str:
         """Take one step and return what the model is told about it.
