@@ -26,6 +26,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
@@ -220,6 +221,8 @@ def _improve(
             _tools(workspace, deadline, settings),
             deadline,
             settings,
+            evidence_review=True,
+            workspace_state=workspace.digest,
         )
         outcome = session.run(
             instructions=improvement_instructions(),
@@ -333,6 +336,9 @@ def _session(
     tools: McpClient,
     deadline: Deadline,
     settings: AgentSettings,
+    *,
+    evidence_review: bool = False,
+    workspace_state: Callable[[], str] | None = None,
 ) -> ToolAgentSession:
     """Return the session one run takes its steps through.
 
@@ -347,6 +353,8 @@ def _session(
         tools.list_tools(),
         deadline=deadline,
         max_steps=settings.max_steps,
+        evidence_review=evidence_review,
+        workspace_state=workspace_state,
     )
 
 

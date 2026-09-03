@@ -1,3 +1,3 @@
-Gap: the latest attempted receipt/audit improvement failed with no final output, so a hard task can lose its answer after otherwise useful work.
-Change: make the run protocol reserve and enforce a final-response path before optional end-of-run audit/receipt work.
-Why: silent completion is a more costly recurring failure than another data-format gap because it forfeits every task answer and verification result.
+Cannot: improvement rounds still cannot reliably prove that a claimed change works; the ledger repeatedly records inaccurate verification notes and one run that produced no answer.
+Change: make the session track workspace mutations and subsequent verification commands, then reserve a final evidence-review turn that exposes the exact commands and outcomes to the model.
+Why: false or missing verification has cost this line repeatedly, while new format tools have usually produced narrower gains and evidence-first prose alone did not eliminate the failures.

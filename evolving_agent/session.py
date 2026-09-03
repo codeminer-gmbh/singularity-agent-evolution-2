@@ -50,6 +50,22 @@ _FINAL_RESPONSE_REQUEST = (
     "that was not done."
 )
 
+_EVIDENCE_REVIEW_REQUEST = """\
+Review the draft final report against the machine-observed evidence below.
+Return the corrected final report only. Name the exact verification command and
+its result when one exists. If no successful command occurred after the latest
+direct source mutation, explicitly call the change unverified. Do not turn a
+command failure, a command run before the change, or an unrelated command into
+proof. Do not request tools.
+
+Draft report:
+{draft}
+
+Observed evidence:
+{evidence}
+"""
+
+
 _CONTINUES_A_TURN = frozenset({"function_call", _TOOL_RESULT})
 """The item kinds that only mean anything alongside the rest of their turn.
 
@@ -139,6 +155,8 @@ class ToolAgentSession:
         *,
         deadline: Deadline,
         max_steps: int,
+        evidence_review: bool = False,
+        workspace_state: Callable[[], str] | None = None,
     ) -> None:
         """Hold the model, the tools and the bounds one session runs under.
 
@@ -149,6 +167,8 @@ class ToolAgentSession:
                 is what the model is offered.
             deadline: When the session stops asking for another step.
             max_steps: How many steps it may take at most.
+            evidence_review: Whether a tool-free answer receives a protected
+                second pass over machine-observed command evidence.
 
         """
         self._model = model
@@ -156,6 +176,7 @@ class ToolAgentSession:
         self._schemas = tool_schemas(published)
         self._deadline = deadline
         self._max_steps = max_steps
+        self._evidence_review = evidence_review
         self.tool_calls: dict[str, int] = {}
         self.observations: list[ToolObservation] = []
         """Tool outcomes across all runs, retained for an evidence receipt.
@@ -211,6 +232,8 @@ class ToolAgentSession:
             )
             if not reply.tool_calls:
                 _LOG.info("Step %s: done after %s steps", steps, steps)
+                if self._evidence_review and not self._deadline.expired():
+                    return self._review(reply.text, conversation, steps)
                 return SessionOutcome(
                     finished=True,
                     summary=reply.text,
@@ -239,7 +262,10 @@ class ToolAgentSession:
             )
         # No schemas are offered on this protected exchange: even a model that
         # prefers another tool call must return reportable text instead.
-        conversation.append({"role": "user", "content": _FINAL_RESPONSE_REQUEST})
+        request = _FINAL_RESPONSE_REQUEST
+        if self._evidence_review:
+            request += "\n\n" + self._evidence_summary()
+        conversation.append({"role": "user", "content": request})
         steps += 1
         reply = self._model.reply(conversation=_recent(conversation), tools=())
         return SessionOutcome(
@@ -252,6 +278,56 @@ class ToolAgentSession:
                 else "the reserved final response was empty"
             ),
         )
+
+    def _review(
+        self, draft: str, conversation: list[dict[str, Any]], steps: int
+    ) -> SessionOutcome:
+        """Make an improvement report confront the observed verification record."""
+        request = _EVIDENCE_REVIEW_REQUEST.format(
+            draft=draft or "(empty)", evidence=self._evidence_summary()
+        )
+        conversation.append({"role": "user", "content": request})
+        reviewed = self._model.reply(conversation=_recent(conversation), tools=())
+        # An empty reviewer must not erase a usable answer.
+        summary = reviewed.text if reviewed.text.strip() else draft
+        return SessionOutcome(
+            finished=bool(summary.strip()),
+            summary=summary,
+            steps=steps + 1,
+            reason=(
+                "the final report was reviewed against observed evidence"
+                if reviewed.text.strip()
+                else "the evidence review was empty; the draft report was retained"
+            ),
+        )
+
+    def _evidence_summary(self) -> str:
+        """Return compact, ordered facts for the final evidence review."""
+        latest = max(self._mutation_steps, default=0)
+        lines = [
+            "Latest directly observed source-mutation step: "
+            + (str(latest) if latest else "none")
+        ]
+        commands = [item for item in self.observations if item.name == "run_command"]
+        if not commands:
+            lines.append("Verification commands observed: none.")
+        for item in commands:
+            command = item.arguments.get("command")
+            rendered = json.dumps(command, ensure_ascii=False)
+            status = next(
+                (line for line in item.text.splitlines() if line.startswith("[")),
+                "[tool error]" if item.is_error else "[no status returned]",
+            )
+            timing = "after latest mutation" if item.step > latest else "before/latest mutation"
+            lines.append(f"Step {item.step} ({timing}): {rendered} => {status}")
+        if latest and not any(
+            item.step > latest
+            and not item.is_error
+            and "[exit code 0]" in item.text.splitlines()
+            for item in commands
+        ):
+            lines.append("No successful command was observed after the latest mutation.")
+        return "\n".join(lines)
 
     def _observe(self, step: int, call: ToolCall) -> str:
         """Take one step and return what the model is told about it.
@@ -277,12 +353,23 @@ class ToolAgentSession:
             self.observations.append(
                 ToolObservation(step, call.name, arguments, True, str(broken))
             )
+            self._detect_mutation(step)
             return f"[error] {broken}"
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
         self.observations.append(
             ToolObservation(step, call.name, arguments, outcome.is_error, text)
         )
+        self._detect_mutation(step)
         return f"[error] {text}" if outcome.is_error else text
+
+    def _detect_mutation(self, step: int) -> None:
+        """Record any workspace-content change, regardless of which tool caused it."""
+        if self._workspace_state is None:
+            return
+        current = self._workspace_state()
+        if current != self._last_workspace_state:
+            self._mutation_steps.append(step)
+            self._last_workspace_state = current
 
 
 def _arguments(raw: str) -> dict[str, Any] | str:
