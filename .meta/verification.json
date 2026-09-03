@@ -4,27 +4,37 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\ns=Path('/workspace/materials/ledger.md').read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool']): print(line[:500])"
+        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nprint(len(s), s.count('### Cycle'))\nfor block in s.split('### Cycle')[1:]:\n lines=block.splitlines()\n print('\\nCYCLE',lines[0][:100])\n for l in lines:\n  if l.startswith(('Claimed change:','Files:','Exam:','  - \"')): print(l[:500])\n"
       ],
       "status": "[exit code 1]",
-      "step": 4,
+      "step": 3,
       "tool_error": false
     },
     {
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('materials/ledger.md'); s=p.read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or (line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool'])): print(line[:500])"
+        "import evolving_agent.prompts as p\nprint(p._IMPROVEMENT_ROLE[-6500:])\nprint('\\n---PROBE---\\n')\nprint(p._PROBE_ROLE[-4500:])"
       ],
-      "status": "[exit code 1]",
-      "step": 5,
+      "status": "[exit code 0]",
+      "step": 6,
       "tool_error": false
     },
     {
       "command": [
         "python",
         "-c",
-        "import evolving_agent.prompts as p\nfor n in dir(p):\n if n.startswith('_') and isinstance(getattr(p,n),str):\n  print(n, len(getattr(p,n))); print(getattr(p,n)[-3500:])"
+        "import evolving_agent.prompts as p\nprint(p._PROBE_ROLE)"
+      ],
+      "status": "[exit code 0]",
+      "step": 7,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''These instructions are yours:\n  This prompt is part of the program you are improving. If a better way of\n  spending a round exists than the one described here, rewrite this text so\n  the next round takes it \u2014 and if you find that the lineage has spent\n  several rounds on the same kind of change with nothing to show for it in\n  the exam, that is exactly the moment to.\n\nHow to work: read what the plan needs, then act decisively on its one\nchange. For an implementation or exact-output change, convert the task's\ncontract into an acceptance checklist before editing: every MUST, prohibition,\nexact literal or byte sequence, boundary, error case, and side-effect rule gets\na corresponding executable check. Include adversarial values where the host\nlanguage permits user-controlled hooks (such as subclasses, overloaded\noperators, iterators, or callbacks), rather than testing only ordinary built-in\nvalues. Run the narrow checks against the changed behavior\u2014not merely a syntax,\nimport, or happy-path smoke check. If one fails, inspect the observed mismatch,\nrepair it, and rerun the same check; do not weaken the oracle to fit the code.\n\nAs soon as the claimed behavior exists, run the `Proof:` check before starting\noptional cleanup, documentation, or another change; a check postponed to the\nend is the first thing a budget overrun deletes. Read the result and repair a\nfailure rather than describing it as success. If discovery changes what proof\nis appropriate, update the Proof line *before* running the new check, with the\nreason, rather than silently substituting an easier check.\n'''\nnew='''These instructions are yours:\n  This prompt is part of the program you are improving. Judge its advice by\n  downstream behavior, not by how rigorous it sounds. In the ledger, separate\n  shipped artifacts and observed checks from plans and claims; compare what\n  promoted and rejected rounds actually produced. If advice repeatedly leads\n  to missing deliverables, unrun checks, inaccurate notes, or the same failed\n  kind of change, delete or subordinate that advice. A rejected idea is not\n  disproved once, but repeated attempts without acceptance carry an increasing\n  burden of evidence. Record what the old wording rewarded and what the new\n  wording rewards so the next successor can continue the correction.\n\nHow to work \u2014 artifact first, then increasingly strong evidence:\n  1. Read what the plan needs and make the named source change immediately.\n     For any task requiring files, create every required path early with the\n     smallest runnable, contract-shaped candidate. A plan, test suite, or\n     explanation never compensates for a missing deliverable.\n  2. Inventory the contract compactly while implementing: required interface\n     and exact output first, then boundaries, errors, side effects, and\n     adversarial host-language hooks that are relevant. Do not spend the\n     artifact's time budget writing an exhaustive checklist before editing.\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n     execute. Read the observed result. Repair the highest-information failure\n     and rerun its same oracle; do not weaken a check to fit the implementation.\n     Add focused edge checks only while they can still drive a repair.\n  4. Reserve the end for a present deliverable and an honest report. Stop\n     optional cleanup and note-writing before they threaten execution of proof\n     or completion of the requested artifact.\n\nThe narrow proof must exercise the changed behavior\u2014not merely syntax, import,\nor a happy-path smoke check. If discovery makes the planned proof irrelevant,\nupdate the `Proof:` line *before* substituting a new check and state why. If the\nrelevant check fails or never runs, leave the artifact in its best runnable\nstate and report that limitation rather than converting preparation into proof.\n'''\nassert old in s\ns=s.replace(old,new,1)\nold2='''For implementation, repair, parser, or exact-output tasks, first make an\nacceptance checklist from the actual contract. Give every MUST, prohibition,\nexact literal or byte sequence, boundary, malformed-input rule, and observable\nside effect an executable check. Exercise adversarial language behavior where\ninputs can override ordinary operations (for example subclasses, overloaded\noperators, iterators, callbacks, aliasing, or mutation), not just happy-path\nbuilt-in values. Run supplied tests plus focused checks for the checklist; a\ncompile, import, or sample run alone is not behavioral evidence. On failure,\nrepair the observed mismatch and rerun the same oracle rather than weakening\nit. Only then produce the requested answer or deliverable.\n'''\nnew2='''For implementation, repair, parser, or exact-output tasks, work artifact\nfirst. Create every requested file at its exact output path early, with the\nsmallest runnable candidate that has the required interface; never postpone the\ndeliverable until after test design. Then run supplied tests immediately and\nuse observed failures to drive repairs. Cover exact literals or bytes and the\nhighest-risk boundaries, malformed inputs, side effects, and adversarial\nlanguage behavior while there is still time to change the artifact. Rerun the\nsame failing oracle after a repair rather than weakening it. A compile, import,\nor sample run is not behavioral evidence, but an unexecuted comprehensive\nchecklist is not evidence either. If time expires, a runnable best-effort\nartifact plus an honest account of observed failures is preferable to tests or\nexplanation with the required artifact missing.\n'''\nassert old2 in s\np.write_text(s.replace(old2,new2,1))\n"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -34,59 +44,14 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nfor i,l in enumerate(s.splitlines(),1):\n if l.startswith('def ') or '_PROBE_ROLE' in l or 'How to work:' in l: print(i,l)"
+        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nimp=improvement_instructions(); probe=probe_instructions()\n# Improvement loop: ledger correction, artifact before proof, observed repair, honest limits.\nfor phrase in ['compare what\\n  promoted and rejected rounds actually produced', 'delete or subordinate that advice', 'create every required path early', 'Do not spend the\\n     artifact\\'s time budget writing an exhaustive checklist before editing', 'Read the observed result', 'report that limitation rather than converting preparation into proof']:\n    assert phrase in imp, phrase\nassert imp.index('create every required path early') < imp.index('Run supplied tests or the `Proof:` check')\n# Probe loop: requested output exists before tests; results drive repair; nonexecution is not evidence.\nfor phrase in ['work artifact\\nfirst', 'Create every requested file at its exact output path early', 'Then run supplied tests immediately', 'use observed failures to drive repairs', 'an unexecuted comprehensive\\nchecklist is not evidence either', 'required artifact missing']:\n    assert phrase in probe, phrase\nassert probe.index('Create every requested file') < probe.index('run supplied tests immediately')\n# Proven-bad universal sequencing was removed.\nassert 'acceptance checklist before editing' not in imp\nassert 'first make an\\nacceptance checklist' not in probe\nassert 'Only then produce the requested answer or deliverable' not in probe\nprint('PASS: rendered improvement and probe instructions require artifact-first execution, observed repair, honest evidence, and ledger-driven deletion of repeatedly harmful advice')"
       ],
       "status": "[exit code 0]",
       "step": 9,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''How to work: read what the plan needs, then act decisively on its one\nchange. As soon as the claimed behavior exists, run the `Proof:` check before\nstarting optional cleanup, documentation, or another change; a check postponed\nto the end is the first thing a budget overrun deletes. Read the result and\nrepair a failure rather than describing it as success. If discovery changes\nwhat proof is appropriate, update the Proof line *before* running the new\ncheck, with the reason, rather than silently substituting an easier check.\n'''\nnew='''How to work: read what the plan needs, then act decisively on its one\nchange. For an implementation or exact-output change, convert the task's\ncontract into an acceptance checklist before editing: every MUST, prohibition,\nexact literal or byte sequence, boundary, error case, and side-effect rule gets\na corresponding executable check. Include adversarial values where the host\nlanguage permits user-controlled hooks (such as subclasses, overloaded\noperators, iterators, or callbacks), rather than testing only ordinary built-in\nvalues. Run the narrow checks against the changed behavior\u2014not merely a syntax,\nimport, or happy-path smoke check. If one fails, inspect the observed mismatch,\nrepair it, and rerun the same check; do not weaken the oracle to fit the code.\n\nAs soon as the claimed behavior exists, run the `Proof:` check before starting\noptional cleanup, documentation, or another change; a check postponed to the\nend is the first thing a budget overrun deletes. Read the result and repair a\nfailure rather than describing it as success. If discovery changes what proof\nis appropriate, update the Proof line *before* running the new check, with the\nreason, rather than silently substituting an easier check.\n'''\nassert old in s\ns=s.replace(old,new,1)\nold2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n'''\nnew2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n\nFor implementation, repair, parser, or exact-output tasks, first make an\nacceptance checklist from the actual contract. Give every MUST, prohibition,\nexact literal or byte sequence, boundary, malformed-input rule, and observable\nside effect an executable check. Exercise adversarial language behavior where\ninputs can override ordinary operations (for example subclasses, overloaded\noperators, iterators, callbacks, aliasing, or mutation), not just happy-path\nbuilt-in values. Run supplied tests plus focused checks for the checklist; a\ncompile, import, or sample run alone is not behavioral evidence. On failure,\nrepair the observed mismatch and rerun the same oracle rather than weakening\nit. Only then produce the requested answer or deliverable.\n'''\nassert old2 in s\np.write_text(s.replace(old2,new2,1))\n"
-      ],
-      "status": "[exit code 0]",
-      "step": 10,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from evolving_agent.prompts import probe_instructions, improvement_instructions\np=probe_instructions(); i=improvement_instructions()\nfor name,text in [('probe',p),('improvement',i)]:\n    low=text.lower()\n    assert 'acceptance checklist' in low, name\n    assert 'exact literal or byte sequence' in low, name\n    assert 'adversarial' in low and 'subclasses' in low and 'overloaded' in low, name\n    assert 'side effect' in low or 'side-effect' in low, name\n    assert 'run' in low and ('focused checks' in low or 'narrow checks' in low), name\n    assert 'rerun the same' in low, name\n    assert ('compile, import, or sample run alone is not' in low or 'not merely a syntax,\\nimport, or happy-path smoke check' in low), name\nprint('PASS: probe and improvement prompts enforce checklist, exact-byte, adversarial, behavioral execution, and repair/retest requirements')"
-      ],
-      "status": "[exit code 0]",
-      "step": 11,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "git",
-        "diff",
-        "--",
-        "evolving_agent/prompts.py",
-        "memories/round-plan.md"
-      ],
-      "status": "[did not start]",
-      "step": 12,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-m",
-        "compileall",
-        "-q",
-        "main.py",
-        "evolving_agent"
-      ],
-      "status": "[exit code 0]",
-      "step": 12,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 5
+  "successful_commands": 4
 }
