@@ -22,7 +22,7 @@ in improvement mode that work is in the workspace and is kept.
 import json
 import logging
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -129,6 +129,7 @@ class ToolAgentSession:
         *,
         deadline: Deadline,
         max_steps: int,
+        completion_check: Callable[[], str | None] | None = None,
     ) -> None:
         """Hold the model, the tools and the bounds one session runs under.
 
@@ -139,6 +140,7 @@ class ToolAgentSession:
                 is what the model is offered.
             deadline: When the session stops asking for another step.
             max_steps: How many steps it may take at most.
+            completion_check: Optional observable completion gate run before accepting prose.
 
         """
         self._model = model
@@ -146,6 +148,7 @@ class ToolAgentSession:
         self._schemas = tool_schemas(published)
         self._deadline = deadline
         self._max_steps = max_steps
+        self._completion_check = completion_check
         self.tool_calls: dict[str, int] = {}
         """How often each tool was called, over every run of this session.
 
@@ -189,6 +192,15 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
+                repair = self._completion_check() if self._completion_check else None
+                if repair:
+                    # Preserve the answer turn before challenging it: a tool-enabled
+                    # next exchange then sees both what it claimed and the concrete
+                    # filesystem fact that contradicts it.
+                    conversation.extend(dict(item) for item in reply.output)
+                    conversation.append({"role": "user", "content": repair})
+                    _LOG.info("Step %s: completion check requested artifact repair", steps)
+                    continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,

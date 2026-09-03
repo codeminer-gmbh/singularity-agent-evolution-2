@@ -27,6 +27,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from evolving_agent.deliverables import completion_repair_message, missing_output_paths
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
@@ -38,7 +39,7 @@ from evolving_agent.prompts import (
     repair_opening,
 )
 from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession
-from evolving_agent.settings import AgentSettings
+from evolving_agent.settings import AgentMode, AgentSettings
 from evolving_agent.successor import successor_problems
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -297,12 +298,17 @@ def _session(
     what the model is told it can do and what the agent can actually do are the
     same list.
     """
+    def completion_check() -> str | None:
+        missing = missing_output_paths(settings.task, settings.output)
+        return completion_repair_message(missing) if missing else None
+
     return ToolAgentSession(
         model,
         tools,
         tools.list_tools(),
         deadline=deadline,
         max_steps=settings.max_steps,
+        completion_check=completion_check if settings.mode is AgentMode.PROBE else None,
     )
 
 

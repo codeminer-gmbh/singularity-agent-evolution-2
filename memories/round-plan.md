@@ -1,3 +1,3 @@
-Ledger result 144 reports a required `output/solution.py` missing in its losing configuration-task probe; delivering named artifacts is the clearest recurring task-facing loss.
-Add an explicit output-delivery checkpoint to probe guidance, requiring named files be written and verified before prose, for artifact-producing probe tasks.
-This targets the recorded failure more directly than another broad tool or generic contract reminder, while preserving prose-only questions.
+Ledger 144 records a 0/1 loss where required `output/solution.py` was absent despite probe capability; named-artifact delivery is the clearest recurring loss.
+Add a deterministic post-turn deliverable audit that returns a focused tool-enabled repair turn for explicitly named missing output paths.
+This beats another prompt-only reminder because it checks the collected artifact after the model claims completion rather than trusting prose.

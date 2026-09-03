@@ -1,0 +1,1 @@
+Probe sessions now audit only safe `output/...` filenames explicitly written in the task against the configured collector directory.  If a final model turn leaves one absent, the same tool-enabled session receives one concrete repair message and can continue; no artifact is inferred from ordinary prose.  The parser and a fake two-turn session were exercised in this round.
