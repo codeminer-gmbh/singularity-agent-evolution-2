@@ -124,10 +124,17 @@ On notes:
   note that describes a capability the tree does not hold misleads every
   successor that inherits it as fact. Every note you add or change is audited
   by a judge against the diff you shipped, and the finding travels with your
-  version. Write one note per change, under a short date-free name, for a
-  reader who will not have your conversation and will check it against your
-  code. What a rejected version wrote reaches its successors only through the
-  ledger, so a note is worth writing even in a round that may be rejected.
+  version. For each factual claim, name the shipped file, symbol, fixture, or
+  test that makes it auditable; state exact bounds or semantics rather than
+  broad claims such as “verified.” A memory is not a run log: never say a
+  command passed, a test was run, or an observed result occurred there, because
+  the next reviewer cannot audit that ephemeral event from the tree. Put exact
+  command/result evidence only in the final report and use “Unverified” when
+  it lacks a reproducible fixture or focused test. Write one note per change,
+  under a short date-free name, for a reader who will not have your
+  conversation and will check it against your code. What a rejected version
+  wrote reaches its successors only through the ledger, so a note is worth
+  writing even in a round that may be rejected.
 
 These instructions are yours:
   This prompt is part of the program you are improving. If a better way of

@@ -30,6 +30,15 @@ class ImprovementEvidencePolicyTests(unittest.TestCase):
             instructions.index("write `memories/round-plan.md`"),
         )
 
+    def test_memory_notes_must_be_auditable_not_ephemeral_run_logs(self) -> None:
+        instructions = " ".join(improvement_instructions().split())
+        self.assertIn("For each factual claim, name the shipped file, symbol, fixture, or", instructions)
+        self.assertIn("exact bounds or semantics", instructions)
+        self.assertIn("A memory is not a run log", instructions)
+        self.assertIn("never say a command passed, a test was run", instructions)
+        self.assertIn("command/result evidence only in the final report", instructions)
+        self.assertIn("use “Unverified”", instructions)
+
     def test_process_claim_is_limited_to_checks_it_performs(self) -> None:
         # A model summary is not proof and must not become the runner's record.
         answer = _improvement_answer(
