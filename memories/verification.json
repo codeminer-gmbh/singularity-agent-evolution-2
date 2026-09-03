@@ -1,30 +1,37 @@
 {
-  "candidate_digest": "1443a4e59641c47e539ee179d06cf2966dc976809f34c6e354ff12a827f985f4",
+  "candidate_digest": "8e6abb5da2a9e837cb22655fe94214f7f200a77b421372aefcae2470199f80cc",
   "audit": {
-    "costly_failure": "The ledger repeatedly found that a receipt merely refreshed in the same session could still prove a different source tree; freshness alone did not bind evidence to the candidate.",
-    "evidence": "Ledger fact in my words: the costly failure was inherited or unrelated verification evidence accepted after a source change. The untested boundary was receipt provenance rather than receipt age. The distinguishing input is a valid-format receipt whose digest was made before agent.py changes, then checked after that change."
+    "costly_failure": "The line's most costly supported failure was implementing convenient approximations of exact acceptance languages: the ledger's concrete loss accepted Python whitespace and Unicode digits where only an ASCII space and ASCII decimal digits were allowed.",
+    "evidence": "Smallest ledger fact in my words: a parser accepted a tab and Arabic-Indic digits that the declared language excluded. Observable defect: invalid neighbours reached the success path. Untested rule boundary: permitted normalization versus broad runtime helper semantics, including whether a structural parser had already decoded text. Distinguishing input: after a valid explicit value such as '17', '+17', a tab-prefixed value, and Arabic-Indic digits must remain invalid rather than being converted or masked by a default."
   },
   "matrix": [
     {
-      "requirement": "A verification receipt is accepted for exactly the candidate whose digest it records.",
-      "input": "A temporary workspace containing agent.py version 1 and a receipt generated from its digest, with the receipt excluded from hashing.",
-      "expected": "verification_problems returns no problems; updating the receipt itself does not create a self-reference mismatch.",
-      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
-      "observed": "1 passed in 0.02s; the test wrote a matching receipt and observed an empty problem tuple."
-    },
-    {
-      "requirement": "A receipt from an earlier source tree must reject a later source edit even when all required receipt fields remain present.",
-      "input": "The same temporary workspace after changing agent.py from version 1 to version 2 without rewriting candidate_digest.",
-      "expected": "verification_problems returns exactly memories/verification.json.candidate_digest does not match the current candidate.",
-      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
-      "observed": "1 passed in 0.02s; the adversarial mutation produced the asserted exact mismatch message."
-    },
-    {
-      "requirement": "Existing verification and publication checks remain usable with the new required binding.",
-      "input": "The full repository test suite after candidate-digest validation and prompt changes.",
-      "expected": "All tests pass.",
+      "requirement": "Probe reasoning must derive exact accepted and rejected sets before selecting conversion or character-class helpers.",
+      "input": "Representative language: trim only ASCII spaces and accept one or more ASCII digits; compare valid '17' with nearest invalid '+17', tab-prefixed '17', and Arabic-Indic digits.",
+      "expected": "The generated probe policy requires ordered permitted transformations, an exact acceptance language, nearest invalid neighbours across sign/alphabet/whitespace, and checks against broad numeric and character-class helpers.",
       "interaction": "python -m pytest -q",
-      "observed": "7 passed in 1.47s."
+      "observed": "10 tests passed in 1.41s; test_probe_policy_distinguishes_exact_language_from_convenient_helpers asserted all of those generated-policy requirements."
+    },
+    {
+      "requirement": "Probe reasoning must distinguish a parser's already-decoded value from raw source spelling and avoid accidental second decoding.",
+      "input": "XML source whose parser turns '&amp;amp;' into literal '&amp;', where applying another entity decode would incorrectly produce '&'.",
+      "expected": "The generated policy says decoded text is not permission to decode again and demands a raw-versus-decoded adversarial case when raw spelling is observable.",
+      "interaction": "python -m pytest -q",
+      "observed": "10 tests passed in 1.41s; test_probe_policy_accounts_for_existing_decode_layer_and_syntax_variants asserted the no-second-decode contract."
+    },
+    {
+      "requirement": "Exact validation must test equivalent syntax variants without silently broadening the grammar.",
+      "input": "Paired versus self-closing XML elements and alternate quoting/escaping forms that may be structurally equivalent, contrasted with unrelated syntax.",
+      "expected": "The policy requires valid equivalent forms and invalid unrelated syntax to be represented in the acceptance-boundary table.",
+      "interaction": "python -m pytest -q",
+      "observed": "10 tests passed in 1.41s; test_probe_policy_accounts_for_existing_decode_layer_and_syntax_variants asserted paired/self-closing coverage and rejection of unrelated syntax."
+    },
+    {
+      "requirement": "Fallback testing must prove a valid explicit value wins before testing missing and invalid cases, and acceptance evidence must use the public path.",
+      "input": "An explicit valid value competing with a default, followed by its missing and invalid neighbours.",
+      "expected": "The generated policy prevents a default from hiding over-broad rejection and requires checks through the actual public entry point or produced deliverable.",
+      "interaction": "python -m pytest -q",
+      "observed": "10 tests passed in 1.41s; test_probe_policy_prevents_defaults_from_masking_valid_explicit_values and test_probe_policy_distinguishes_exact_language_from_convenient_helpers asserted both requirements."
     }
   ]
 }
