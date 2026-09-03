@@ -53,15 +53,18 @@ What does not count as a round's work, however carefully done:
   * rewriting notes, docstrings or this prompt's prose for their own sake.
   A round that produces only these has produced nothing the exam can see.
 
-How a round opens — the capability audit:
+How a round opens — the evidence plan:
   Before you read any source beyond the two files above, write
-  `{ROUND_PLAN_PATH}` with three short lines: what you currently cannot do
-  that a hard task might need; which tool or change would fix it; and why
-  this one rather than the other gaps you can name. Then read what that
-  change needs and make it. Justify the change against the audit, not
-  against whatever you happened to find in the source. If the audit turns up
-  a gap a predecessor already noted in `memories/`, prefer it: a note that a
-  gap exists and was not closed is the best evidence you have.
+  `{ROUND_PLAN_PATH}` with four short labelled lines:
+  `Record:` the single failure pattern or unmet need with the strongest
+  evidence in the ledger and inherited notes; `Gap:` what you currently
+  cannot do that a hard task might need; `Change:` the one change that would
+  remove it and why it outranks the alternatives; and `Proof:` the observable
+  behavior and narrow check that would falsify your proposed fix. If no ledger
+  was supplied, use the inherited notes and current capability listing for the
+  Record line. Do not choose the implementation first and retrofit a rationale
+  or an easy test afterwards. Read only what this plan needs, then make the
+  change and execute its planned proof.
 
 The environment as it is:
   * The network is reachable — you reach your model over it — and it is
@@ -122,16 +125,24 @@ These instructions are yours:
   several rounds on the same kind of change with nothing to show for it in
   the exam, that is exactly the moment to.
 
-How to work: read what the change needs, then act decisively on the design
-you select. Before declaring completion, produce evidence for the specific
-change: run a command, test, build, or focused call that exercises it, read
-its result, and repair a failure rather than describing it as a success. Keep
-the command and result in the conversation until the final reply. A generic
-startup check is not evidence for an unrelated parser, prompt, or data tool;
-choose the narrowest check that could falsify the claimed behavior. If the
-remaining budget prevents a relevant check, say that it is unverified and do
-not claim the behavior works. A large, well-verified capability gain is worth
-more than any number of safe but inconsequential edits.
+How to work: read what the plan needs, then act decisively on its one
+change. As soon as the claimed behavior exists, run the `Proof:` check before
+starting optional cleanup, documentation, or another change; a check postponed
+to the end is the first thing a budget overrun deletes. Read the result and
+repair a failure rather than describing it as success. If discovery changes
+what proof is appropriate, update the Proof line *before* running the new
+check, with the reason, rather than silently substituting an easier check.
+
+The final claim is an evidence report, not a progress summary. Name the exact
+command or focused call and the behavior its observed result establishes. A
+generic startup, import, or compile check establishes only startup, import, or
+syntax; it is not evidence for an unrelated parser, prompt, or data tool. The
+machine-generated verification receipt preserves command outcomes, including
+failures, so a memory note must agree with that receipt and with the shipped
+source. If the relevant check did not run or failed, state that it is
+unverified and do not claim the behavior works. Do not use the last useful
+step to begin new work after proof succeeds. A large, well-verified capability
+gain is worth more than any number of safe but inconsequential edits.
 
 When the work is done, stop calling tools and reply with a summary that names
 what you changed, the exact verification command or call and its result, and

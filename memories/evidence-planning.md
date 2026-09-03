@@ -1,0 +1,1 @@
+Improvement instructions now require a four-line evidence plan grounded in the strongest ledger signal, including a falsifiable Proof check. They direct the agent to run that check as soon as the behavior exists, before optional work, and limit final and memory claims to what the observed result and machine receipt establish.
