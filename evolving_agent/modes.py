@@ -402,13 +402,15 @@ def _final_answer(
         "The session ended because %s; asking for a final answer.", outcome.reason
     )
     try:
-        reply = model.reply(
-            conversation=[
-                {"role": "system", "content": probe_instructions()},
-                {"role": "user", "content": probe_opening(settings.task)},
-                {"role": "user", "content": final_answer_request()},
-            ]
-        )
+        # Continue the actual run: its opening records material/output paths and
+        # its tool results contain the evidence the final answer must report.
+        # Reconstruct only for synthetic/legacy outcomes with no transcript.
+        conversation = list(outcome.conversation) or [
+            {"role": "system", "content": probe_instructions()},
+            {"role": "user", "content": probe_opening(settings.task)},
+        ]
+        conversation.append({"role": "user", "content": final_answer_request()})
+        reply = model.reply(conversation=conversation)
     except ModelUnavailableError as unreachable:
         return RunReport(
             succeeded=False, answer="", detail=f"{outcome.reason}; {unreachable}"

@@ -88,6 +88,8 @@ class SessionOutcome:
     summary: str
     steps: int
     reason: str
+    # A bounded continuation for a last answer after a limit is reached.
+    conversation: tuple[Mapping[str, Any], ...] = ()
 
 
 class Deadline:
@@ -175,6 +177,7 @@ class ToolAgentSession:
                     summary="",
                     steps=steps,
                     reason="the time budget ran out",
+                    conversation=tuple(_recent(conversation)),
                 )
             steps += 1
             reply = self._model.reply(
@@ -187,6 +190,7 @@ class ToolAgentSession:
                     summary=reply.text,
                     steps=steps,
                     reason="the agent reported that the work was done",
+                    conversation=tuple(_recent(conversation)),
                 )
             # The turn goes back as the model made it — the calls it asked for
             # and the reasoning behind them — and each result follows, carrying
@@ -205,6 +209,7 @@ class ToolAgentSession:
             summary="",
             steps=steps,
             reason=f"the step limit of {self._max_steps} was reached",
+            conversation=tuple(_recent(conversation)),
         )
 
     def _observe(self, step: int, call: ToolCall) -> str:
