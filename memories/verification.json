@@ -1,28 +1,42 @@
 {
   "audit": {
-    "costly_failure": "Ledger verdicts repeatedly found superficially verified parser/ordering work that missed strict semantics, especially cycle 101's legacy upgrade ordering and parser edge cases.",
-    "evidence": "The supplied ledger says cycle 101 was rejected because required first-seen legacy-name ordering, strict metadata parsing, selection semantics, and output placement were missing; it also records several earlier rejected verification/protocol changes."
+    "costly_failure": "The line's most costly supported failure was shallow task verification: an implementation could pass all supplied tests while missing explicit interaction semantics that decided the exam.",
+    "evidence": "In the ledger's clearest recent case, the coalescing implementation passed all 4 supplied tests but the grader found three contract failures and scored it 3.5 versus 7.8. The missing observable behavior was correct ownership across completion, detachment/cancellation, and close; the untested rule boundary was whether a resource remains live after disappearing from the public key map; the distinguishing input is a last waiter cancelled with cancellation suppressed, followed by close while the detached producer is still running. Earlier protocol edits reached improvement mode only, so this change targets the actual probe-mode task prompt."
   },
   "matrix": [
     {
-      "requirement": "Improvement instructions turn a ledger verdict into a falsifiable, observable failure signature before design selection.",
-      "input": "Public call to improvement_instructions(), inspected for observable behavior, boundary rule, distinguishing input, and rejection of syntax-only/prose-only closure.",
-      "expected": "All four policy clauses are present and the audit policy occurs before the implementation proof protocol.",
-      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; ... assert required clauses and ordering ...\"",
-      "observed": "Exited 0 and printed 'failure-signature policy exposed: 4 requirements present' and 'audit policy precedes implementation protocol'."
+      "requirement": "Software probe tasks receive a rule-by-rule contract table and must test omitted ordering/default interactions after supplied tests pass.",
+      "input": "run_probe with task 'Implement the requested parser.' and a capturing model, checking the delivered system message.",
+      "expected": "The message requires representative events, expected observable results, checks, malformed/conflicting precedence rows, an explicit winner, and rejects supplied-test success as sufficient evidence.",
+      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_public_probe_receives_contract_matrix_and_non_happy_path_rule)",
+      "observed": "Exited 0; the named public-path test passed and inspected the conversation actually sent by run_probe."
     },
     {
-      "requirement": "A ledger-derived strict ordering/precedence failure cannot be discharged by an easier nearby edge case.",
-      "input": "Adversarial conflicting-order case: declaration order versus encounter order, plus a named distinguishing input requirement.",
-      "expected": "The public improvement instruction explicitly requires both the conflict decision table and non-substitution named matrix row.",
-      "interaction": "python -c \"from evolving_agent.prompts import improvement_instructions; assert declaration/encounter and non-substitution clauses ...\"",
-      "observed": "Exited 0 and printed 'ordering conflict and non-substitution adversarial rows are required'."
+      "requirement": "Concurrent/stateful tasks receive adversarial state-event cases that distinguish the ledger's detached-resource failure from a happy path.",
+      "input": "run_probe with task 'Repair the concurrent lifecycle.', checking owned, detached-running, completed-unsettled, and terminated states plus completion-before-callback, cancellation suppression, and close-during-detached-work cases.",
+      "expected": "Every state and distinguishing race is present, with cleanup required to reach all live resources and completed operations barred from new participants.",
+      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_lifecycle_decision_table_covers_detached_and_scheduling_races)",
+      "observed": "Exited 0; the lifecycle adversarial test passed after asserting all four states and all three distinguishing races in the live probe prompt."
     },
     {
-      "requirement": "The changed successor remains importable by its public Python entry modules.",
-      "input": "Changed prompt module and main.py compiled after the policy edit.",
-      "expected": "Both modules compile without a syntax error.",
-      "interaction": "python -m py_compile evolving_agent/prompts.py main.py",
+      "requirement": "The software-specific protocol does not force fabricated implementation tests onto unrelated tasks.",
+      "input": "run_probe with task 'Summarize the supplied article.' and inspect the delivered system message.",
+      "expected": "The protocol explicitly says not to invent software tests for factual or creative questions.",
+      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_protocol_is_conditional_for_non_software_questions)",
+      "observed": "Exited 0; the conditional-scope test passed."
+    },
+    {
+      "requirement": "The existing step-limit finalization behavior remains intact beside the prompt change.",
+      "input": "A run_probe session whose first model exchange consumes its only step with a tool call.",
+      "expected": "The agent performs the dedicated finalization exchange and returns the answer.",
+      "interaction": "python -m unittest tests.test_probe_contract_review tests.test_limit_finalization -v (test_run_probe_finalizes_from_the_tool_transcript_at_step_limit)",
+      "observed": "Exited 0; the existing finalization regression test passed; the complete explicit suite reported 4 tests OK."
+    },
+    {
+      "requirement": "Changed source, entry point, and proof test remain syntactically loadable.",
+      "input": "main.py, changed prompt module, probe/session modules, and new test module.",
+      "expected": "All files compile without syntax errors.",
+      "interaction": "python -m py_compile main.py evolving_agent/prompts.py evolving_agent/modes.py evolving_agent/session.py tests/test_probe_contract_review.py",
       "observed": "Exited 0 with no stdout or stderr."
     }
   ]
