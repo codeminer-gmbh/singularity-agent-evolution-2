@@ -4,27 +4,27 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\ns=Path('/workspace/materials/ledger.md').read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool']): print(line[:500])"
+        "from pathlib import Path\np=Path('materials/ledger.md').read_text()\nprint(len(p), p.count('\\n'), p.count('\\\\n'))\nfor s in p.split('### Cycle ')[1:]:\n h=s.split('\\\\n',1)[0] if '\\\\n' in s else s.splitlines()[0]\n claim=s.split('Claimed change:',1)[1].split('\\\\nFiles:',1)[0] if 'Claimed change:' in s else ''\n judges=s.split('Judges said:',1)[1].split('\\\\nNote:',1)[0] if 'Judges said:' in s else ''\n print('\\nCYCLE',h,'\\nCLAIM',claim[:400], '\\nJUDGES',judges[:600])"
       ],
       "status": "[exit code 1]",
-      "step": 4,
+      "step": 3,
       "tool_error": false
     },
     {
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('materials/ledger.md'); s=p.read_text()\nfor line in s.splitlines():\n if line.startswith('### Cycle') or line.startswith('Claimed change:') or line.startswith('Note:') or (line.startswith('  - \"') and any(x in line.lower() for x in ['failed','did not','incorrect','unverified','timeout','nothing','empty','tool'])): print(line[:500])"
+        "from pathlib import Path\nfor fn in ['evolving_agent/session.py','evolving_agent/prompts.py','evolving_agent/modes.py']:\n s=Path(fn).read_text().splitlines(); print('\\n###',fn,len(s));\n for i,l in enumerate(s,1):\n  if fn.endswith('session.py') and i>=180: print(f'{i:4} {l}')\n  elif fn.endswith('prompts.py') and i>=145: print(f'{i:4} {l}')\n  elif fn.endswith('modes.py') and i>=180: print(f'{i:4} {l}')"
       ],
-      "status": "[exit code 1]",
-      "step": 5,
+      "status": "[exit code 0]",
+      "step": 7,
       "tool_error": false
     },
     {
       "command": [
         "python",
         "-c",
-        "import evolving_agent.prompts as p\nfor n in dir(p):\n if n.startswith('_') and isinstance(getattr(p,n),str):\n  print(n, len(getattr(p,n))); print(getattr(p,n)[-3500:])"
+        "from pathlib import Path\ns=Path('evolving_agent/prompts.py').read_text().splitlines()\nfor i in range(145,len(s)+1): print(f'{i:4} {s[i-1]}')"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -34,7 +34,7 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nfor i,l in enumerate(s.splitlines(),1):\n if l.startswith('def ') or '_PROBE_ROLE' in l or 'How to work:' in l: print(i,l)"
+        "from pathlib import Path\ns=Path('evolving_agent/tools.py').read_text().splitlines()\nfor i,l in enumerate(s,1):\n if 'run_command' in l or 'write_file' in l or 'delete_path' in l or 'CommandResult' in l: print(i,l)\n"
       ],
       "status": "[exit code 0]",
       "step": 9,
@@ -44,7 +44,7 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''How to work: read what the plan needs, then act decisively on its one\nchange. As soon as the claimed behavior exists, run the `Proof:` check before\nstarting optional cleanup, documentation, or another change; a check postponed\nto the end is the first thing a budget overrun deletes. Read the result and\nrepair a failure rather than describing it as success. If discovery changes\nwhat proof is appropriate, update the Proof line *before* running the new\ncheck, with the reason, rather than silently substituting an easier check.\n'''\nnew='''How to work: read what the plan needs, then act decisively on its one\nchange. For an implementation or exact-output change, convert the task's\ncontract into an acceptance checklist before editing: every MUST, prohibition,\nexact literal or byte sequence, boundary, error case, and side-effect rule gets\na corresponding executable check. Include adversarial values where the host\nlanguage permits user-controlled hooks (such as subclasses, overloaded\noperators, iterators, or callbacks), rather than testing only ordinary built-in\nvalues. Run the narrow checks against the changed behavior\u2014not merely a syntax,\nimport, or happy-path smoke check. If one fails, inspect the observed mismatch,\nrepair it, and rerun the same check; do not weaken the oracle to fit the code.\n\nAs soon as the claimed behavior exists, run the `Proof:` check before starting\noptional cleanup, documentation, or another change; a check postponed to the\nend is the first thing a budget overrun deletes. Read the result and repair a\nfailure rather than describing it as success. If discovery changes what proof\nis appropriate, update the Proof line *before* running the new check, with the\nreason, rather than silently substituting an easier check.\n'''\nassert old in s\ns=s.replace(old,new,1)\nold2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n'''\nnew2='''input, a document, a dataset, a page or code behind it, go and look rather than\nreasoning about what it probably holds; for anything that can be checked by\nrunning it, run it. A claim that could have been checked by running something\nand was not is a defect in the answer, and a judge reading two answers will\nprefer the one that did the checking.\n\nFor implementation, repair, parser, or exact-output tasks, first make an\nacceptance checklist from the actual contract. Give every MUST, prohibition,\nexact literal or byte sequence, boundary, malformed-input rule, and observable\nside effect an executable check. Exercise adversarial language behavior where\ninputs can override ordinary operations (for example subclasses, overloaded\noperators, iterators, callbacks, aliasing, or mutation), not just happy-path\nbuilt-in values. Run supplied tests plus focused checks for the checklist; a\ncompile, import, or sample run alone is not behavioral evidence. On failure,\nrepair the observed mismatch and rerun the same oracle rather than weakening\nit. Only then produce the requested answer or deliverable.\n'''\nassert old2 in s\np.write_text(s.replace(old2,new2,1))\n"
+        "from pathlib import Path\ns=Path('evolving_agent/tools.py').read_text().splitlines()\nfor a,b in [(125,160),(350,390),(460,495),(635,715)]:\n print('\\n'); [print(f'{i:4} {s[i-1]}') for i in range(a,b)]"
       ],
       "status": "[exit code 0]",
       "step": 10,
@@ -54,7 +54,7 @@
       "command": [
         "python",
         "-c",
-        "from evolving_agent.prompts import probe_instructions, improvement_instructions\np=probe_instructions(); i=improvement_instructions()\nfor name,text in [('probe',p),('improvement',i)]:\n    low=text.lower()\n    assert 'acceptance checklist' in low, name\n    assert 'exact literal or byte sequence' in low, name\n    assert 'adversarial' in low and 'subclasses' in low and 'overloaded' in low, name\n    assert 'side effect' in low or 'side-effect' in low, name\n    assert 'run' in low and ('focused checks' in low or 'narrow checks' in low), name\n    assert 'rerun the same' in low, name\n    assert ('compile, import, or sample run alone is not' in low or 'not merely a syntax,\\nimport, or happy-path smoke check' in low), name\nprint('PASS: probe and improvement prompts enforce checklist, exact-byte, adversarial, behavioral execution, and repair/retest requirements')"
+        "from pathlib import Path\ns=Path('evolving_agent/tools.py').read_text().splitlines()\nfor i in range(675,715): print(f'{i:4} {s[i-1]}')"
       ],
       "status": "[exit code 0]",
       "step": 11,
@@ -62,31 +62,94 @@
     },
     {
       "command": [
-        "git",
-        "diff",
-        "--",
-        "evolving_agent/prompts.py",
-        "memories/round-plan.md"
+        "python",
+        "-c",
+        "from pathlib import Path\ns=Path('evolving_agent/model.py').read_text().splitlines()\nfor i,l in enumerate(s,1):\n if 'class ModelReply' in l or 'class ToolCall' in l: \n  [print(f'{j:4} {s[j-1]}') for j in range(i,min(i+30,len(s)+1))]"
       ],
-      "status": "[did not start]",
+      "status": "[exit code 0]",
       "step": 12,
       "tool_error": false
     },
     {
       "command": [
         "python",
-        "-m",
-        "compileall",
-        "-q",
-        "main.py",
-        "evolving_agent"
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/session.py')\ns=p.read_text()\ns=s.replace('_TOOL_RESULT = \"function_call_output\"\\n', '''_TOOL_RESULT = \"function_call_output\"\n\n_MUTATING_TOOLS = frozenset({\"write_file\", \"delete_path\", \"extract_archive\"})\n_FINAL_EVIDENCE_REVIEW = \"\"\"\\\nDo not finalize yet. The workspace changed since your last evidence review.\nRe-read the original task's acceptance conditions and inspect the actual tool\noutcomes still in this conversation. If a focused behavioral check for the\nchanged capability has not run and passed after the change, run it now with the\ntools; a compile, import, startup, or unrelated test is not proof. If adequate\nproof did pass, reply with the complete answer naming that exact check and only\nwhat its observed result establishes. Do not claim failed or unrun behavior.\n\"\"\"\n''')\ns=s.replace('''        self.observations: list[ToolObservation] = []\n        \"\"\"Tool outcomes across all runs, retained for an evidence receipt.\n''','''        self.observations: list[ToolObservation] = []\n        self._mutation_needs_review = False\n        \"\"\"Whether a successful write still needs a final evidence review.\"\"\"\n        \"\"\"Tool outcomes across all runs, retained for an evidence receipt.\n''')\nold='''            if not reply.tool_calls:\n                _LOG.info(\"Step %s: done after %s steps\", steps, steps)\n                return SessionOutcome(\n                    finished=True,\n                    summary=reply.text,\n                    steps=steps,\n                    reason=\"the agent reported that the work was done\",\n                )\n'''\nnew='''            if not reply.tool_calls:\n                if self._mutation_needs_review:\n                    # A first final answer after a write is a checkpoint, not the\n                    # report.  Keep the attempted answer in context and force one\n                    # grounded look back at the contract and observed evidence.\n                    # A later write rearms the checkpoint; merely answering the\n                    # review does not, so an agent can honestly report unverified\n                    # work rather than being trapped in a loop.\n                    if reply.output:\n                        conversation.extend(dict(item) for item in reply.output)\n                    else:\n                        conversation.append(\n                            {\"role\": \"assistant\", \"content\": reply.text}\n                        )\n                    conversation.append(\n                        {\"role\": \"user\", \"content\": _FINAL_EVIDENCE_REVIEW}\n                    )\n                    self._mutation_needs_review = False\n                    _LOG.info(\"Step %s: requested final evidence review\", steps)\n                    continue\n                _LOG.info(\"Step %s: done after %s steps\", steps, steps)\n                return SessionOutcome(\n                    finished=True,\n                    summary=reply.text,\n                    steps=steps,\n                    reason=\"the agent reported that the work was done\",\n                )\n'''\nif old not in s: raise SystemExit('run block not found')\ns=s.replace(old,new)\nold2='''        self.observations.append(\n            ToolObservation(step, call.name, arguments, outcome.is_error, text)\n        )\n        return f\"[error] {text}\" if outcome.is_error else text\n'''\nnew2='''        self.observations.append(\n            ToolObservation(step, call.name, arguments, outcome.is_error, text)\n        )\n        if not outcome.is_error and call.name in _MUTATING_TOOLS:\n            self._mutation_needs_review = True\n        return f\"[error] {text}\" if outcome.is_error else text\n'''\nif old2 not in s: raise SystemExit('observe block not found')\ns=s.replace(old2,new2)\np.write_text(s)\n"
       ],
       "status": "[exit code 0]",
-      "step": 12,
+      "step": 13,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "import inspect\nfrom evolving_agent.mcp_client import ToolOutcome\nprint(inspect.signature(ToolOutcome))"
+      ],
+      "status": "[exit code 0]",
+      "step": 14,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "tests.test_final_evidence_review",
+        "-v"
+      ],
+      "status": "[exit code 0]",
+      "step": 16,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\ns=Path('evolving_agent/session.py').read_text().splitlines()\nfor i in list(range(15,38))+list(range(145,175))+list(range(195,235))+list(range(285,305)): print(f'{i:4} {s[i-1]}')"
+      ],
+      "status": "[exit code 0]",
+      "step": 17,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/session.py'); s=p.read_text(); s=s.replace('''        self.observations: list[ToolObservation] = []\n        self._mutation_needs_review = False\n        \"\"\"Whether a successful write still needs a final evidence review.\"\"\"\n        \"\"\"Tool outcomes across all runs, retained for an evidence receipt.\n\n        The receipt is made by the improvement mode, not by the model's final\n        prose, so an unsupported claim cannot turn a failed command into a\n        passing one after the fact.\n        \"\"\"\n''','''        # Tool outcomes persist for the machine-generated evidence receipt.\n        self.observations: list[ToolObservation] = []\n        # Successful workspace mutations arm the final evidence checkpoint.\n        self._mutation_needs_review = False\n'''); p.write_text(s)"
+      ],
+      "status": "[exit code 0]",
+      "step": 18,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "tests.test_final_evidence_review",
+        "-v"
+      ],
+      "status": "[exit code 0]",
+      "step": 19,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--",
+        "evolving_agent/session.py",
+        "tests/test_final_evidence_review.py",
+        "memories/round-plan.md",
+        "memories/final-evidence-checkpoint.md"
+      ],
+      "status": "[did not start]",
+      "step": 21,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 5
+  "successful_commands": 12
 }

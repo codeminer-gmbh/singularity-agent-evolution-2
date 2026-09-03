@@ -45,6 +45,16 @@ _LOGGED_ARGUMENT_CHARACTERS = 200
 
 _TOOL_RESULT = "function_call_output"
 
+_MUTATING_TOOLS = frozenset({"write_file", "delete_path", "extract_archive"})
+_FINAL_EVIDENCE_REVIEW = """Do not finalize yet. The workspace changed since your last evidence review.
+Re-read the original task's acceptance conditions and inspect the actual tool
+outcomes still in this conversation. If a focused behavioral check for the
+changed capability has not run and passed after the change, run it now with the
+tools; a compile, import, startup, or unrelated test is not proof. If adequate
+proof did pass, reply with the complete answer naming that exact check and only
+what its observed result establishes. Do not claim failed or unrun behavior.
+"""
+
 _CONTINUES_A_TURN = frozenset({"function_call", _TOOL_RESULT})
 """The item kinds that only mean anything alongside the rest of their turn.
 
@@ -152,13 +162,10 @@ class ToolAgentSession:
         self._deadline = deadline
         self._max_steps = max_steps
         self.tool_calls: dict[str, int] = {}
+        # Tool outcomes persist for the machine-generated evidence receipt.
         self.observations: list[ToolObservation] = []
-        """Tool outcomes across all runs, retained for an evidence receipt.
-
-        The receipt is made by the improvement mode, not by the model's final
-        prose, so an unsupported claim cannot turn a failed command into a
-        passing one after the fact.
-        """
+        # Successful workspace mutations arm the final evidence checkpoint.
+        self._mutation_needs_review = False
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
@@ -191,6 +198,25 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
+                if self._mutation_needs_review:
+                    # A first final answer after a write is a checkpoint, not the
+                    # report.  Keep the attempted answer in context and force one
+                    # grounded look back at the contract and observed evidence.
+                    # A later write rearms the checkpoint; merely answering the
+                    # review does not, so an agent can honestly report unverified
+                    # work rather than being trapped in a loop.
+                    if reply.output:
+                        conversation.extend(dict(item) for item in reply.output)
+                    else:
+                        conversation.append(
+                            {"role": "assistant", "content": reply.text}
+                        )
+                    conversation.append(
+                        {"role": "user", "content": _FINAL_EVIDENCE_REVIEW}
+                    )
+                    self._mutation_needs_review = False
+                    _LOG.info("Step %s: requested final evidence review", steps)
+                    continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,
@@ -276,6 +302,8 @@ class ToolAgentSession:
         self.observations.append(
             ToolObservation(step, call.name, arguments, outcome.is_error, text)
         )
+        if not outcome.is_error and call.name in _MUTATING_TOOLS:
+            self._mutation_needs_review = True
         return f"[error] {text}" if outcome.is_error else text
 
 
