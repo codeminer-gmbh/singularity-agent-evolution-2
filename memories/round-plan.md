@@ -1,3 +1,3 @@
-Newest ledger evidence shows a streaming-window loss from retaining uncountable events when the configured interval is empty.
-Make probe planning eliminate degenerate domains before allocating state, and verify bounded storage under repetition for streaming/stateful code tasks.
-This changes the losing zero-window implementation choice; native-primitive delegation and diagnostic specificity are already closed policies.
+Ledger evidence identifies a contract task lost by hoisting a request-only length limit into shared validation for every operation.
+Make probe planning bind each rule to its named operation or state before coding, so branch-local constraints stay branch-local in protocol and command handlers.
+This changes validation placement; diagnostic specificity and degenerate-state bounds are already closed and another tool would not affect the answer.

@@ -1,0 +1,1 @@
+Probe contract planning now maps each boundary and validation rule to the operation, branch, or state named by the contract. The prompt explicitly rejects hoisting a branch-local rule into shared parsing or a common constructor; `tests/test_probe_validation_scope_policy.py` locks that decision.
