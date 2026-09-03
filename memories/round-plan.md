@@ -1,3 +1,3 @@
-Cannot do: reject a changed successor that merely inherits an old valid verification.json, so its claimed proof need not cover its edit.
-Change: bind the improvement publication gate to the verification record bytes present before the session and require a fresh record after any source change.
-Why: the ledger says durable proof validation was accepted repeatedly yet produced no observed exam gain; stale evidence is the most costly unclosed boundary, ahead of more capability tools.
+Cannot do: prevent a newly written verification receipt from being reused after its claimed candidate's source changes.
+Change: bind verification.json to a deterministic digest of every candidate file excluding the receipt itself, and require that binding at publication.
+Why this gap: the ledger's "freshness only" failure shows byte freshness admits false proof; provenance binding directly distinguishes a receipt for one tree from a receipt for another.

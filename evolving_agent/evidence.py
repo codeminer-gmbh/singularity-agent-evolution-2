@@ -14,7 +14,7 @@ from evolving_agent.workspace import Workspace, WorkspaceError
 VERIFICATION_RECORD = "memories/verification.json"
 """Workspace-relative location of the evidence required for a changed tree."""
 
-_REQUIRED_TOP_LEVEL = ("audit", "matrix")
+_REQUIRED_TOP_LEVEL = ("audit", "matrix", "candidate_digest")
 _REQUIRED_AUDIT = ("costly_failure", "evidence")
 _REQUIRED_ROW = ("requirement", "input", "expected", "interaction", "observed")
 _MAX_RECORD_BYTES = 100_000
@@ -73,6 +73,13 @@ def verification_problems(workspace: Workspace) -> tuple[str, ...]:
     if not isinstance(record, dict):
         return (f"{VERIFICATION_RECORD} must contain a JSON object",)
     problems = _shape_problems(record)
+    if not problems:
+        claimed_digest = record["candidate_digest"]
+        actual_digest = workspace.digest(exclude=frozenset({VERIFICATION_RECORD}))
+        if claimed_digest != actual_digest:
+            problems.append(
+                f"{VERIFICATION_RECORD}.candidate_digest does not match the current candidate"
+            )
     return tuple(problems)
 
 
@@ -81,6 +88,15 @@ def _shape_problems(record: dict[object, object]) -> list[str]:
     for key in _REQUIRED_TOP_LEVEL:
         if key not in record:
             problems.append(f"{VERIFICATION_RECORD} is missing top-level {key!r}")
+    candidate_digest = record.get("candidate_digest")
+    if not (
+        isinstance(candidate_digest, str)
+        and len(candidate_digest) == 64
+        and all(character in "0123456789abcdef" for character in candidate_digest)
+    ):
+        problems.append(
+            f"{VERIFICATION_RECORD}.candidate_digest must be a lowercase SHA-256 hex digest"
+        )
     audit = record.get("audit")
     if not isinstance(audit, dict):
         problems.append(f"{VERIFICATION_RECORD}.audit must be an object")

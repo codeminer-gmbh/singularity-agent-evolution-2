@@ -180,12 +180,16 @@ Specification-to-proof protocol — use this before every edit:
 Before publishing a changed tree, write `memories/verification.json`. Its
 `audit` object must have nonempty `costly_failure` and `evidence` text. Its
 nonempty `matrix` array must give every row nonempty `requirement`, `input`,
-`expected`, `interaction`, and `observed` text. Record the actual command or
-public interaction and what it showed, including an adversarial row; never
-write planned evidence as though it happened. The publication gate rejects a
-changed successor without this record. An inherited record is not proof for a
-new edit: its bytes must change after you run this round's matrix, so make it
-after running the matrix and update it if a repair changes the proof.
+`expected`, `interaction`, and `observed` text. Its `candidate_digest` must be
+the lowercase SHA-256 candidate digest computed by the supplied workspace
+digest operation while excluding `memories/verification.json`; write the
+record last, after every source edit and after the matrix runs. Record the
+actual command or public interaction and what it showed, including an
+adversarial row; never write planned evidence as though it happened. The
+publication gate rejects a changed successor without this record or when its
+binding does not match the shipped candidate. An inherited record is not proof
+for a new edit: its bytes must change after you run this round's matrix, so
+make it after running the matrix and update it if a repair changes the proof.
 
 How to work: read what the change needs, define its discriminating proof, then
 act decisively on the design you select. A large capability with direct,

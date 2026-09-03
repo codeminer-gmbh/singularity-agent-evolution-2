@@ -292,19 +292,26 @@ class Workspace:
                     f"The workspace could not be cleared: {undeletable}"
                 ) from undeletable
 
-    def digest(self) -> str:
-        """Return one value that changes whenever the tree's content changes.
+    def digest(self, *, exclude: frozenset[str] = frozenset()) -> str:
+        """Return a deterministic digest over all contained source files.
 
-        Returns:
-            A hexadecimal digest over every path and every byte in the tree, so
-            a run that changed nothing can be told from one that did.
-
+        ``exclude`` names exact workspace-relative paths.  It lets a receipt
+        attest to its candidate without hashing itself, avoiding a circular
+        value.  Length-prefixing makes different path/content pairs unable to
+        share an ambiguous concatenation.
         """
         running = hashlib.sha256()
         root = self._root.resolve()
-        for entry in self.entries():
-            running.update(entry.relative_path.encode("utf-8"))
-            running.update((root / entry.relative_path).read_bytes())
+        for path in _contained_paths(root):
+            relative = path.relative_to(root)
+            if _is_skipped(relative) or relative.as_posix() in exclude:
+                continue
+            path_bytes = relative.as_posix().encode("utf-8")
+            content = path.read_bytes()
+            running.update(len(path_bytes).to_bytes(8, "big"))
+            running.update(path_bytes)
+            running.update(len(content).to_bytes(8, "big"))
+            running.update(content)
         return running.hexdigest()
 
 

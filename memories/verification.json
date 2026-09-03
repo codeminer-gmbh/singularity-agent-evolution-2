@@ -1,36 +1,30 @@
 {
+  "candidate_digest": "1443a4e59641c47e539ee179d06cf2966dc976809f34c6e354ff12a827f985f4",
   "audit": {
-    "costly_failure": "The most costly repeated ledger failure was accepting a changed successor with inherited verification evidence, leaving the claimed proof unrelated to the edit.",
-    "evidence": "Ledger signature in my words: durable verification was repeatedly accepted without an observed exam gain; the missed boundary is whether verification.json changed when the source did. The distinguishing case is a source-changed candidate paired with byte-for-byte inherited verification.json."
+    "costly_failure": "The ledger repeatedly found that a receipt merely refreshed in the same session could still prove a different source tree; freshness alone did not bind evidence to the candidate.",
+    "evidence": "Ledger fact in my words: the costly failure was inherited or unrelated verification evidence accepted after a source change. The untested boundary was receipt provenance rather than receipt age. The distinguishing input is a valid-format receipt whose digest was made before agent.py changes, then checked after that change."
   },
   "matrix": [
     {
-      "requirement": "A changed successor must not publish using the verification record it inherited before the improvement session.",
-      "input": "The current workspace and its inherited verification bytes, evaluated as candidate_changed=True with no record rewrite.",
-      "expected": "The publication problems include 'memories/verification.json was not updated for this changed successor'.",
-      "interaction": "python -m pytest -q tests/test_publication_freshness.py tests/test_final_answer_context.py",
-      "observed": "4 passed; test_changed_candidate_requires_record_different_from_inherited_one asserted the exact freshness rejection."
+      "requirement": "A verification receipt is accepted for exactly the candidate whose digest it records.",
+      "input": "A temporary workspace containing agent.py version 1 and a receipt generated from its digest, with the receipt excluded from hashing.",
+      "expected": "verification_problems returns no problems; updating the receipt itself does not create a self-reference mismatch.",
+      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
+      "observed": "1 passed in 0.02s; the test wrote a matching receipt and observed an empty problem tuple."
     },
     {
-      "requirement": "The freshness default is conditional: a valid inherited record remains acceptable when no successor source changed.",
-      "input": "The same current workspace and inherited verification bytes, evaluated as candidate_changed=False.",
-      "expected": "No verification-update problem is reported.",
-      "interaction": "python -m pytest -q tests/test_publication_freshness.py tests/test_final_answer_context.py",
-      "observed": "4 passed; test_unchanged_tree_does_not_require_a_new_verification_record observed no freshness message."
+      "requirement": "A receipt from an earlier source tree must reject a later source edit even when all required receipt fields remain present.",
+      "input": "The same temporary workspace after changing agent.py from version 1 to version 2 without rewriting candidate_digest.",
+      "expected": "verification_problems returns exactly memories/verification.json.candidate_digest does not match the current candidate.",
+      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
+      "observed": "1 passed in 0.02s; the adversarial mutation produced the asserted exact mismatch message."
     },
     {
-      "requirement": "Publication freshness compares the pre-session verification record rather than merely requiring a file to exist.",
-      "input": "Current verification bytes supplied as inherited evidence, first with candidate_changed=False and then candidate_changed=True.",
-      "expected": "The unchanged case has no freshness rejection and the changed case rejects the same bytes as stale.",
-      "interaction": "python -c from pathlib import Path\nfrom evolving_agent.modes import _publication_problems\nfrom evolving_agent.workspace import Workspace\nfrom evolving_agent.evidence import verification_record_bytes\nw=Workspace(Path('.')); inherited=verification_record_bytes(w); print('unchanged freshness:', [p for p in _publication_problems(w,inherited,False) if 'updated' in p.lower()]); print('changed freshness:', [p for p in _publication_problems(w,inherited,True) if 'updated' in p.lower()])",
-      "observed": "Observed `unchanged freshness: []` and `changed freshness: ['memories/verification.json was not updated for this changed successor']`."
-    },
-    {
-      "requirement": "The revised improvement-path module remains syntactically usable.",
-      "input": "evolving_agent/modes.py after adding the candidate digest argument to the repair call.",
-      "expected": "Python byte-compiles the module without an error.",
-      "interaction": "python -m py_compile evolving_agent/modes.py",
-      "observed": "Command exited 0 with no compiler output."
+      "requirement": "Existing verification and publication checks remain usable with the new required binding.",
+      "input": "The full repository test suite after candidate-digest validation and prompt changes.",
+      "expected": "All tests pass.",
+      "interaction": "python -m pytest -q",
+      "observed": "7 passed in 1.47s."
     }
   ]
 }
