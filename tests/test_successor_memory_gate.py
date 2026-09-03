@@ -15,54 +15,46 @@ class MemoryEvidenceGateTests(unittest.TestCase):
         (root / "main.py").write_text("print('ok')\n", encoding="utf-8")
         return Workspace(root)
 
-    def test_new_verification_claim_needs_named_shipped_evidence(self) -> None:
+    def _claim_problem(self, claim: str) -> tuple[str, ...]:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             baseline = self._workspace(root / "baseline")
             candidate = self._workspace(root / "candidate")
-            candidate.write_text("memories/change.md", "Verified the feature.\n")
+            candidate.write_text("memories/change.md", claim)
+            return successor_problems(candidate, baseline_root=baseline.root)
 
-            problems = successor_problems(candidate, baseline_root=baseline.root)
-
-            self.assertEqual(
-                problems,
-                ("memories/change.md claims execution evidence but names no shipped test or fixture",),
-            )
+    def test_new_verification_claim_needs_named_shipped_evidence(self) -> None:
+        self.assertEqual(
+            self._claim_problem("Verified the feature.\n"),
+            ("memories/change.md claims execution evidence but names no shipped test or fixture",),
+        )
 
     def test_verification_conjugations_need_named_evidence(self) -> None:
         for claim in (
             "This check verifies the feature.\n",
             "Please verify the feature.\n",
             "Verification confirms the feature.\n",
+            "The check covers the feature.\n",
+            "Validation succeeded.\n",
+            "It succeeded.\n",
         ):
-            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                baseline = self._workspace(root / "baseline")
-                candidate = self._workspace(root / "candidate")
-                candidate.write_text("memories/change.md", claim)
-
+            with self.subTest(claim=claim):
                 self.assertEqual(
-                    successor_problems(candidate, baseline_root=baseline.root),
+                    self._claim_problem(claim),
                     (
-                        "memories/change.md claims verification but names no shipped "
-                        "test or fixture",
+                        "memories/change.md claims execution evidence but names no "
+                        "shipped test or fixture",
                     ),
                 )
-
 
     def test_smoke_or_integration_claim_needs_named_shipped_evidence(self) -> None:
         for claim in (
             "An integration check covers the change.\n",
             "An end-to-end exercise covers the change.\n",
         ):
-            with self.subTest(claim=claim), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                baseline = self._workspace(root / "baseline")
-                candidate = self._workspace(root / "candidate")
-                candidate.write_text("memories/change.md", claim)
-
+            with self.subTest(claim=claim):
                 self.assertEqual(
-                    successor_problems(candidate, baseline_root=baseline.root),
+                    self._claim_problem(claim),
                     (
                         "memories/change.md claims execution evidence but names no "
                         "shipped test or fixture",
@@ -77,6 +69,33 @@ class MemoryEvidenceGateTests(unittest.TestCase):
             candidate.write_text("tests/test_feature.py", "def test_feature(): pass\n")
             candidate.write_text(
                 "memories/change.md", "Verified by `tests/test_feature.py`.\n"
+            )
+
+            self.assertEqual(successor_problems(candidate, baseline_root=baseline.root), ())
+
+    def test_test_directory_non_test_file_is_not_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline = self._workspace(root / "baseline")
+            candidate = self._workspace(root / "candidate")
+            candidate.write_text("tests/README.md", "not a test\n")
+            candidate.write_text(
+                "memories/change.md", "Checked by `tests/README.md`.\n"
+            )
+
+            self.assertEqual(
+                successor_problems(candidate, baseline_root=baseline.root),
+                ("memories/change.md claims execution evidence but names no shipped test or fixture",),
+            )
+
+    def test_fixture_file_allows_execution_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline = self._workspace(root / "baseline")
+            candidate = self._workspace(root / "candidate")
+            candidate.write_text("tests/fixtures/input.json", "{}\n")
+            candidate.write_text(
+                "memories/change.md", "Checked against `tests/fixtures/input.json`.\n"
             )
 
             self.assertEqual(successor_problems(candidate, baseline_root=baseline.root), ())

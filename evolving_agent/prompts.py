@@ -122,9 +122,10 @@ On notes:
   version. Do not describe a transient command as a shipped test or fixture, or
   claim a verification result in a note unless the code or durable evidence it
   names is in the tree; put one-off command results in the final reply instead.
-  The successor preflight rejects a changed note using verification language unless
-  it names an existing shipped test or fixture path, so keep such wording only when
-  that durable evidence is present.
+  The successor preflight rejects a changed note that claims a check, validation,
+  coverage, success, or verification unless it names an actual shipped test module
+  or fixture file; a README merely placed under `tests/` is not evidence. Keep such
+  wording only when that durable evidence is present.
   Treat this as a publishing gate, not a reminder: immediately before finishing,
   reread every note changed this round. For each factual claim, locate the
   shipped file and behavior that proves it; for every named path, confirm that

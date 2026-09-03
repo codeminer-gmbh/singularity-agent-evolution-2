@@ -1,3 +1,3 @@
-Cycle 106 records a JSON-extraction failure: a probe's final prose sometimes omits the JSON a contract requires.
-Make probe instructions require a contract-shaped final response and forbid explanatory prose where the task demands a sole JSON value.
-This directly fixes an observed lost answer class, unlike another general evolution-note reminder.
+Ledger audit flags six inaccurate memory notes, chiefly unsupported claims of checks or wiring; weak lexical evidence gating leaves this recurring publishing failure.
+Strengthen the changed-note gate for concrete result claims and require any cited durable evidence path to be an actual test/fixture, improving auditable evolution notes.
+This beats another probe-format reminder because audited false notes recur across versions and directly poison future planning.

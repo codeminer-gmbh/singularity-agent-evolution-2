@@ -26,19 +26,18 @@ starts runs the entrypoint the first one names.
 _MAX_SCANNED_BYTES = 1_000_000
 _PYTHON_SUFFIX = ".py"
 _MEMORY_DIRECTORY = "memories/"
-# Cover ordinary conjugations as well as noun phrasing ("verification") so a
-# note cannot evade the evidence rule merely by saying a check "verifies" a
-# result rather than that it was "verified".
+# Execution-result wording belongs in a note only when that note points to a
+# real durable test or fixture.  Include ordinary outcome words too: previous
+# audits found prose such as "a check covers" just as misleading as "tested".
 _VERIFICATION_LANGUAGE = re.compile(
-    r"\b(?:tested|verified|verifies|verify|verification|passed|ran)\b"
+    r"\b(?:tested|verified|verifies|verify|verification|passed|ran|"
+    r"checked|checks|check|covers|covered|coverage|exercised|exercise|"
+    r"validated|validates|validation|confirmed|confirms|successful|success|succeeded|succeeds)\b"
     r"|\bcommand results?\b"
-    # A note can make an execution claim without using a conjugation above.
-    # These are the audit's common descriptions of that same transient work.
     r"|\b(?:smoke|integration|end[- ]to[- ]end|e2e)\s+(?:test|check|exercise|validation)\b",
     re.IGNORECASE,
 )
 _CODE_SPAN = re.compile(r"`([^`\n]+)`")
-_DURABLE_EVIDENCE_PARTS = frozenset({"test", "tests", "fixture", "fixtures"})
 
 
 def successor_problems(
@@ -80,11 +79,9 @@ def _memory_claim_problems(
 ) -> tuple[str, ...]:
     """Reject changed execution claims with no named durable evidence.
 
-    The judge audits memories against the published tree, not against an
-    improvement model's transient tool output. A note which reports testing,
-    a smoke/integration check, or similar execution therefore has to name a
-    test or fixture that is actually in this tree. The deliberately narrow
-    check leaves capability-only notes and ordinary prose untouched.
+    A cited path must be an actual test module (rather than, for example,
+    ``tests/README.md``) or a file below a fixture directory.  Mere existence
+    of a path with a convenient directory name is not durable evidence.
     """
     baseline = Workspace(baseline_root)
     baseline_sizes = {entry.relative_path: entry.byte_size for entry in baseline.entries()}
@@ -121,11 +118,19 @@ def _changed(
 
 
 def _names_durable_evidence(text: str, present: dict[str, int]) -> bool:
-    """Return whether a markdown code span names an existing test or fixture."""
+    """Return whether a code span names a shipped test module or fixture file."""
     for raw_path in _CODE_SPAN.findall(text):
         path = raw_path.strip().replace("\\", "/")
+        if path not in present:
+            continue
         parts = tuple(part.lower() for part in path.split("/") if part)
-        if path in present and _DURABLE_EVIDENCE_PARTS.intersection(parts):
+        leaf = parts[-1] if parts else ""
+        is_test_module = (
+            "tests" in parts
+            and path.endswith(_PYTHON_SUFFIX)
+            and (leaf == "test.py" or leaf.startswith("test_") or leaf.endswith("_test.py"))
+        )
+        if is_test_module or "fixture" in parts or "fixtures" in parts:
             return True
     return False
 
