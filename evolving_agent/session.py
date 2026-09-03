@@ -24,6 +24,7 @@ import logging
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from evolving_agent.mcp_client import McpError, ToolDescription, ToolOutcome
@@ -42,6 +43,14 @@ part a model needs least.
 
 _OBSERVATION_LIMIT = 8_000
 _LOGGED_ARGUMENT_CHARACTERS = 200
+
+_DELIVERABLE_REMINDER = (
+    "You have replied without creating a deliverable, but this run was given "
+    "an output directory for the files the task asks for. Before answering, "
+    "use a write tool to create every requested file under `output/` at its "
+    "exact path, then run the narrowest relevant check. Do not merely paste "
+    "the file into your reply."
+)
 
 _TOOL_RESULT = "function_call_output"
 
@@ -134,6 +143,7 @@ class ToolAgentSession:
         *,
         deadline: Deadline,
         max_steps: int,
+        deliverables: Path | None = None,
     ) -> None:
         """Hold the model, the tools and the bounds one session runs under.
 
@@ -144,6 +154,9 @@ class ToolAgentSession:
                 is what the model is offered.
             deadline: When the session stops asking for another step.
             max_steps: How many steps it may take at most.
+            deliverables: A probe output directory that must contain a file
+                before a prose-only answer is accepted, or none for runs that
+                do not request file deliverables.
 
         """
         self._model = model
@@ -151,6 +164,7 @@ class ToolAgentSession:
         self._schemas = tool_schemas(published)
         self._deadline = deadline
         self._max_steps = max_steps
+        self._deliverables = deliverables
         self.tool_calls: dict[str, int] = {}
         self.observations: list[ToolObservation] = []
         """Tool outcomes across all runs, retained for an evidence receipt.
@@ -191,6 +205,20 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
+                if (
+                    self._deliverables is not None
+                    and not has_deliverable(self._deliverables)
+                    and steps < self._max_steps
+                    and not self._deadline.expired()
+                ):
+                    # A prose answer cannot satisfy a file-delivery contract.
+                    # Preserve that answer as the assistant turn, then give the
+                    # model another concrete chance to perform the omitted write.
+                    conversation.extend(dict(item) for item in reply.output)
+                    conversation.append(
+                        {"role": "user", "content": _DELIVERABLE_REMINDER}
+                    )
+                    continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,
@@ -316,3 +344,18 @@ def _short(text: str) -> str:
     if len(text) <= _LOGGED_ARGUMENT_CHARACTERS:
         return text
     return f"{text[:_LOGGED_ARGUMENT_CHARACTERS]}…"
+
+
+def has_deliverable(directory: Path) -> bool:
+    """Return whether the output tree contains a task deliverable.
+
+    Orchestrator metadata is evidence about a run, not one of the files the
+    task requested, so an otherwise empty ``.meta`` directory does not count.
+    """
+    try:
+        return any(
+            path.is_file() and ".meta" not in path.relative_to(directory).parts
+            for path in directory.rglob("*")
+        )
+    except OSError:
+        return False

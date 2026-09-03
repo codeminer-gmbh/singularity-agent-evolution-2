@@ -1,0 +1,3 @@
+# Deliverable completion checkpoint
+
+Probe sessions given `AGENT_OUTPUT` treat a tool-free response as incomplete while the output tree has no non-metadata file. `ToolAgentSession` preserves that response, sends a concrete reminder to write every requested `output/` path and run a narrow check, and continues when budget remains. `run_probe` also rejects claimed completion if the directory still contains only `.meta` evidence, so exhausting the step budget cannot turn prose into artifact success. Focused fake-model checks observed both the reminder/write/complete sequence and rejection of metadata-only output.

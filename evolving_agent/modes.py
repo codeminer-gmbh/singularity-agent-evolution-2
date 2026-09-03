@@ -37,7 +37,12 @@ from evolving_agent.prompts import (
     probe_opening,
     repair_opening,
 )
-from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession
+from evolving_agent.session import (
+    Deadline,
+    SessionOutcome,
+    ToolAgentSession,
+    has_deliverable,
+)
 from evolving_agent.settings import AgentSettings
 from evolving_agent.successor import successor_problems
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -137,7 +142,11 @@ def run_probe(settings: AgentSettings) -> RunReport:
     model = ModelClient(settings.model)
     try:
         session = _session(
-            model, _tools(workspace, deadline, settings), deadline, settings
+            model,
+            _tools(workspace, deadline, settings),
+            deadline,
+            settings,
+            require_deliverable=settings.output is not None,
         )
         outcome = session.run(
             instructions=probe_instructions(),
@@ -150,6 +159,15 @@ def run_probe(settings: AgentSettings) -> RunReport:
     except (ModelUnavailableError, McpError) as unreachable:
         return RunReport(succeeded=False, answer="", detail=str(unreachable))
     _record_tool_calls(settings, session)
+    if settings.output is not None and not has_deliverable(settings.output):
+        return RunReport(
+            succeeded=False,
+            answer="",
+            detail=(
+                f"{outcome.reason}; the probe output directory contains no "
+                "deliverable"
+            ),
+        )
     if outcome.finished and outcome.summary.strip():
         return RunReport(
             succeeded=True,
@@ -333,6 +351,8 @@ def _session(
     tools: McpClient,
     deadline: Deadline,
     settings: AgentSettings,
+    *,
+    require_deliverable: bool = False,
 ) -> ToolAgentSession:
     """Return the session one run takes its steps through.
 
@@ -347,6 +367,7 @@ def _session(
         tools.list_tools(),
         deadline=deadline,
         max_steps=settings.max_steps,
+        deliverables=settings.output if require_deliverable else None,
     )
 
 

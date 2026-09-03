@@ -4,7 +4,7 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nprint(len(s), s.count('### Cycle'))\nfor block in s.split('### Cycle')[1:]:\n lines=block.splitlines()\n print('\\nCYCLE',lines[0][:100])\n for l in lines:\n  if l.startswith(('Claimed change:','Files:','Exam:','  - \"')): print(l[:500])\n"
+        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nfor term in ['no solution.py','passed 0','printed nothing','budget','unverified','prepared','missing deliverable','no deliverable']:\n print(term, s.lower().count(term.lower()))\nprint('cycles',s.count('### Cycle'))\n# print cycle headings and Claimed, Exam\nfor block in s.split('### Cycle ')[1:]:\n lines=block.splitlines(); print('\\nCYCLE',lines[0]);\n for l in lines[1:]:\n  if l.startswith(('Claimed change:','Exam:','Files:')): print(l[:500])\n  if l.startswith('### '): break\n"
       ],
       "status": "[exit code 1]",
       "step": 3,
@@ -14,7 +14,7 @@
       "command": [
         "python",
         "-c",
-        "import evolving_agent.prompts as p\nprint(p._IMPROVEMENT_ROLE[-6500:])\nprint('\\n---PROBE---\\n')\nprint(p._PROBE_ROLE[-4500:])"
+        "import evolving_agent.prompts as p\nprint(p._PROBE_ROLE)\nprint('\\nOPENING FUNC\\n'); import inspect; print(inspect.getsource(p.probe_opening))"
       ],
       "status": "[exit code 0]",
       "step": 6,
@@ -22,9 +22,38 @@
     },
     {
       "command": [
-        "python",
-        "-c",
-        "import evolving_agent.prompts as p\nprint(p._PROBE_ROLE)"
+        "grep",
+        "-R",
+        "ToolAgentSession(",
+        "-n",
+        ".",
+        "--exclude-dir=.git"
+      ],
+      "status": "[exit code 0]",
+      "step": 6,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "find",
+        ".",
+        "-maxdepth",
+        "3",
+        "-type",
+        "f",
+        "-path",
+        "*test*"
+      ],
+      "status": "[exit code 0]",
+      "step": 6,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "170,380p",
+        "evolving_agent/session.py"
       ],
       "status": "[exit code 0]",
       "step": 7,
@@ -32,9 +61,10 @@
     },
     {
       "command": [
-        "python",
-        "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nold='''These instructions are yours:\n  This prompt is part of the program you are improving. If a better way of\n  spending a round exists than the one described here, rewrite this text so\n  the next round takes it \u2014 and if you find that the lineage has spent\n  several rounds on the same kind of change with nothing to show for it in\n  the exam, that is exactly the moment to.\n\nHow to work: read what the plan needs, then act decisively on its one\nchange. For an implementation or exact-output change, convert the task's\ncontract into an acceptance checklist before editing: every MUST, prohibition,\nexact literal or byte sequence, boundary, error case, and side-effect rule gets\na corresponding executable check. Include adversarial values where the host\nlanguage permits user-controlled hooks (such as subclasses, overloaded\noperators, iterators, or callbacks), rather than testing only ordinary built-in\nvalues. Run the narrow checks against the changed behavior\u2014not merely a syntax,\nimport, or happy-path smoke check. If one fails, inspect the observed mismatch,\nrepair it, and rerun the same check; do not weaken the oracle to fit the code.\n\nAs soon as the claimed behavior exists, run the `Proof:` check before starting\noptional cleanup, documentation, or another change; a check postponed to the\nend is the first thing a budget overrun deletes. Read the result and repair a\nfailure rather than describing it as success. If discovery changes what proof\nis appropriate, update the Proof line *before* running the new check, with the\nreason, rather than silently substituting an easier check.\n'''\nnew='''These instructions are yours:\n  This prompt is part of the program you are improving. Judge its advice by\n  downstream behavior, not by how rigorous it sounds. In the ledger, separate\n  shipped artifacts and observed checks from plans and claims; compare what\n  promoted and rejected rounds actually produced. If advice repeatedly leads\n  to missing deliverables, unrun checks, inaccurate notes, or the same failed\n  kind of change, delete or subordinate that advice. A rejected idea is not\n  disproved once, but repeated attempts without acceptance carry an increasing\n  burden of evidence. Record what the old wording rewarded and what the new\n  wording rewards so the next successor can continue the correction.\n\nHow to work \u2014 artifact first, then increasingly strong evidence:\n  1. Read what the plan needs and make the named source change immediately.\n     For any task requiring files, create every required path early with the\n     smallest runnable, contract-shaped candidate. A plan, test suite, or\n     explanation never compensates for a missing deliverable.\n  2. Inventory the contract compactly while implementing: required interface\n     and exact output first, then boundaries, errors, side effects, and\n     adversarial host-language hooks that are relevant. Do not spend the\n     artifact's time budget writing an exhaustive checklist before editing.\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n     execute. Read the observed result. Repair the highest-information failure\n     and rerun its same oracle; do not weaken a check to fit the implementation.\n     Add focused edge checks only while they can still drive a repair.\n  4. Reserve the end for a present deliverable and an honest report. Stop\n     optional cleanup and note-writing before they threaten execution of proof\n     or completion of the requested artifact.\n\nThe narrow proof must exercise the changed behavior\u2014not merely syntax, import,\nor a happy-path smoke check. If discovery makes the planned proof irrelevant,\nupdate the `Proof:` line *before* substituting a new check and state why. If the\nrelevant check fails or never runs, leave the artifact in its best runnable\nstate and report that limitation rather than converting preparation into proof.\n'''\nassert old in s\ns=s.replace(old,new,1)\nold2='''For implementation, repair, parser, or exact-output tasks, first make an\nacceptance checklist from the actual contract. Give every MUST, prohibition,\nexact literal or byte sequence, boundary, malformed-input rule, and observable\nside effect an executable check. Exercise adversarial language behavior where\ninputs can override ordinary operations (for example subclasses, overloaded\noperators, iterators, callbacks, aliasing, or mutation), not just happy-path\nbuilt-in values. Run supplied tests plus focused checks for the checklist; a\ncompile, import, or sample run alone is not behavioral evidence. On failure,\nrepair the observed mismatch and rerun the same oracle rather than weakening\nit. Only then produce the requested answer or deliverable.\n'''\nnew2='''For implementation, repair, parser, or exact-output tasks, work artifact\nfirst. Create every requested file at its exact output path early, with the\nsmallest runnable candidate that has the required interface; never postpone the\ndeliverable until after test design. Then run supplied tests immediately and\nuse observed failures to drive repairs. Cover exact literals or bytes and the\nhighest-risk boundaries, malformed inputs, side effects, and adversarial\nlanguage behavior while there is still time to change the artifact. Rerun the\nsame failing oracle after a repair rather than weakening it. A compile, import,\nor sample run is not behavioral evidence, but an unexecuted comprehensive\nchecklist is not evidence either. If time expires, a runnable best-effort\nartifact plus an honest account of observed failures is preferable to tests or\nexplanation with the required artifact missing.\n'''\nassert old2 in s\np.write_text(s.replace(old2,new2,1))\n"
+        "sed",
+        "-n",
+        "300,370p",
+        "evolving_agent/modes.py"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -42,16 +72,255 @@
     },
     {
       "command": [
-        "python",
-        "-c",
-        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nimp=improvement_instructions(); probe=probe_instructions()\n# Improvement loop: ledger correction, artifact before proof, observed repair, honest limits.\nfor phrase in ['compare what\\n  promoted and rejected rounds actually produced', 'delete or subordinate that advice', 'create every required path early', 'Do not spend the\\n     artifact\\'s time budget writing an exhaustive checklist before editing', 'Read the observed result', 'report that limitation rather than converting preparation into proof']:\n    assert phrase in imp, phrase\nassert imp.index('create every required path early') < imp.index('Run supplied tests or the `Proof:` check')\n# Probe loop: requested output exists before tests; results drive repair; nonexecution is not evidence.\nfor phrase in ['work artifact\\nfirst', 'Create every requested file at its exact output path early', 'Then run supplied tests immediately', 'use observed failures to drive repairs', 'an unexecuted comprehensive\\nchecklist is not evidence either', 'required artifact missing']:\n    assert phrase in probe, phrase\nassert probe.index('Create every requested file') < probe.index('run supplied tests immediately')\n# Proven-bad universal sequencing was removed.\nassert 'acceptance checklist before editing' not in imp\nassert 'first make an\\nacceptance checklist' not in probe\nassert 'Only then produce the requested answer or deliverable' not in probe\nprint('PASS: rendered improvement and probe instructions require artifact-first execution, observed repair, honest evidence, and ledger-driven deletion of repeatedly harmful advice')"
+        "grep",
+        "-R",
+        "output/solution\\|deliverable\\|solution.py",
+        "-n",
+        "materials/ledger.md"
+      ],
+      "status": "[exit code 2]",
+      "step": 8,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "1,180p",
+        "evolving_agent/modes.py"
       ],
       "status": "[exit code 0]",
-      "step": 9,
+      "step": 10,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/session.py')\ns=p.read_text()\ns=s.replace('from dataclasses import dataclass\\nfrom typing import Any, Protocol\\n','from dataclasses import dataclass\\nfrom pathlib import Path\\nfrom typing import Any, Protocol\\n')\ns=s.replace('_LOGGED_ARGUMENT_CHARACTERS = 200\\n','_LOGGED_ARGUMENT_CHARACTERS = 200\\n\\n_DELIVERABLE_REMINDER = (\\n    \"You have replied without creating a deliverable, but this run was given \"\\n    \"an output directory for the files the task asks for. Before answering, \"\\n    \"use a write tool to create every requested file under `output/` at its \"\\n    \"exact path, then run the narrowest relevant check. Do not merely paste \"\\n    \"the file into your reply.\"\\n)\\n')\ns=s.replace('        *,\\n        deadline: Deadline,\\n        max_steps: int,\\n','        *,\\n        deadline: Deadline,\\n        max_steps: int,\\n        deliverables: Path | None = None,\\n')\ns=s.replace('            max_steps: How many steps it may take at most.\\n','            max_steps: How many steps it may take at most.\\n            deliverables: A probe output directory that must contain a file\\n                before a prose-only answer is accepted, or none for runs that\\n                do not request file deliverables.\\n')\ns=s.replace('        self._max_steps = max_steps\\n        self.tool_calls', '        self._max_steps = max_steps\\n        self._deliverables = deliverables\\n        self.tool_calls')\nold='''            if not reply.tool_calls:\\n                _LOG.info(\"Step %s: done after %s steps\", steps, steps)\\n                return SessionOutcome(\\n                    finished=True,\\n                    summary=reply.text,\\n                    steps=steps,\\n                    reason=\"the agent reported that the work was done\",\\n                )\\n'''\nnew='''            if not reply.tool_calls:\\n                if (\\n                    self._deliverables is not None\\n                    and not _has_deliverable(self._deliverables)\\n                    and steps < self._max_steps\\n                    and not self._deadline.expired()\\n                ):\\n                    # A prose answer cannot satisfy a file-delivery contract.\\n                    # Preserve that answer as the assistant turn, then give the\\n                    # model one concrete chance to perform the omitted write.\\n                    conversation.extend(dict(item) for item in reply.output)\\n                    conversation.append(\\n                        {\"role\": \"user\", \"content\": _DELIVERABLE_REMINDER}\\n                    )\\n                    continue\\n                _LOG.info(\"Step %s: done after %s steps\", steps, steps)\\n                return SessionOutcome(\\n                    finished=True,\\n                    summary=reply.text,\\n                    steps=steps,\\n                    reason=\"the agent reported that the work was done\",\\n                )\\n'''\nassert old in s\ns=s.replace(old,new)\ns += '''\\n\\ndef _has_deliverable(directory: Path) -> bool:\\n    \"\"\"Return whether the output tree contains a task deliverable.\\n\\n    Orchestrator metadata is evidence about a run, not one of the files the\\n    task requested, so an otherwise empty ``.meta`` directory does not count.\\n    \"\"\"\\n    try:\\n        return any(\\n            path.is_file() and \".meta\" not in path.relative_to(directory).parts\\n            for path in directory.rglob(\"*\")\\n        )\\n    except OSError:\\n        return False\\n'''\np.write_text(s)\n\np=Path('evolving_agent/modes.py'); s=p.read_text()\ns=s.replace('    settings: AgentSettings,\\n) -> ToolAgentSession:\\n', '    settings: AgentSettings,\\n    *,\\n    require_deliverable: bool = False,\\n) -> ToolAgentSession:\\n',1)\ns=s.replace('        max_steps=settings.max_steps,\\n    )\\n', '        max_steps=settings.max_steps,\\n        deliverables=settings.output if require_deliverable else None,\\n    )\\n',1)\n# only run_probe invocation exact first occurrence above\nold='''        session = _session(\\n            model, _tools(workspace, deadline, settings), deadline, settings\\n        )\\n'''\nnew='''        session = _session(\\n            model,\\n            _tools(workspace, deadline, settings),\\n            deadline,\\n            settings,\\n            require_deliverable=settings.output is not None,\\n        )\\n'''\nassert old in s\ns=s.replace(old,new,1)\np.write_text(s)\n"
+      ],
+      "status": "[exit code 0]",
+      "step": 11,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "115,155p",
+        "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 12,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "325,365p",
+        "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 12,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "main.py",
+        "evolving_agent"
+      ],
+      "status": "[exit code 0]",
+      "step": 12,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "import tempfile\nfrom pathlib import Path\nfrom types import SimpleNamespace\nfrom evolving_agent.model import ModelReply, ToolCall\nfrom evolving_agent.session import Deadline, ToolAgentSession\n\nclass Model:\n    def __init__(self): self.calls=[]\n    def reply(self, *, conversation, tools=()):\n        self.calls.append((list(conversation), tuple(tools)))\n        n=len(self.calls)\n        if n==1:\n            return ModelReply('I put the program below.', (), ({'role':'assistant','content':'I put the program below.'},))\n        if n==2:\n            assert 'without creating a deliverable' in conversation[-1]['content']\n            return ModelReply('', (ToolCall('w1','write_file','{\"path\":\"output/solution.py\",\"content\":\"print(42)\"}'),), ({'type':'function_call','call_id':'w1','name':'write_file','arguments':'{}'},))\n        return ModelReply('Created and checked output/solution.py.', (), ({'role':'assistant','content':'done'},))\nclass Tools:\n    def __init__(self, root): self.root=root\n    def call(self, name, args):\n        target=self.root/'solution.py'; target.write_text('print(42)\\n')\n        return SimpleNamespace(text='wrote output/solution.py',is_error=False)\n\nwith tempfile.TemporaryDirectory() as d:\n    out=Path(d); (out/'.meta').mkdir(); (out/'.meta'/'trace.json').write_text('{}')\n    model=Model(); session=ToolAgentSession(model,Tools(out),[],deadline=Deadline(30),max_steps=5,deliverables=out)\n    result=session.run(instructions='system',opening='create output/solution.py')\n    assert result.finished and result.steps==3, result\n    assert (out/'solution.py').read_text()=='print(42)\\n'\n    assert len(model.calls)==3\n    print('PASS: prose-only completion was rejected despite .meta; reminder caused write_file and session completed after artifact existed')\n"
+      ],
+      "status": "[exit code 0]",
+      "step": 13,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--",
+        "evolving_agent/session.py",
+        "evolving_agent/modes.py",
+        "memories/round-plan.md"
+      ],
+      "status": "[did not start]",
+      "step": 14,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "1,270p",
+        "evolving_agent/session.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 16,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "270,520p",
+        "evolving_agent/session.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 17,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "195,280p",
+        "evolving_agent/session.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 18,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "grep",
+        "-R",
+        "ToolAgentSession(",
+        "-n",
+        ".",
+        "--exclude-dir=.git"
+      ],
+      "status": "[exit code 0]",
+      "step": 19,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "150,230p",
+        "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 20,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "grep",
+        "-n",
+        "def _final_answer",
+        "-A55",
+        "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 21,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "1,45p",
+        "evolving_agent/modes.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 22,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/session.py')\ns=p.read_text()\ns=s.replace('not _has_deliverable(self._deliverables)', 'not has_deliverable(self._deliverables)')\ns=s.replace('def _has_deliverable(directory: Path) -> bool:', 'def has_deliverable(directory: Path) -> bool:')\ns=s.replace('                    # model one concrete chance to perform the omitted write.','                    # model another concrete chance to perform the omitted write.')\np.write_text(s)\np=Path('evolving_agent/modes.py'); s=p.read_text()\ns=s.replace('from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession', 'from evolving_agent.session import (\\n    Deadline,\\n    SessionOutcome,\\n    ToolAgentSession,\\n    has_deliverable,\\n)')\nneedle='    _record_tool_calls(settings, session)\\n    if outcome.finished and outcome.summary.strip():\\n'\nrepl='    _record_tool_calls(settings, session)\\n    if settings.output is not None and not has_deliverable(settings.output):\\n        return RunReport(\\n            succeeded=False,\\n            answer=\"\",\\n            detail=(\\n                f\"{outcome.reason}; the probe output directory contains no \"\\n                \"deliverable\"\\n            ),\\n        )\\n    if outcome.finished and outcome.summary.strip():\\n'\nassert needle in s\ns=s.replace(needle,repl,1)\np.write_text(s)\n"
+      ],
+      "status": "[exit code 0]",
+      "step": 23,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "import tempfile\nfrom pathlib import Path\nfrom types import SimpleNamespace\nfrom evolving_agent.model import ModelReply, ToolCall\nfrom evolving_agent.session import Deadline, ToolAgentSession\n\nclass Model:\n    def __init__(self): self.calls=[]\n    def reply(self, *, conversation, tools=()):\n        self.calls.append((list(conversation), tuple(tools)))\n        n=len(self.calls)\n        if n==1:\n            return ModelReply('I put the program below.', (), ({'role':'assistant','content':'I put the program below.'},))\n        if n==2:\n            assert 'without creating a deliverable' in conversation[-1]['content']\n            return ModelReply('', (ToolCall('w1','write_file','{\"path\":\"output/solution.py\",\"content\":\"print(42)\"}'),), ({'type':'function_call','call_id':'w1','name':'write_file','arguments':'{}'},))\n        return ModelReply('Created and checked output/solution.py.', (), ({'role':'assistant','content':'done'},))\nclass Tools:\n    def __init__(self, root): self.root=root\n    def call(self, name, args):\n        target=self.root/'solution.py'; target.write_text('print(42)\\n')\n        return SimpleNamespace(text='wrote output/solution.py',is_error=False)\n\nwith tempfile.TemporaryDirectory() as d:\n    out=Path(d); (out/'.meta').mkdir(); (out/'.meta'/'trace.json').write_text('{}')\n    model=Model(); session=ToolAgentSession(model,Tools(out),[],deadline=Deadline(30),max_steps=5,deliverables=out)\n    result=session.run(instructions='system',opening='create output/solution.py')\n    assert result.finished and result.steps==3, result\n    assert (out/'solution.py').read_text()=='print(42)\\n'\n    assert len(model.calls)==3\n    print('PASS: prose-only completion was rejected despite .meta; reminder caused write_file and session completed after artifact existed')\n"
+      ],
+      "status": "[exit code 0]",
+      "step": 24,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "sed",
+        "-n",
+        "35,145p",
+        "evolving_agent/settings.py"
+      ],
+      "status": "[exit code 0]",
+      "step": 25,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "import tempfile\nfrom pathlib import Path\nfrom types import SimpleNamespace\nfrom unittest.mock import patch\nfrom evolving_agent.modes import run_probe\nfrom evolving_agent.session import SessionOutcome\nfrom evolving_agent.settings import AgentMode, AgentSettings, ModelAccess\n\nclass EmptySession:\n    tool_calls={}\n    def run(self, **kwargs):\n        return SessionOutcome(True,'claimed completion',1,'the agent reported that the work was done')\n\nwith tempfile.TemporaryDirectory() as d:\n    root=Path(d); work=root/'work'; work.mkdir(); out=root/'out'\n    settings=AgentSettings(AgentMode.PROBE,'write result.txt',work,work,ModelAccess(None,'fake',30,None),30,1,output=out)\n    with patch('evolving_agent.modes.ModelClient',return_value=object()), patch('evolving_agent.modes._tools',return_value=object()), patch('evolving_agent.modes._session',return_value=EmptySession()):\n        report=run_probe(settings)\n    assert not report.succeeded and report.answer=='', report\n    assert 'contains no deliverable' in report.detail, report.detail\n    assert (out/'.meta'/'tool_calls.json').is_file()\n    print('PASS: run_probe rejected a claimed completion when output contained only orchestrator metadata')\n"
+      ],
+      "status": "[exit code 0]",
+      "step": 26,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--",
+        "evolving_agent/session.py",
+        "evolving_agent/modes.py",
+        "memories/round-plan.md",
+        "memories/artifact-completion-checkpoint.md"
+      ],
+      "status": "[did not start]",
+      "step": 28,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "main.py",
+        "evolving_agent"
+      ],
+      "status": "[exit code 0]",
+      "step": 29,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\nfor p in Path('.').rglob('__pycache__'):\n    for f in p.iterdir(): f.unlink()\n    p.rmdir()\nprint('removed bytecode caches')"
+      ],
+      "status": "[exit code 0]",
+      "step": 30,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 4
+  "successful_commands": 24
 }
