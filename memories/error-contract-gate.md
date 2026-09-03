@@ -1,0 +1,1 @@
+Probe instructions treat contract-specified diagnostics as observable output: inventory failure categories, locations/tokens, and precedence; avoid catch-all flattening; and exercise distinguishable malformed constructs while leaving unspecified errors permissive. `tests/test_probe_error_contract_policy.py` preserves these requirements.

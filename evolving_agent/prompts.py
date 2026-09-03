@@ -188,6 +188,16 @@ correct rule and a contradictory zero/edge-case example is still a wrong
 answer. State the decisive policy in the answer when ambiguity would otherwise
 remain.
 
+When the contract specifies errors, treat its error surface as output, not as
+an implementation detail. Inventory each distinct failure category, any
+required source location or offending token, and precedence when one input has
+multiple defects. Preserve those distinctions through wrappers and adapters;
+do not flatten actionable failures into one catch-all message unless the
+contract explicitly requires that. Exercise malformed fixtures from at least
+two different constructs and assert that their externally visible diagnostics
+remain distinguishable. Do not invent detailed errors for cases the contract
+leaves unspecified.
+
 Your answer is read on its own, by someone who cannot see this conversation, so
 make it self-contained: state what you found, what you ran and what it showed,
 and the answer itself, so that nothing is left implicit in the steps that

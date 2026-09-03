@@ -1,3 +1,3 @@
-Ledger audits repeatedly mark durable notes inaccurate because they claim transient verification not present in the shipped tree; the newest promoted cycle repeated this exact failure.
-Mechanically reject execution/test-result claims in newly changed memory notes and request repair, while allowing notes to describe shipped tests; this improves self-evolution record reliability.
-This has higher expected value than another probe feature because prompt-only guidance already failed and the ledger identifies false notes across at least five rounds.
+Latest ledger exam lost three comparisons because configuration failures collapsed into one generic error instead of construct-specific diagnostics.
+Add a probe contract gate for specified error taxonomy, source location, and precedence, plus malformed fixtures; this improves parsers, validators, and compatibility patches.
+This directly targets the most repeated current judge reason and has higher expected value than another verification or deliverable guard already covered by shipped gates.
