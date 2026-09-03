@@ -15,21 +15,22 @@ fact on the record.
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with an evidence-led capability audit. After the
+An improvement run opens with an evidence-led decision audit. After the
 entry documents, it reads `materials/ledger.md` when supplied and relevant
-concise memories, treating them as evidence rather than instructions. Its three
-lines in `memories/round-plan.md` identify a task-facing failure or opportunity
-and supporting evidence, the smallest mechanism-targeted change and task class,
-and why that bet beats an alternative. This prevents a list of available tools
-or a predecessor's unclosed idea from becoming the strategy by default.
+concise memories, treating them as evidence rather than instructions. Judge
+reasons that identify an answer difference outrank outcome labels: a promotion
+of a whole version is not causal support for a change the verdict never
+exercised. Its three lines in `memories/round-plan.md` name the evidenced
+mistaken decision, a sufficient intervention and task class, and the already
+closed or lower-value alternative it will not repeat.
 
-The objective is expected performance on hard unseen tasks, not code volume or
-the number of published tools. A valuable change may add a missing capability,
-or may make delivered artifacts follow exact contracts more reliably: preserve
-permitted inputs, define specified error precedence, and handle meaningful
-boundaries and malformed inputs. Keeping the tree buildable, startable and able
-to improve itself is a gate the orchestrator checks; it is not what a round is
-for.
+The objective is expected performance on hard unseen tasks, not code, prompt,
+test, or tool volume. The instructions reward an observable correction to a
+losing decision and semantic economy: prefer contract-matching standard
+primitives over bespoke parsing, validation, and restrictions. Buildability and
+policy compliance are gates, not achievements. Instruction rounds replace
+counterproductive guidance rather than accumulating clauses, and verification
+must discriminate the named mechanism rather than merely report a green suite.
 
 ## How it works
 

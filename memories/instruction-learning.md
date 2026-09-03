@@ -1,0 +1,1 @@
+Improvement instructions treat promotion as non-causal unless the verdict exercises the change, prioritize repeated decision errors, and require mechanism-discriminating evidence. Probe instructions prefer contract-matching standard primitives without invented strictness. Shipped assertions: `tests/test_instruction_learning_policy.py`.
