@@ -1,43 +1,36 @@
 {
   "audit": {
-    "costly_failure": "The line repeatedly delivered artifacts without validating the exact contract; the smallest ledger fact is that the prior 0.4 submission used only a generic review and its final validator still accepted malformed URLs.",
-    "evidence": "The selected failure signature is: a draft accepts http:/broken merely because it has a scheme, while the task requires an absolute HTTP(S) URL with authority. The untested boundary was scheme recognition versus full URL validity, compounded by publishing before a separate critic could preserve and hand defects to a repair pass. The distinguishing input is http:/broken, which must be rejected while https://example.test/a must be accepted."
+    "costly_failure": "The line's most costly supported failure is shipping underverified artifacts: the ledger's smallest decisive fact is that the 0.4 candidate's final validator still accepted malformed URLs after a generic review.",
+    "evidence": "Failure signature: when ordinary max_steps is exhausted, the old one-exchange-per-stage allowance lets a critic or finalizer make a tool call but provides no following exchange to interpret it, so correction cannot complete. The untested boundary was ordinary-step exhaustion versus the reserved completion lifecycle. Distinguishing input: max_steps=1; the draft guesses ALPHA, the critic must read materials/fact.txt, then the finalizer must write and re-read output/solution.txt as OMEGA-913. Old capacity was three total exchanges; this interaction requires six. Decision table: without completion_review, max_steps remains the ceiling; with two review stages, one draft exchange and four exchanges per stage are reserved beyond ordinary max_steps; in all cases the existing shared wall-clock deadline remains the hard bound."
   },
   "matrix": [
     {
-      "requirement": "A completed draft must enter a separate defect-only critique before repair or publication.",
-      "input": "A scripted probe draft whose validator accepts any scheme-prefixed string, followed by the critic testing http:/broken.",
-      "expected": "The critic observes exit code 0, emits a defect report naming the missing HTTP authority, and that report is present in the finalizer transcript.",
-      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
-      "observed": "Passed 1 test; the test asserted an eight-exchange public run_probe flow and found 'DEFECT: http:/broken' in the finalizer's transcript."
+      "requirement": "Exhausting the ordinary exchange allowance must not prevent a mandatory critic from using a tool and then reporting the observed defect.",
+      "input": "Public run_probe with max_steps=1: first response is an unsupported ALPHA draft; review must call read_file on materials/fact.txt containing OMEGA-913 and then emit a tool-free defect report.",
+      "expected": "The review read completes after ordinary allowance exhaustion and its OMEGA-913 evidence is handed to finalization rather than ending at the tool call.",
+      "interaction": "python -m unittest -v tests.test_completion_review.CompletionReviewTests.test_exhausted_ordinary_budget_still_allows_tool_using_review_and_repair",
+      "observed": "Exit code 0; the named public-path test passed. Its scripted critic made the post-draft read and returned a defect report before finalization."
     },
     {
-      "requirement": "The repair/finalization pass must use critique evidence and rerun the exact distinguishing malformed URL before answering.",
-      "input": "Conflict table: http:/broken has an explicit valid scheme but no authority and must be rejected; https://example.test/a has both and must be accepted.",
-      "expected": "The delivered validator returns nonzero for http:/broken and zero for https://example.test/a; the finalizer runs the malformed case after repair.",
-      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
-      "observed": "Passed; the produced validator was executed for both cases and returned nonzero for the malformed URL and zero for the valid URL, after the scripted finalizer's retest tool call."
+      "requirement": "A mandatory finalizer must retain enough reserved exchanges to write a repaired deliverable, re-read it, and only then report completion.",
+      "input": "Conflict/boundary case max_steps=1 with two completion stages: ordinary allowance is already consumed; finalization must write output/solution.txt, read the same file, and answer on its third exchange.",
+      "expected": "The probe succeeds after exactly six model exchanges, output/solution.txt contains OMEGA-913 newline, and the answer states it was delivered and re-read.",
+      "interaction": "python -m unittest -v tests.test_completion_review.CompletionReviewTests.test_exhausted_ordinary_budget_still_allows_tool_using_review_and_repair",
+      "observed": "Exit code 0; the test asserted six exchanges, read the produced file as exactly 'OMEGA-913\\n', and matched the final answer 'Delivered and re-read output/solution.txt: OMEGA-913.'"
     },
     {
-      "requirement": "Publication hygiene must remove unrequested failing scratch artifacts rather than delivering them with the repaired output.",
-      "input": "The initial draft creates output/debug_test.py alongside requested output/validator.py.",
-      "expected": "The final output contains validator.py and does not contain debug_test.py.",
-      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
-      "observed": "Passed; the public-path test asserted validator.py exists and debug_test.py does not exist after run_probe returned."
+      "requirement": "The larger completion reserve must preserve prior adversarial repair, review, limit-finalization, and probe-contract behavior.",
+      "input": "All eight tests, including malformed URL repair/cleanup, declaration-versus-encounter ordering, exact ordinary step limit, lifecycle races, and conditional non-software protocol.",
+      "expected": "Every established semantic test passes.",
+      "interaction": "python -m unittest discover -s tests -v",
+      "observed": "Exit code 0; all 8 tests passed in 0.083 seconds."
     },
     {
-      "requirement": "Two review stages must preserve ordinary completion behavior, limit finalization, and probe contract enforcement.",
-      "input": "Existing early-answer, exact-step-limit, output-listing, and bogus-success probe scenarios.",
-      "expected": "All established review, limit, and contract tests continue to pass under the staged sequence.",
-      "interaction": "python -m pytest -q tests/test_completion_review.py tests/test_limit_finalization.py tests/test_probe_contract_review.py",
-      "observed": "Passed all 6 tests in 1.58 seconds."
-    },
-    {
-      "requirement": "The successor source and tests remain importable after the staged-review changes.",
-      "input": "main.py, evolving_agent package, and tests package.",
-      "expected": "Byte compilation completes with exit code 0.",
-      "interaction": "python -m compileall -q main.py evolving_agent tests",
-      "observed": "Completed with exit code 0 and no diagnostics."
+      "requirement": "The successor source, tests, and durable verification record remain loadable.",
+      "input": "main.py, evolving_agent package, tests package, and memories/verification.json.",
+      "expected": "Byte compilation and JSON parsing complete successfully.",
+      "interaction": "python -m compileall -q main.py evolving_agent tests; python -c import/json parse of memories/verification.json",
+      "observed": "Byte compilation exited 0 with no errors. JSON structure and required-field validation exited 0 and printed 'verification JSON and required fields valid'."
     }
   ]
 }

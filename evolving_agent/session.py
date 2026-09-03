@@ -41,6 +41,13 @@ part a model needs least.
 
 _OBSERVATION_LIMIT = 8_000
 _LOGGED_ARGUMENT_CHARACTERS = 200
+_COMPLETION_DRAFT_STEPS = 1
+_REVIEW_STAGE_STEPS = 4
+
+# Completion is a working phase, not one exchange: an exhausted ordinary run
+# still needs one tool-free draft, and each review may run up to three tool
+# exchanges before reporting. The shared wall-clock deadline remains the hard
+# bound, so unused review capacity costs no time.
 
 _TOOL_RESULT = "function_call_output"
 
@@ -164,8 +171,10 @@ class ToolAgentSession:
             completion_review: When supplied, each string starts a mandatory
                 review stage. Tools remain available within a stage, and the
                 stage advances only after a tool-free response. A single
-                string remains supported. One extra exchange is reserved for
-                each stage.
+                string remains supported. One draft exchange is reserved if
+                ordinary work exhausts its allowance, and each review stage
+                receives a bounded four-exchange allowance so it can use tools
+                before its required tool-free report.
 
         Returns:
             How the session ended and what it reported.
@@ -188,9 +197,15 @@ class ToolAgentSession:
         else:
             review_stages = tuple(completion_review)
         review_index = 0
-        # Reviews are not allowed to steal ordinary work steps. Each stage
-        # ends with a tool-free exchange before the next stage (or publication).
-        step_limit = self._max_steps + len(review_stages)
+        # Reviews are not allowed to steal ordinary work steps. A draft can
+        # still be completed after the last ordinary tool call, and each stage
+        # has room for distinguishing tool checks plus its tool-free report.
+        # This is only an exchange ceiling; the shared deadline remains hard.
+        step_limit = (
+            self._max_steps
+            + (_COMPLETION_DRAFT_STEPS if review_stages else 0)
+            + len(review_stages) * _REVIEW_STAGE_STEPS
+        )
         while steps < step_limit:
             if self._deadline.expired():
                 return SessionOutcome(

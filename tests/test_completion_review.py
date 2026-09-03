@@ -81,6 +81,70 @@ class ReviewToolModel:
         )
 
 
+class ToolUsingRepairModel:
+    """Needs tools in both review stages after the ordinary allowance."""
+
+    instances: list["ToolUsingRepairModel"] = []
+
+    def __init__(self, access: ModelAccess) -> None:
+        self.calls = 0
+        self.__class__.instances.append(self)
+
+    def reply(self, *, conversation, tools=()):
+        self.calls += 1
+        call_ids = {
+            str(item.get("call_id", ""))
+            for item in conversation
+            if item.get("type") == "function_call_output"
+        }
+        contents = [str(item.get("content", "")) for item in conversation]
+        in_review = any("Do not publish a final answer yet" in value for value in contents)
+        in_finalization = any("preceding defect report" in value for value in contents)
+
+        if not in_review:
+            return ModelReply(text="Draft: wrote the guessed value ALPHA.", tool_calls=(), output=())
+        if not in_finalization:
+            if "critic-read" not in call_ids:
+                return _tool_reply(
+                    "critic-read", "read_file", '{"path":"materials/fact.txt"}'
+                )
+            return ModelReply(
+                text="DEFECT: material proves the required value is OMEGA-913.",
+                tool_calls=(),
+                output=(),
+            )
+        if "repair-write" not in call_ids:
+            return _tool_reply(
+                "repair-write",
+                "write_file",
+                '{"path":"output/solution.txt","content":"OMEGA-913\\n"}',
+            )
+        if "repair-read" not in call_ids:
+            return _tool_reply(
+                "repair-read", "read_file", '{"path":"output/solution.txt"}'
+            )
+        return ModelReply(
+            text="Delivered and re-read output/solution.txt: OMEGA-913.",
+            tool_calls=(),
+            output=(),
+        )
+
+
+def _tool_reply(identifier: str, name: str, arguments: str) -> ModelReply:
+    return ModelReply(
+        text="",
+        tool_calls=(ToolCall(identifier, name, arguments),),
+        output=(
+            {
+                "type": "function_call",
+                "call_id": identifier,
+                "name": name,
+                "arguments": arguments,
+            },
+        ),
+    )
+
+
 class CompletionReviewTests(unittest.TestCase):
     def setUp(self) -> None:
         SelfCorrectingModel.instances.clear()
@@ -117,6 +181,36 @@ class CompletionReviewTests(unittest.TestCase):
         self.assertIn("Do not publish a final answer yet", reviewed[-1]["content"])
         self.assertTrue(any("DEFECT:" in str(item.get("content", "")) for item in finalized))
         self.assertIn("preceding defect report", finalized[-1]["content"])
+
+    def test_exhausted_ordinary_budget_still_allows_tool_using_review_and_repair(self) -> None:
+        ToolUsingRepairModel.instances.clear()
+        with (
+            tempfile.TemporaryDirectory() as root,
+            tempfile.TemporaryDirectory() as materials,
+            tempfile.TemporaryDirectory() as output,
+        ):
+            Path(materials, "fact.txt").write_text("Required value: OMEGA-913.\n")
+            settings = AgentSettings(
+                mode=AgentMode.PROBE,
+                task="Put the value from fact.txt in output/solution.txt.",
+                workspace=Path(root),
+                source_root=Path.cwd(),
+                materials=Path(materials),
+                output=Path(output),
+                model=ModelAccess(None, "fake-model", 60, None),
+                max_steps=1,
+                time_budget_seconds=60,
+            )
+            with patch("evolving_agent.modes.ModelClient", ToolUsingRepairModel):
+                report = run_probe(settings)
+            delivered = Path(output, "solution.txt").read_text()
+
+        self.assertTrue(report.succeeded, report.detail)
+        self.assertEqual("OMEGA-913\n", delivered)
+        self.assertEqual(
+            "Delivered and re-read output/solution.txt: OMEGA-913.", report.answer
+        )
+        self.assertEqual(6, ToolUsingRepairModel.instances[0].calls)
 
     def test_review_keeps_tools_and_replaces_unsupported_draft_with_evidence(self) -> None:
         ReviewToolModel.instances.clear()
