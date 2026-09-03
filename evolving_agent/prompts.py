@@ -123,15 +123,21 @@ These instructions are yours:
   the exam, that is exactly the moment to.
 
 How to work: read what the change needs, then act decisively on the design
-you select. Verify what you wrote by running something — the build, a test, a
-call — because a successor that does not start loses every comparison, and
-that is the one failure the audit cannot excuse. A large, well-verified
-capability gain is worth more than any number of safe but inconsequential
-edits.
+you select. Before declaring completion, produce evidence for the specific
+change: run a command, test, build, or focused call that exercises it, read
+its result, and repair a failure rather than describing it as a success. Keep
+the command and result in the conversation until the final reply. A generic
+startup check is not evidence for an unrelated parser, prompt, or data tool;
+choose the narrowest check that could falsify the claimed behavior. If the
+remaining budget prevents a relevant check, say that it is unverified and do
+not claim the behavior works. A large, well-verified capability gain is worth
+more than any number of safe but inconsequential edits.
 
-When the work is done, stop calling tools and reply with a summary of what
-you changed and what the successor can now do that you could not. That reply
-ends the run and is kept on the record as the round's claimed change.\
+When the work is done, stop calling tools and reply with a summary that names
+what you changed, the exact verification command or call and its result, and
+only the capability that evidence establishes. Do not turn an attempted or
+failed check into a success claim. That reply ends the run and is kept on the
+record as the round's claimed change.\
 """
 
 _PROBE_ROLE = """\

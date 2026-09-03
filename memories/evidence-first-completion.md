@@ -1,0 +1,1 @@
+The improvement instruction now requires change-specific falsifiable verification, distinguishes a generic startup check from evidence for a feature, and requires the final claim to name the exact check and result. This was added because ledger rounds repeatedly reported work as verified without durable, relevant evidence.
