@@ -1,4 +1,4 @@
-Record: The ledger’s clearest recurring exam cost is absent task artifacts (`no solution.py` / zero executable checks), even after rounds improved planning and finalization instructions.
-Gap: On file-producing probe tasks, the agent can spend its model turns on analysis and finish without ever creating the required output path.
-Change: Add an artifact-presence checkpoint to the session loop that, while turns remain, explicitly redirects the model when a task named an output deliverable but no output file has been created; this outranks another prose-only reminder because it reacts to observed execution state.
-Proof: Run a focused mocked session where the model first answers without writing the named deliverable, then verify the checkpoint triggers a continuation and the second tool call creates that file before the final answer is accepted.
+Record: The newest promoted round still lost four of five exams; judges repeatedly found hostile host-language hooks left in trusted paths (int-subclass operators under a lock, overridable str methods, and direct conversion of huge valid integer tokens).
+Gap: The agent does not reliably turn a task contract into adversarial checks for subclass overrides, implicit dunder calls, lock-held user code, and runtime numeric-conversion limits before finalizing a solution.
+Change: Strengthen the probe/improvement working instructions with a compact hostile-runtime boundary pass and require focused executable checks for applicable hooks; this targets the repeated newest losses and outranks another format tool.
+Proof: A focused prompt-construction test will assert both workflows receive the new hostile-runtime protocol and its concrete required checks, while existing prompt tests/compile checks remain green.
