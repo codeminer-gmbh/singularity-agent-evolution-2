@@ -44,6 +44,12 @@ _LOGGED_ARGUMENT_CHARACTERS = 200
 
 _TOOL_RESULT = "function_call_output"
 
+_FINAL_RESPONSE_REQUEST = (
+    "Tool-work budget is exhausted. Give the complete final answer now, based "
+    "only on work already completed. Do not request more tools or claim work "
+    "that was not done."
+)
+
 _CONTINUES_A_TURN = frozenset({"function_call", _TOOL_RESULT})
 """The item kinds that only mean anything alongside the rest of their turn.
 
@@ -180,7 +186,18 @@ class ToolAgentSession:
             {"role": "user", "content": opening},
         ]
         steps = 0
-        while steps < self._max_steps:
+        if self._max_steps <= 0:
+            return SessionOutcome(
+                finished=False,
+                summary="",
+                steps=steps,
+                reason="the step limit of 0 was reached",
+            )
+        # One model exchange is protected for a final response.  Without it a
+        # tool-using turn can consume the last step and strand completed work
+        # behind an empty summary, which is especially costly in probe mode.
+        action_limit = max(0, self._max_steps - 1)
+        while steps < action_limit:
             if self._deadline.expired():
                 return SessionOutcome(
                     finished=False,
@@ -212,11 +229,28 @@ class ToolAgentSession:
                 }
                 for call in reply.tool_calls
             )
+
+        if self._deadline.expired():
+            return SessionOutcome(
+                finished=False,
+                summary="",
+                steps=steps,
+                reason="the time budget ran out before the reserved final response",
+            )
+        # No schemas are offered on this protected exchange: even a model that
+        # prefers another tool call must return reportable text instead.
+        conversation.append({"role": "user", "content": _FINAL_RESPONSE_REQUEST})
+        steps += 1
+        reply = self._model.reply(conversation=_recent(conversation), tools=())
         return SessionOutcome(
-            finished=False,
-            summary="",
+            finished=bool(reply.text.strip()),
+            summary=reply.text,
             steps=steps,
-            reason=f"the step limit of {self._max_steps} was reached",
+            reason=(
+                "the reserved final response was requested after the tool-work budget"
+                if reply.text.strip()
+                else "the reserved final response was empty"
+            ),
         )
 
     def _observe(self, step: int, call: ToolCall) -> str:
