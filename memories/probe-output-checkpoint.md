@@ -1,0 +1,1 @@
+`probe_opening` now makes output delivery a completion checkpoint when `AGENT_OUTPUT` is present: the model must identify exact named paths, write and verify them before prose, and must not treat pasted code or a claimed path as delivery. This addresses ledger 144's missing `output/solution.py` result without asking prose-only probes to create speculative files.

@@ -269,9 +269,15 @@ def probe_opening(
         parts.append(
             "Files the task asks you to deliver go under `output/` — for "
             "example `output/solution.py` — exactly at the paths the task "
-            "names. Your reply on standard output is the prose part of the "
-            "answer; a deliverable that is only pasted into it has not been "
-            "delivered."
+            "names. Treat this as a completion checkpoint, not a formatting "
+            "hint: before giving prose, identify every named deliverable, "
+            "write each one at its exact `output/` path using the tools, and "
+            "verify it exists (and, where practical, its requested contents "
+            "or behavior). Do this while tool calls are still available; the "
+            "final response cannot create a missing file. Do not substitute "
+            "pasted code or a claimed path for the artifact, and do not invent "
+            "extra files when the task does not name one. Your reply on "
+            "standard output is only the prose part of the answer."
         )
     parts.append(
         "Use the tools to look at whatever the task refers to and to check "
