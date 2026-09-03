@@ -1,3 +1,3 @@
-Cannot do: prevent a newly written verification receipt from being reused after its claimed candidate's source changes.
-Change: bind verification.json to a deterministic digest of every candidate file excluding the receipt itself, and require that binding at publication.
-Why this gap: the ledger's "freshness only" failure shows byte freshness admits false proof; provenance binding directly distinguishes a receipt for one tree from a receipt for another.
+Cannot: reliably turn ledger evidence into task-specific semantic tests, so broad-looking answers can still accept forbidden inputs and notes can overstate proof.
+Change: rewrite the improvement instructions to reward one ledger-derived failure signature, a discriminating adversarial test, and exact evidence-linked notes while deleting process guidance the record has not rewarded.
+Why: the ledger’s concrete strict-parsing loss and inaccurate-note findings are costlier evidence than adding another tool or another generic publication mechanism.

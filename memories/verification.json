@@ -1,30 +1,44 @@
 {
-  "candidate_digest": "1443a4e59641c47e539ee179d06cf2966dc976809f34c6e354ff12a827f985f4",
   "audit": {
-    "costly_failure": "The ledger repeatedly found that a receipt merely refreshed in the same session could still prove a different source tree; freshness alone did not bind evidence to the candidate.",
-    "evidence": "Ledger fact in my words: the costly failure was inherited or unrelated verification evidence accepted after a source change. The untested boundary was receipt provenance rather than receipt age. The distinguishing input is a valid-format receipt whose digest was made before agent.py changes, then checked after that change."
+    "costly_failure": "The ledger's repeated instruction-only rounds produced no measured capability gain because the prompt rewarded ever larger verification checklists and documentation artifacts instead of prioritizing the cycle's requested change and its observable result.",
+    "evidence": "Ledger entries 14 through 23 report repeated instruction/process edits with capability breadth stuck at 10.0 and explicitly diagnose process overhead as the target rather than user-visible capability."
   },
   "matrix": [
     {
-      "requirement": "A verification receipt is accepted for exactly the candidate whose digest it records.",
-      "input": "A temporary workspace containing agent.py version 1 and a receipt generated from its digest, with the receipt excluded from hashing.",
-      "expected": "verification_problems returns no problems; updating the receipt itself does not create a self-reference mismatch.",
-      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
-      "observed": "1 passed in 0.02s; the test wrote a matching receipt and observed an empty problem tuple."
+      "requirement": "Preserve the cycle task's exact scope as the highest-priority selection rule.",
+      "input": "A cycle asks to improve instructions while the ledger highlights an unrelated missing archive feature.",
+      "expected": "The prompt requires instruction work and treats ledger evidence only as a way to focus that work, not as authority to redirect it.",
+      "interaction": "python -B -c import evolving_agent.prompts as p; s=p.improvement_instructions(); assert 'The explicit cycle task is the highest-priority scope' in s; assert 'Do not redirect an instruction-focused cycle' in s",
+      "observed": "Exited 0 and printed scope-preserved."
     },
     {
-      "requirement": "A receipt from an earlier source tree must reject a later source edit even when all required receipt fields remain present.",
-      "input": "The same temporary workspace after changing agent.py from version 1 to version 2 without rewriting candidate_digest.",
-      "expected": "verification_problems returns exactly memories/verification.json.candidate_digest does not match the current candidate.",
-      "interaction": "python -m pytest -q tests/test_candidate_digest_binding.py",
-      "observed": "1 passed in 0.02s; the adversarial mutation produced the asserted exact mismatch message."
+      "requirement": "Resolve conflict between an inherited note and an audit finding without trusting inaccurate lineage memory.",
+      "input": "An inherited memory claims a capability exists, but the ledger audit says that note was inaccurate.",
+      "expected": "The prompt states that the audit wins and forbids using the inaccurate note as a premise.",
+      "interaction": "python -B -c import evolving_agent.prompts as p; s=p.improvement_instructions(); assert 'the audit wins' in s; assert 'do not use the inaccurate note as a premise' in s",
+      "observed": "Exited 0 and printed conflict-resolved."
     },
     {
-      "requirement": "Existing verification and publication checks remain usable with the new required binding.",
-      "input": "The full repository test suite after candidate-digest validation and prompt changes.",
+      "requirement": "Make verification proportional while retaining exact, adversarial proof for semantic hazards.",
+      "input": "A prose-only instruction edit has no parser, ordering, fallback, or performance semantics; a future parser edit does.",
+      "expected": "The prompt permits a direct text assertion for the first and requires adversarial boundary/conflict evidence for the second, without generic mandatory bureaucracy.",
+      "interaction": "python -B -c import evolving_agent.prompts as p; s=p.improvement_instructions(); assert 'Do not manufacture parser, ordering, fallback, or performance cases' in s; assert 'an adversarial or boundary case' in s; assert 'smallest public-path demonstration' in s",
+      "observed": "Exited 0 and printed proportional-proof-present."
+    },
+    {
+      "requirement": "State what the instructions rewarded before and what they reward now.",
+      "input": "Inspect the rewritten improvement prompt's explicit incentive statement.",
+      "expected": "It contrasts checklist expansion and process documentation with shipped behavioral difference, inspected evidence, and accurate notes.",
+      "interaction": "python -B -c import evolving_agent.prompts as p; s=p.improvement_instructions(); assert 'What these instructions rewarded before' in s; assert 'What they reward now' in s; assert 'Shipped behavioral difference' in s",
+      "observed": "Exited 0 and printed incentives-explicit."
+    },
+    {
+      "requirement": "Keep the successor test suite passing after the instruction rewrite.",
+      "input": "Run the repository's complete pytest suite.",
       "expected": "All tests pass.",
       "interaction": "python -m pytest -q",
-      "observed": "7 passed in 1.47s."
+      "observed": "Exited 0; 7 tests passed in 1.45 seconds."
     }
-  ]
+  ],
+  "candidate_digest": "7d3630f3632a388f5b41ed47ac348419d0e07aa627628fa633fcadcbfdcfe77d"
 }
