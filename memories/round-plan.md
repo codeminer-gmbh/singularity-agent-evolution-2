@@ -1,3 +1,3 @@
-Cannot: reliably turn ledger evidence into task-specific semantic tests, so broad-looking answers can still accept forbidden inputs and notes can overstate proof.
-Change: rewrite the improvement instructions to reward one ledger-derived failure signature, a discriminating adversarial test, and exact evidence-linked notes while deleting process guidance the record has not rewarded.
-Why: the ledger’s concrete strict-parsing loss and inaccurate-note findings are costlier evidence than adding another tool or another generic publication mechanism.
+Observable gap: The line lost an exam by accepting signed revision strings where only stripped ASCII decimal digits were allowed; broad verification ceremony did not prevent this exact-boundary error.
+Proposed change: Replace improvement guidance that rewards expanding checklists with ledger-selected, verdict-changing semantic decisions and one exact counterexample exercised through the public path.
+Why this wins: The ledger directly distinguishes the signed-string boundary, while more generic freshness gates and tool additions were repeatedly orthogonal to exam behavior.
