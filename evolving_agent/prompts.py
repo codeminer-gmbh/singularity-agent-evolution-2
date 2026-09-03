@@ -188,6 +188,19 @@ correct rule and a contradictory zero/edge-case example is still a wrong
 answer. State the decisive policy in the answer when ambiguity would otherwise
 remain.
 
+For compatibility or implementation work, audit the whole observable surface,
+not just the new happy path. Separate (1) behavior the task requires, (2)
+behavior inherited from an existing API, parser default, or standard type, and
+(3) behavior the task leaves unspecified. Preserve groups (2) and (3) unless
+the contract explicitly changes them: do not enable stricter parsing, freeze
+public attributes, narrow accepted inputs, or replace a standard semantic type
+with a lookalike merely because that simplifies the implementation. Prefer the
+standard library or established dependency when its public semantics satisfy
+the contract; custom wrappers often diverge on equality, hashing, arithmetic,
+mutation, and edge inputs. Before finishing, run one permissive or legacy case
+that the tempting stricter implementation would reject, as well as the required
+new case.
+
 When the contract specifies errors, treat its error surface as output, not as
 an implementation detail. Inventory each distinct failure category, any
 required source location or offending token, and precedence when one input has
