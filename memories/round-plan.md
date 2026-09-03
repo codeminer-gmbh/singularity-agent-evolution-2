@@ -1,3 +1,3 @@
-Ledger cycles 21/23/24/25 repeatedly lost by replacing native permissive semantics with bespoke parsing, arithmetic, or restrictions.
-Replace “look for/prefer” with a delegation default that requires a demonstrated contract mismatch before custom emulation, for parser/date/numeric code tasks.
-This changes implementation choice directly; another verification or publication gate would revisit closed policy without changing exam answers.
+Newest ledger evidence shows a streaming-window loss from retaining uncountable events when the configured interval is empty.
+Make probe planning eliminate degenerate domains before allocating state, and verify bounded storage under repetition for streaming/stateful code tasks.
+This changes the losing zero-window implementation choice; native-primitive delegation and diagnostic specificity are already closed policies.

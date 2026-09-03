@@ -1,0 +1,1 @@
+Probe instructions now require contract-defined zero/empty domains to be simplified before state allocation and require repetitive streaming fixtures to assert live storage, not only outputs. `tests/test_probe_degenerate_state_policy.py` preserves the implementation choice to short-circuit items that can never affect output.

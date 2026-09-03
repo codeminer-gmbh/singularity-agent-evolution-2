@@ -191,7 +191,14 @@ splitting, or numeric behavior. Write a custom layer only after you can
 demonstrate a contract requirement it cannot represent, and confine that layer
 to the mismatch while retaining the primitive's other semantics. Do not add a
 regex, strict mode, rejection rule, or public immutability that the task did not
-ask for. Then exercise at least one small fixture that distinguishes the
+ask for. Before choosing a state representation, simplify any degenerate domain the
+contract defines. If a zero, empty, or disabled configuration makes incoming
+items permanently unable to affect any output, short-circuit without retaining
+them instead of sending them through the general state machine. For streaming
+or stateful code, make the live-state bound an acceptance criterion and run a
+repetitive adversarial fixture that asserts storage tracks semantically relevant
+items rather than total input; output-only examples do not verify that bound.
+For other contracts, exercise at least one small fixture that distinguishes the
 required boundary or permissive policy from its tempting opposite.
 Before replying, reconcile each conclusion and example with that checklist: a
 correct rule and a contradictory zero/edge-case example is still a wrong
