@@ -1,0 +1,1 @@
+Probe finalization now receives the bounded session continuation after a time or step limit. The final model exchange can use retained function calls and tool results rather than losing inspected evidence before it writes the answer.

@@ -88,6 +88,13 @@ class SessionOutcome:
     summary: str
     steps: int
     reason: str
+    continuation: tuple[Mapping[str, Any], ...] = ()
+    """The bounded context available when a forced final answer is needed.
+
+    A step limit can arrive immediately after a useful tool result.  Keeping
+    that result lets the one permitted final exchange finish the same task
+    rather than asking a stateless model to guess what it had learned.
+    """
 
 
 class Deadline:
@@ -175,6 +182,7 @@ class ToolAgentSession:
                     summary="",
                     steps=steps,
                     reason="the time budget ran out",
+                    continuation=tuple(_recent(conversation)),
                 )
             steps += 1
             reply = self._model.reply(
@@ -205,6 +213,7 @@ class ToolAgentSession:
             summary="",
             steps=steps,
             reason=f"the step limit of {self._max_steps} was reached",
+            continuation=tuple(_recent(conversation)),
         )
 
     def _observe(self, step: int, call: ToolCall) -> str:

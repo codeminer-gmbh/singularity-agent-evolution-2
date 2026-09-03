@@ -391,13 +391,17 @@ def _final_answer(
         "The session ended because %s; asking for a final answer.", outcome.reason
     )
     try:
-        reply = model.reply(
-            conversation=[
+        # Continue the exhausted session when possible.  In particular, the
+        # last allowed step may have read a task file or written a deliverable;
+        # starting over would hide that evidence from the only final reply.
+        conversation = list(outcome.continuation)
+        if not conversation:
+            conversation = [
                 {"role": "system", "content": probe_instructions()},
                 {"role": "user", "content": probe_opening(settings.task)},
-                {"role": "user", "content": final_answer_request()},
             ]
-        )
+        conversation.append({"role": "user", "content": final_answer_request()})
+        reply = model.reply(conversation=conversation)
     except ModelUnavailableError as unreachable:
         return RunReport(
             succeeded=False, answer="", detail=f"{outcome.reason}; {unreachable}"
