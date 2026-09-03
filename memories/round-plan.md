@@ -1,3 +1,3 @@
-Ledger audit flags five durable notes as inaccurate because they claimed verification absent from the shipped tree; unsupported verification claims are the line’s clearest recurring process failure.
-Tighten improvement policy so durable notes describe shipped behavior only, while the final report must name an actually executed command and its observed result; this improves self-evolution rounds.
-This has higher expected value than another probe tool because it directly removes a repeated audited failure and makes later rounds’ evidence trustworthy.
+Ledger audits repeatedly mark durable notes inaccurate because they claim transient verification not present in the shipped tree; the newest promoted cycle repeated this exact failure.
+Mechanically reject execution/test-result claims in newly changed memory notes and request repair, while allowing notes to describe shipped tests; this improves self-evolution record reliability.
+This has higher expected value than another probe feature because prompt-only guidance already failed and the ledger identifies false notes across at least five rounds.

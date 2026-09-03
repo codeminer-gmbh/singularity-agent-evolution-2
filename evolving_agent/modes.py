@@ -40,7 +40,11 @@ from evolving_agent.prompts import (
 )
 from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession
 from evolving_agent.settings import AgentMode, AgentSettings
-from evolving_agent.successor import successor_problems
+from evolving_agent.successor import (
+    durable_note_problems,
+    durable_note_snapshot,
+    successor_problems,
+)
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _LOG = logging.getLogger(__name__)
@@ -96,8 +100,11 @@ def run_improvement(settings: AgentSettings) -> RunReport:
             "Initialized the workspace with %s files of this agent's source.", copied
         )
     started_from = workspace.digest()
-    outcome, refusal = _improve(settings, workspace)
-    problems = successor_problems(workspace)
+    note_baseline = durable_note_snapshot(workspace)
+    outcome, refusal = _improve(settings, workspace, note_baseline)
+    problems = successor_problems(workspace) + durable_note_problems(
+        workspace, note_baseline
+    )
     if problems:
         return _restored(
             settings, workspace, problems, restorable=restorable, refusal=refusal
@@ -195,7 +202,9 @@ def run_describe(settings: AgentSettings) -> RunReport:
 
 
 def _improve(
-    settings: AgentSettings, workspace: Workspace
+    settings: AgentSettings,
+    workspace: Workspace,
+    note_baseline: dict[str, str],
 ) -> tuple[SessionOutcome | None, str | None]:
     """Run the improvement session, reporting a dependency that failed instead.
 
@@ -227,7 +236,9 @@ def _improve(
                 materials_listing=_materials_listing(settings),
             ),
         )
-        repaired = _repaired(workspace, session, deadline, outcome)
+        repaired = _repaired(
+            workspace, session, deadline, outcome, note_baseline
+        )
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
         return None, str(unavailable)
@@ -317,6 +328,7 @@ def _repaired(
     session: ToolAgentSession,
     deadline: Deadline,
     outcome: SessionOutcome,
+    note_baseline: dict[str, str],
 ) -> SessionOutcome:
     """Hand a broken successor back to be fixed, while there is budget for it.
 
@@ -325,7 +337,9 @@ def _repaired(
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
-        problems = successor_problems(workspace)
+        problems = successor_problems(workspace) + durable_note_problems(
+            workspace, note_baseline
+        )
         if not problems or deadline.expired():
             return outcome
         _LOG.warning(
