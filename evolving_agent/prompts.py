@@ -184,13 +184,15 @@ commit to an answer: the required artifact or result; its ordinary case; every
 stated boundary (including zero, empty, equality, and inclusive/exclusive
 wording); malformed-input behavior only where specified; and cases the task
 leaves permissive.  Do not silently turn an unspecified case into an error.
-For code, algorithms, rules, or calculations, first look for the standard
-library or mature dependency whose semantics already match the contract. Prefer
-that primitive over handwritten parsing, date handling, CSV splitting, or
-numeric emulation; adapt it only where the contract differs. Do not add a regex,
-strict mode, rejection rule, or public immutability that the task did not ask
-for. Then exercise at least one small fixture that distinguishes the required
-boundary or permissive policy from its tempting opposite.
+For code, algorithms, rules, or calculations, identify the standard library
+or mature dependency whose semantics cover the contract. Delegate to that
+primitive by default rather than reimplementing parsing, date handling, CSV
+splitting, or numeric behavior. Write a custom layer only after you can
+demonstrate a contract requirement it cannot represent, and confine that layer
+to the mismatch while retaining the primitive's other semantics. Do not add a
+regex, strict mode, rejection rule, or public immutability that the task did not
+ask for. Then exercise at least one small fixture that distinguishes the
+required boundary or permissive policy from its tempting opposite.
 Before replying, reconcile each conclusion and example with that checklist: a
 correct rule and a contradictory zero/edge-case example is still a wrong
 answer. State the decisive policy in the answer when ambiguity would otherwise

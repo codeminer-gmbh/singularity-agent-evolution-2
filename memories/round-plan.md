@@ -1,3 +1,3 @@
-Ledger 21/23/24/25 losses trace to bespoke restrictions replacing native semantics; promotions did not credit accumulated meta-gates.
-Replace smallest-change/outcome rewards with causal judge evidence, standard primitives, semantic economy, and discriminating verification.
-This changes probe decisions; another wrapper or shipped note/verification gate repeats closed policy without exam support.
+Ledger cycles 21/23/24/25 repeatedly lost by replacing native permissive semantics with bespoke parsing, arithmetic, or restrictions.
+Replace “look for/prefer” with a delegation default that requires a demonstrated contract mismatch before custom emulation, for parser/date/numeric code tasks.
+This changes implementation choice directly; another verification or publication gate would revisit closed policy without changing exam answers.

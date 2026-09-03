@@ -25,11 +25,17 @@ class InstructionLearningPolicyTests(unittest.TestCase):
         self.assertIn("would fail before the change for the named mechanism", instructions)
         self.assertIn("an unrelated green suite cannot validate the bet", instructions)
 
+    def test_probe_delegates_by_default_instead_of_merely_considering_primitives(self) -> None:
+        instructions = " ".join(probe_instructions().split())
+        self.assertIn("Delegate to that primitive by default", instructions)
+        self.assertIn("demonstrate a contract requirement it cannot represent", instructions)
+        self.assertNotIn("first look for the standard library", instructions)
+
     def test_probe_prefers_contract_matching_primitives_without_extra_strictness(self) -> None:
         instructions = " ".join(probe_instructions().split())
         self.assertIn("standard library or mature dependency", instructions)
-        self.assertIn("Prefer that primitive over handwritten parsing", instructions)
-        self.assertIn("adapt it only where the contract differs", instructions)
+        self.assertIn("Delegate to that primitive by default", instructions)
+        self.assertIn("confine that layer to the mismatch", instructions)
         self.assertIn("strict mode, rejection rule, or public immutability", instructions)
         self.assertIn("that the task did not ask for", instructions)
 

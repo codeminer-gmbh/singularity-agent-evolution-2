@@ -1,0 +1,1 @@
+Probe instructions now make delegation to a contract-matching standard primitive the default, rather than merely asking the model to consider or prefer one. Custom code is reserved for a demonstrated contract mismatch and confined to that mismatch. `tests/test_instruction_learning_policy.py` asserts this decision wording and removal of the weaker “first look” heuristic.
