@@ -154,16 +154,18 @@ class ToolAgentSession:
         *,
         instructions: str,
         opening: str,
-        completion_review: str | None = None,
+        completion_review: str | Sequence[str] | None = None,
     ) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
 
         Args:
             instructions: The system instruction the session is held under.
             opening: The first message, describing the work.
-            completion_review: When supplied, the first tool-less draft is
-                returned to the model with this adversarial review request.
-                One extra exchange is reserved for that review.
+            completion_review: When supplied, each string starts a mandatory
+                review stage. Tools remain available within a stage, and the
+                stage advances only after a tool-free response. A single
+                string remains supported. One extra exchange is reserved for
+                each stage.
 
         Returns:
             How the session ended and what it reported.
@@ -179,10 +181,16 @@ class ToolAgentSession:
             {"role": "user", "content": opening},
         ]
         steps = 0
-        review_due = completion_review is not None
-        # A completion review is not allowed to steal the final ordinary tool
-        # step: reserve one exchange beyond the configured work bound.
-        step_limit = self._max_steps + (1 if review_due else 0)
+        if completion_review is None:
+            review_stages: tuple[str, ...] = ()
+        elif isinstance(completion_review, str):
+            review_stages = (completion_review,)
+        else:
+            review_stages = tuple(completion_review)
+        review_index = 0
+        # Reviews are not allowed to steal ordinary work steps. Each stage
+        # ends with a tool-free exchange before the next stage (or publication).
+        step_limit = self._max_steps + len(review_stages)
         while steps < step_limit:
             if self._deadline.expired():
                 return SessionOutcome(
@@ -197,17 +205,19 @@ class ToolAgentSession:
                 conversation=_recent(conversation), tools=self._schemas
             )
             if not reply.tool_calls:
-                if review_due:
+                if review_index < len(review_stages):
                     # A draft is evidence of intent, not completion. Carry the
                     # provider's turn when available (and a portable assistant
-                    # message for deterministic test doubles), then force one
-                    # independent requirement/evidence pass with tools intact.
+                    # message for deterministic test doubles), then force the
+                    # next independent review stage with tools intact.
                     if reply.output:
                         conversation.extend(dict(item) for item in reply.output)
                     else:
                         conversation.append({"role": "assistant", "content": reply.text})
-                    conversation.append({"role": "user", "content": completion_review})
-                    review_due = False
+                    conversation.append(
+                        {"role": "user", "content": review_stages[review_index]}
+                    )
+                    review_index += 1
                     continue
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(

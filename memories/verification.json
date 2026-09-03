@@ -1,43 +1,43 @@
 {
   "audit": {
-    "costly_failure": "The line's most costly supported failure is that probe answers stop at the model's first plausible draft without an enforced independent completion-and-evidence review.",
-    "evidence": "In the ledger's words, seven improvement-only verification/protocol changes earned no promotion, while a coalescing answer passed 4 supplied tests yet missed three explicit lifecycle semantics and scored 3.5 versus 7.8. Observable behavior missing: a first answer was publishable without rechecking the task, conflict rules, artifacts, or evidence. Untested boundary: a tool-less model response meant both 'draft ready for audit' and 'safe to publish.' Distinguishing input: a first draft claims material code ALPHA, while review-time read_file observes OMEGA-913; the published answer must contain OMEGA-913 rather than ALPHA."
+    "costly_failure": "The line repeatedly delivered artifacts without validating the exact contract; the smallest ledger fact is that the prior 0.4 submission used only a generic review and its final validator still accepted malformed URLs.",
+    "evidence": "The selected failure signature is: a draft accepts http:/broken merely because it has a scheme, while the task requires an absolute HTTP(S) URL with authority. The untested boundary was scheme recognition versus full URL validity, compounded by publishing before a separate critic could preserve and hand defects to a repair pass. The distinguishing input is http:/broken, which must be rejected while https://example.test/a must be accepted."
   },
   "matrix": [
     {
-      "requirement": "A probe's plausible first draft is not published until a separate adversarial review checks an ordering/conflict interaction.",
-      "input": "Public run_probe with max_steps=1; fake model first says the first declared source wins, then corrects it only after receiving the completion audit.",
-      "expected": "run_probe succeeds with the second, corrected answer; the review conversation contains the draft and a request not merely to endorse it.",
-      "interaction": "python -m unittest tests.test_completion_review -v (test_probe_returns_reviewed_answer_not_first_draft)",
-      "observed": "Exited 0; the test observed exactly two model exchanges and the published answer was 'Corrected after conflict review: the last encountered valid source wins.'"
+      "requirement": "A completed draft must enter a separate defect-only critique before repair or publication.",
+      "input": "A scripted probe draft whose validator accepts any scheme-prefixed string, followed by the critic testing http:/broken.",
+      "expected": "The critic observes exit code 0, emits a defect report naming the missing HTTP authority, and that report is present in the finalizer transcript.",
+      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
+      "observed": "Passed 1 test; the test asserted an eight-exchange public run_probe flow and found 'DEFECT: http:/broken' in the finalizer's transcript."
     },
     {
-      "requirement": "The mandatory review retains tool access and can replace an unsupported draft with newly inspected evidence.",
-      "input": "Public run_probe over materials/fact.txt containing OMEGA-913; fake model first claims ALPHA, requests read_file only during review, then answers from the tool observation.",
-      "expected": "The review tool executes, a third exchange receives its observation, and only 'Verified during review: OMEGA-913' is published.",
-      "interaction": "python -m unittest tests.test_completion_review -v (test_review_keeps_tools_and_replaces_unsupported_draft_with_evidence)",
-      "observed": "Exited 0; the test observed three model exchanges and exact final answer 'Verified during review: OMEGA-913', proving the unsupported ALPHA draft was not returned."
+      "requirement": "The repair/finalization pass must use critique evidence and rerun the exact distinguishing malformed URL before answering.",
+      "input": "Conflict table: http:/broken has an explicit valid scheme but no authority and must be rejected; https://example.test/a has both and must be accepted.",
+      "expected": "The delivered validator returns nonzero for http:/broken and zero for https://example.test/a; the finalizer runs the malformed case after repair.",
+      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
+      "observed": "Passed; the produced validator was executed for both cases and returned nonzero for the malformed URL and zero for the valid URL, after the scripted finalizer's retest tool call."
     },
     {
-      "requirement": "The review prompt explicitly covers adversarial boundary and conflicting-source checks rather than a generic self-endorsement.",
-      "input": "Render probe_completion_review and inspect its required checks.",
-      "expected": "Prompt includes malformed/boundary input, ordering/precedence/fallback/concurrency/lifecycle conflicts, and directs use of available tools.",
-      "interaction": "python -c from evolving_agent.prompts import probe_completion_review; p=probe_completion_review(); print('adversarial=', 'malformed/boundary' in p); print('conflicts=', 'ordering, precedence, fallback, concurrency, or lifecycle' in p); print('tools=', 'Use the available tools now' in p)",
-      "observed": "Exited 0 and printed adversarial=True, conflicts=True, tools=True."
+      "requirement": "Publication hygiene must remove unrequested failing scratch artifacts rather than delivering them with the repaired output.",
+      "input": "The initial draft creates output/debug_test.py alongside requested output/validator.py.",
+      "expected": "The final output contains validator.py and does not contain debug_test.py.",
+      "interaction": "python -m pytest -q tests/test_adversarial_finalization.py",
+      "observed": "Passed; the public-path test asserted validator.py exists and debug_test.py does not exist after run_probe returned."
     },
     {
-      "requirement": "Mandatory review does not regress existing probe finalization or contract-review behavior.",
-      "input": "All repository tests, including a tool call at the ordinary step limit and prior lifecycle prompt decision-table checks.",
-      "expected": "Every regression and new completion-review test passes.",
-      "interaction": "python -m unittest discover -s tests -v",
-      "observed": "Exited 0; 6 tests ran and all passed, including step-limit finalization, three contract-review tests, and both mandatory completion-review tests."
+      "requirement": "Two review stages must preserve ordinary completion behavior, limit finalization, and probe contract enforcement.",
+      "input": "Existing early-answer, exact-step-limit, output-listing, and bogus-success probe scenarios.",
+      "expected": "All established review, limit, and contract tests continue to pass under the staged sequence.",
+      "interaction": "python -m pytest -q tests/test_completion_review.py tests/test_limit_finalization.py tests/test_probe_contract_review.py",
+      "observed": "Passed all 6 tests in 1.58 seconds."
     },
     {
-      "requirement": "The changed successor remains syntactically loadable.",
+      "requirement": "The successor source and tests remain importable after the staged-review changes.",
       "input": "main.py, evolving_agent package, and tests package.",
-      "expected": "Recursive byte-compilation succeeds.",
+      "expected": "Byte compilation completes with exit code 0.",
       "interaction": "python -m compileall -q main.py evolving_agent tests",
-      "observed": "Exited 0 with no stdout or stderr."
+      "observed": "Completed with exit code 0 and no diagnostics."
     }
   ]
 }

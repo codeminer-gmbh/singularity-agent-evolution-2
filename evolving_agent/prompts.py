@@ -354,15 +354,29 @@ def repair_opening(problems: tuple[str, ...]) -> str:
 
 
 def probe_completion_review() -> str:
-    """Return the mandatory adversarial pass over a probe's first draft."""
+    """Return the non-publishing adversarial critique of a probe draft."""
     return (
-        "Treat your preceding answer as a draft, not as completion. Re-read the "
-        "user's exact task and audit every observable requirement against actual "
-        "evidence. In particular, test malformed/boundary inputs and any ordering, "
-        "precedence, fallback, concurrency, or lifecycle interaction; a nearby "
-        "happy path does not count. Use the available tools now to inspect or run "
-        "anything not yet proved. Do not merely endorse the draft. Then give the "
-        "corrected final answer, claiming only results you actually observed."
+        "Do not publish a final answer yet. Act as an adversarial reviewer of the "
+        "preceding draft. Re-read the exact task, inventory every file created or "
+        "changed, and produce a concrete defect report for the next pass. For each "
+        "acceptance rule, look for an input the implementation accepts for the "
+        "stated discriminator but that violates some other part of the rule; test "
+        "the strongest such counterexample with the tools. Check conflicts, "
+        "boundaries, ordering and lifecycle states where applicable. Run every "
+        "test or scratch artifact that would be delivered: a known-failing helper "
+        "is a defect, not evidence. State exactly what must be repaired or removed."
+    )
+
+
+def probe_completion_finalization() -> str:
+    """Return the repair-and-publish stage after the separate critique."""
+    return (
+        "Now use the preceding defect report to repair the actual answer and "
+        "deliverables. Run the distinguishing counterexamples, not merely the "
+        "original happy path. Before replying, inventory the deliverable locations "
+        "and remove unrequested scratch, temporary, or failing artifacts; requested "
+        "tests must pass, while unrequested tests are evidence rather than output. "
+        "Then give the corrected final answer only, claiming only observed results."
     )
 
 def final_answer_request() -> str:

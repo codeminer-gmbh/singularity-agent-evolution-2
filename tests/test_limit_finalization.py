@@ -73,7 +73,7 @@ class LimitFinalizationTests(unittest.TestCase):
         self.assertTrue(report.succeeded, report.detail)
         self.assertEqual("The file's code is ORCHID-742.", report.answer)
         model = TranscriptAwareModel.instances[0]
-        self.assertEqual(3, model.calls)
+        self.assertEqual(4, model.calls)
         self.assertTrue(
             any(
                 item.get("type") == "function_call_output"

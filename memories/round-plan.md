@@ -1,3 +1,3 @@
-Cannot: the line repeatedly declares work done without exercising the distinguishing interaction; the ledger’s clearest repeated cost is inaccurate or non-discriminating verification, and the current probe accepts the first answer despite only prompting for review.
-Change: make probe completion a two-phase protocol that always returns the first draft for one adversarial evidence review, with tools still available, before accepting a final answer.
-Why: this directly closes the acceptance boundary that prose-only verification protocols left open, rather than adding another reader or another unenforced reminder.
+Cannot: probe work still misses strict boundary semantics and can ship a knowingly failing scratch test; the latest promoted round then lost 3 of 4 comparisons despite passing visible suites.
+Change: make probe completion run a task-specific adversarial contract review that removes scratch artifacts and repairs any failed distinguishing case before finalizing.
+Why: this is the newest concrete exam loss (malformed URL acceptance and an incorrect extra test), whereas more tools or another generic verification checklist would repeat unrewarded work.

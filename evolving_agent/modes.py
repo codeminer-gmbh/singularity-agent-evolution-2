@@ -34,6 +34,7 @@ from evolving_agent.prompts import (
     final_answer_request,
     improvement_instructions,
     improvement_opening,
+    probe_completion_finalization,
     probe_completion_review,
     probe_instructions,
     probe_opening,
@@ -138,7 +139,10 @@ def run_probe(settings: AgentSettings) -> RunReport:
         )
         outcome = session.run(
             instructions=probe_instructions(),
-            completion_review=probe_completion_review(),
+            completion_review=(
+                probe_completion_review(),
+                probe_completion_finalization(),
+            ),
             opening=probe_opening(
                 settings.task,
                 materials_listing=_materials_listing(settings),

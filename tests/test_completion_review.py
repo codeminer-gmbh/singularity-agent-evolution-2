@@ -29,7 +29,13 @@ class SelfCorrectingModel:
                 output=(),
             )
         request = str(conversation[-1].get("content", ""))
-        if "ordering, precedence, fallback, concurrency, or lifecycle" in request:
+        if "Do not publish a final answer yet" in request:
+            return ModelReply(
+                text="DEFECT: the draft confused declaration order with encounter order.",
+                tool_calls=(),
+                output=(),
+            )
+        if "preceding defect report" in request:
             return ModelReply(
                 text="Corrected after conflict review: the last encountered valid source wins.",
                 tool_calls=(),
@@ -104,10 +110,13 @@ class CompletionReviewTests(unittest.TestCase):
             report.answer,
         )
         model = SelfCorrectingModel.instances[0]
-        self.assertEqual(2, len(model.conversations))
+        self.assertEqual(3, len(model.conversations))
         reviewed = model.conversations[1]
+        finalized = model.conversations[2]
         self.assertTrue(any(item.get("role") == "assistant" for item in reviewed))
-        self.assertIn("Do not merely endorse", reviewed[-1]["content"])
+        self.assertIn("Do not publish a final answer yet", reviewed[-1]["content"])
+        self.assertTrue(any("DEFECT:" in str(item.get("content", "")) for item in finalized))
+        self.assertIn("preceding defect report", finalized[-1]["content"])
 
     def test_review_keeps_tools_and_replaces_unsupported_draft_with_evidence(self) -> None:
         ReviewToolModel.instances.clear()
@@ -129,7 +138,7 @@ class CompletionReviewTests(unittest.TestCase):
 
         self.assertTrue(report.succeeded, report.detail)
         self.assertEqual("Verified during review: OMEGA-913", report.answer)
-        self.assertEqual(3, ReviewToolModel.instances[0].calls)
+        self.assertEqual(4, ReviewToolModel.instances[0].calls)
 
 
 if __name__ == "__main__":
