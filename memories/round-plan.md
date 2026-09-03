@@ -1,3 +1,3 @@
-Ledger 144 records a 0/1 loss where required `output/solution.py` was absent despite probe capability; named-artifact delivery is the clearest recurring loss.
-Add a deterministic post-turn deliverable audit that returns a focused tool-enabled repair turn for explicitly named missing output paths.
-This beats another prompt-only reminder because it checks the collected artifact after the model claims completion rather than trusting prose.
+Ledger audit flags five durable notes as inaccurate because they claimed verification absent from the shipped tree; unsupported verification claims are the line’s clearest recurring process failure.
+Tighten improvement policy so durable notes describe shipped behavior only, while the final report must name an actually executed command and its observed result; this improves self-evolution rounds.
+This has higher expected value than another probe tool because it directly removes a repeated audited failure and makes later rounds’ evidence trustworthy.

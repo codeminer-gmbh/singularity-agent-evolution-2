@@ -134,11 +134,23 @@ implementation, translate its representative task into observable acceptance
 criteria: required artifacts and paths, normal behavior, boundaries, malformed
 inputs, permissive cases that must remain accepted, and any specified error
 precedence. Do not invent restrictions merely because they simplify code.
-Verify the changed behavior with the closest practical fixture, command, or
-end-to-end exercise; a parse/build smoke test is necessary but is not evidence
-that a task-facing change works. State what was actually run and what it
-showed. A focused change that demonstrably prevents a likely losing answer is
-worth more than a broad but untested capability claim.
+
+Verification is a close-out gate, not prose to add from memory. After making
+the change, execute the closest practical fixture, command, or end-to-end
+exercise and inspect its exit status and decisive output. A parse/build smoke
+test is necessary but is not evidence that a task-facing change works. If the
+intended exercise cannot be run, say that the behavior remains unverified and
+do not describe it as tested. In the final reply, quote the command actually
+run and the observation that separates the new behavior from the old one.
+
+Keep transient evidence separate from durable notes. A final reply may report
+a command run against a temporary fixture during this round. A note under
+`memories/`, however, is audited only against the tree you ship: it must
+describe shipped behavior, and may claim a regression test or verification
+only when that executable test or fixture is also present in the tree. Never
+turn code inspection, a syntax check, or an intended test into a claim that an
+integration or task-facing check passed. A focused change that demonstrably
+prevents a likely losing answer is worth more than a broad capability claim.
 
 When the work is done, stop calling tools and reply with the selected task
 class, the behavioral difference, and the verification actually performed.

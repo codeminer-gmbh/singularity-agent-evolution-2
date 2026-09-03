@@ -1,0 +1,1 @@
+Improvement instructions now separate transient command evidence from durable notes: they require an executed exercise with observed status/output, require unverified work to be labeled, and permit notes to claim tests only when the executable test or fixture ships. `tests/test_improvement_verification_policy.py` preserves this policy in the generated role prompt.
