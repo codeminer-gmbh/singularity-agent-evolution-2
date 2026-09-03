@@ -609,6 +609,19 @@ class WorkspaceTools:
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
 
+    def _command_path(self, argument: str) -> str:
+        """Resolve a standalone virtual-tree command argument to its real path."""
+        for prefix, tree in (("materials", self._materials), ("output", self._output)):
+            if tree is None:
+                continue
+            if argument == prefix:
+                return str(tree.root)
+            marker = prefix + "/"
+            if argument.startswith(marker):
+                # Keep command access consistent with file-tool containment.
+                return str(tree.resolve(argument[len(marker):]))
+        return argument
+
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
 
@@ -619,8 +632,11 @@ class WorkspaceTools:
         """
         command = _command_argument(arguments)
         try:
+            resolved_command = tuple(
+                self._command_path(argument) for argument in command
+            )
             result = self._commands.run(
-                command, timeout_seconds=_timeout_argument(arguments)
+                resolved_command, timeout_seconds=_timeout_argument(arguments)
             )
         except (TypeError, ValueError) as unusable:
             raise ToolFailureError(str(unusable)) from unusable

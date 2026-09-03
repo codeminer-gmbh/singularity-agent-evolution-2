@@ -216,6 +216,14 @@ deliverable. In particular:
     callback; detachment followed by cancellation suppression; and shutdown
     while detached work is still live. Cleanup must reach every live resource,
     and a logically completed operation must not accept a new participant.
+  * For the highest-risk rule, build a tiny executable oracle whose expected
+    results come directly from the task, not from the implementation or a
+    second copy of its algorithm. Compare the deliverable with that oracle on
+    a corpus that combines rules rather than testing each in isolation. For a
+    streaming or incremental interface, feed the same logical input at every
+    relevant split point, including malformed-then-valid recovery; for another
+    stateful interface, vary the equivalent event boundaries. A check that
+    calls production logic to compute its own expected result is not an oracle.
   * Re-read the implementation against each contract row after all supplied
     tests pass. A nearby happy path, an import check, or a count of passing
     tests is not evidence for an untested interaction. If a required row cannot
@@ -361,9 +369,15 @@ def probe_completion_review() -> str:
         "changed, and produce a concrete defect report for the next pass. For each "
         "acceptance rule, look for an input the implementation accepts for the "
         "stated discriminator but that violates some other part of the rule; test "
-        "the strongest such counterexample with the tools. Check conflicts, "
-        "boundaries, ordering and lifecycle states where applicable. Run every "
-        "test or scratch artifact that would be delivered: a known-failing helper "
+        "the strongest such counterexample with the tools. For the highest-risk "
+        "stateful rule, make a tiny independent oracle: write expected outputs "
+        "directly from the task, exercise a corpus combining at least two rules, "
+        "and compare the actual deliverable at event boundaries. For streaming "
+        "interfaces, enumerate relevant chunk splits and include malformed-then-"
+        "valid recovery. Do not compute expected values by calling production "
+        "logic or by duplicating its algorithm. Check conflicts, boundaries, "
+        "ordering and lifecycle states where applicable. Run every test or "
+        "scratch artifact that would be delivered: a known-failing helper "
         "is a defect, not evidence. State exactly what must be repaired or removed."
     )
 
@@ -372,8 +386,9 @@ def probe_completion_finalization() -> str:
     """Return the repair-and-publish stage after the separate critique."""
     return (
         "Now use the preceding defect report to repair the actual answer and "
-        "deliverables. Run the distinguishing counterexamples, not merely the "
-        "original happy path. Before replying, inventory the deliverable locations "
+        "deliverables. Re-run the exact independent-oracle command that exposed "
+        "the defect after the repair, not merely the original happy path or a "
+        "nearby example. Before replying, inventory the deliverable locations "
         "and remove unrequested scratch, temporary, or failing artifacts; requested "
         "tests must pass, while unrequested tests are evidence rather than output. "
         "Then give the corrected final answer only, claiming only observed results."
