@@ -90,6 +90,16 @@ class SessionOutcome:
     reason: str
 
 
+@dataclass(frozen=True)
+class VerificationCommand:
+    """One command whose observed result can support an improvement claim."""
+
+    step: int
+    command: tuple[str, ...]
+    result: str
+    is_error: bool
+
+
 class Deadline:
     """The moment after which a run stops asking for another step."""
 
@@ -140,12 +150,9 @@ class ToolAgentSession:
         self._deadline = deadline
         self._max_steps = max_steps
         self.tool_calls: dict[str, int] = {}
-        """How often each tool was called, over every run of this session.
-
-        Kept on the session rather than in the log, so a run can leave it as a
-        record — the first experiment had to reconstruct which tools an exam
-        ever used from standard error.
-        """
+        """How often each tool was called, over every run of this session."""
+        self.verification_commands: list[VerificationCommand] = []
+        """Commands and results, retained for the successor's evidence receipt."""
 
     def run(self, *, instructions: str, opening: str) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
@@ -227,6 +234,17 @@ class ToolAgentSession:
             _LOG.warning("Step %s: the tool boundary failed: %s", step, broken)
             return f"[error] {broken}"
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
+        if call.name == "run_command":
+            command = arguments.get("command")
+            if isinstance(command, list) and all(isinstance(part, str) for part in command):
+                self.verification_commands.append(
+                    VerificationCommand(
+                        step=step,
+                        command=tuple(command),
+                        result=text,
+                        is_error=outcome.is_error,
+                    )
+                )
         return f"[error] {text}" if outcome.is_error else text
 
 

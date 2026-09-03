@@ -1,0 +1,1 @@
+Improvement runs now retain every valid `run_command` invocation and observed outcome in the session. When a run leaves a changed, parseable successor, `modes.py` writes `memories/verification-receipt.md`; the improvement prompt directs the model to treat this as an audit trail, including failures, rather than proof of relevance.

@@ -1,3 +1,3 @@
-Gap: improvement rounds have repeatedly claimed verification without preserving a checkable command, result, and scope, causing unverified or misleading work to recur.
-Change: replace the generic verification exhortation with an explicit evidence-first completion protocol that requires a relevant command, successful result, and constrained final claim.
-Why this: the ledger identifies unverifiable claimed work as the line's most persistent cost; improving planning discipline addresses it without another speculative tool.
+Gap: final claims can cite unrecorded or failed verification, a repeated ledger rejection cause.
+Change: retain run_command observations and generate an auditable verification receipt after a changed improvement run.
+Priority: this corrects the line's recurring evidence failure rather than adding another unverified data tool.
