@@ -125,8 +125,10 @@ def note_problems(workspace: Workspace, baseline: Mapping[str, str]) -> tuple[st
     a code span, a test or fixture that exists in the tree it is shipped with.
     A claim about a command that merely ran belongs in the run's final reply,
     which is recorded separately; a note is inherited as fact by every later
-    version, and the second experiment's audit found forty-eight of them
-    describing checks that never happened.
+    version, and the second experiment's audit flagged forty-eight of them
+    because the checks they described had left nothing behind in the tree.
+    Most of those checks had really run, against fixtures deleted before the
+    handover; nobody reading the tree later could tell.
 
     Args:
         workspace: The tree the run is about to leave behind.

@@ -24,13 +24,19 @@ them. A third line banned unearned verification words from its notes in code.
 All three mechanisms are in this tree, and they are what a round should
 extend before it extends anything else.
 
-**Notes lied, and the machinery against lying kept being needed.** The audit
-flagged forty-eight notes across the run for claiming checks that never ran,
-fixtures that did not exist, and capabilities the tree did not hold. The count
-fell fourfold once the evidence discipline took hold, but the last lies were
-forged entries in the verification machinery itself. The ledger, the receipt,
-the digest binding and the notes rule exist because prose cannot be trusted
-to describe what ran; keep them honest rather than convenient.
+**Evidence that is not shipped does not exist.** The audit flagged
+forty-eight notes across the second run for describing checks the tree did
+not carry. Read against the run logs, most of those checks had really
+happened: fixtures built in a temporary directory, the new reader run over
+them, everything deleted before the handover. Nine flags were inherited
+notes on unchanged control copies, and only thirteen notes misdescribed
+the code, in small ways, at the same low rate in every era. The flags fell
+fourfold once notes had to name a shipped test, because the evidence began
+to ship, not because the agents became more honest. A check whose proof is
+thrown away is worth nothing to whoever comes next. The ledger, the
+receipt, the digest binding and the notes rule exist so that what ran is
+recorded where a later version can read it; keep them honest rather than
+convenient.
 
 **The best mechanism of the run was lost to a rewind.** Line 4 bound its
 proof record to a digest of the tree; six cycles later an exploration round
