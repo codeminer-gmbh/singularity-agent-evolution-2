@@ -32,6 +32,8 @@ from evolving_agent.workspace import Workspace, WorkspaceError
 from evolving_agent.web import WebError, fetch_url
 
 _MAX_LISTING_CHARACTERS = 8_000
+_MAX_READ_BYTES = 7_000
+_MAX_READ_OFFSET = 9_007_199_254_740_991
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -105,7 +107,8 @@ class WorkspaceTools:
                     "Read one file as text. Paths are relative to the workspace; "
                     "a path starting with materials/ reads one of the task's "
                     "input files, and one starting with output/ reads a "
-                    "deliverable. Large files are truncated."
+                    "deliverable. Reads are bounded; when a file continues the "
+                    "result gives the offset_bytes value for the next page."
                 ),
                 input_schema={
                     "type": "object",
@@ -113,7 +116,18 @@ class WorkspaceTools:
                         "path": {
                             "type": "string",
                             "description": "Path relative to the workspace root.",
-                        }
+                        },
+                        "offset_bytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Byte offset at which to continue reading (default 0).",
+                        },
+                        "max_bytes": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": _MAX_READ_BYTES,
+                            "description": "Bytes to read in this page (default 7000).",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -532,7 +546,17 @@ class WorkspaceTools:
     def _read_file(self, arguments: Mapping[str, Any]) -> str:
         """Return one file's text, from whichever tree the path names."""
         tree, relative = self._located(_text_argument(arguments, "path"))
-        return tree.read_text(relative)
+        offset = _bounded_integer(
+            arguments, "offset_bytes", default=0, minimum=0, maximum=_MAX_READ_OFFSET
+        )
+        max_bytes = _bounded_integer(
+            arguments,
+            "max_bytes",
+            default=_MAX_READ_BYTES,
+            minimum=1,
+            maximum=_MAX_READ_BYTES,
+        )
+        return tree.read_text(relative, offset_bytes=offset, max_bytes=max_bytes)
 
     def _write_file(self, arguments: Mapping[str, Any]) -> str:
         """Write one whole file and report what was written."""

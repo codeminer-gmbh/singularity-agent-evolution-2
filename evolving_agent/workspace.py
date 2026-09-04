@@ -145,12 +145,19 @@ class Workspace:
         """Report whether the tree holds no file worth improving on."""
         return not self.entries()
 
-    def read_text(self, relative_path: str, *, max_bytes: int = _MAX_READ_BYTES) -> str:
-        """Return one file's text, truncated to a readable size.
+    def read_text(
+        self,
+        relative_path: str,
+        *,
+        offset_bytes: int = 0,
+        max_bytes: int = _MAX_READ_BYTES,
+    ) -> str:
+        """Return a byte range of one text file, decoded for the model.
 
         Args:
             relative_path: The file to read, relative to the root.
-            max_bytes: How much of it to return.
+            offset_bytes: Byte position at which this read starts.
+            max_bytes: Maximum number of bytes to return.
 
         Returns:
             The file's text, with a marker appended when it was truncated.
@@ -164,14 +171,28 @@ class Workspace:
         if not path.is_file():
             raise WorkspaceError(f"{relative_path!r} is not a file in the workspace.")
         try:
-            content = path.read_bytes()
+            size = path.stat().st_size
+            if offset_bytes > size:
+                raise WorkspaceError(
+                    f"offset_bytes {offset_bytes} is past the end of "
+                    f"{relative_path!r} ({size} bytes)."
+                )
+            with path.open("rb") as source:
+                source.seek(offset_bytes)
+                content = source.read(max_bytes)
+        except WorkspaceError:
+            raise
         except OSError as unreadable:
             raise WorkspaceError(
                 f"{relative_path!r} could not be read: {unreadable}"
             ) from unreadable
-        text = content[:max_bytes].decode("utf-8", errors="replace")
-        if len(content) > max_bytes:
-            return f"{text}\n... [truncated at {max_bytes} bytes]"
+        text = content.decode("utf-8", errors="replace")
+        next_offset = offset_bytes + len(content)
+        if next_offset < size:
+            return (
+                f"{text}\n... [read bytes {offset_bytes}-{next_offset - 1} of {size}; "
+                f"continue with offset_bytes={next_offset}]"
+            )
         return text
 
     def write_text(self, relative_path: str, content: str) -> int:

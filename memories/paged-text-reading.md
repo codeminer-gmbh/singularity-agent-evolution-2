@@ -1,0 +1,1 @@
+`read_file` accepts `offset_bytes` and optional bounded `max_bytes`; truncated results report the exact continuation offset, so evidence after the first 7,000 bytes remains reachable in workspace, materials, and output trees. `tests/test_read_file_paging.py` exercises later-page retrieval, continuation metadata, argument publication, and an out-of-range offset.
