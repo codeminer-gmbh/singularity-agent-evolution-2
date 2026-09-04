@@ -137,3 +137,13 @@ def test_the_receipt_counts_from_status_lines_not_prose(tmp_path: Path) -> None:
         "DID NOT START (tool error)",
     ]
     assert command_status(observations[4]) == "DID NOT START (no exit status returned)"
+
+
+def test_the_caches_the_gates_leave_do_not_unbind_a_record(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    workspace.write_text(VERIFICATION_RECORD, _record(workspace))
+
+    for cache in (".ruff_cache", ".mypy_cache", ".pytest_cache", "__pycache__"):
+        workspace.write_text(f"{cache}/state.json", "{}")
+
+    assert verification_problems(workspace) == ()

@@ -25,11 +25,15 @@ _MAX_READ_BYTES = 64_000
 _MAX_LISTED_FILES = 500
 """How many paths one listing returns, so a large tree cannot fill the context."""
 
-_SKIPPED_DIRECTORY_NAMES = frozenset({"__pycache__", ".git"})
-"""Directories that are never copied into a workspace and never listed.
+_SKIPPED_DIRECTORY_NAMES = frozenset(
+    {"__pycache__", ".git", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+)
+"""Directories that are never copied, listed, or digested.
 
-Interpreter bytecode and version-control metadata are not source: copied into a
-successor they would be published as part of it.
+Interpreter bytecode, version-control metadata and the caches the gates leave
+behind are not source. Copied into a successor they would be published as part
+of it, and counted in the digest they would unbind a proof record every time a
+round ran the gates after computing it.
 """
 
 _BYTECODE_SUFFIXES = frozenset({".pyc", ".pyo"})
