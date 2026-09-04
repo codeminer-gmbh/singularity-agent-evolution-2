@@ -361,6 +361,41 @@ def repair_opening(problems: tuple[str, ...]) -> str:
 
 
 
+def improvement_completion_review() -> str:
+    """Return the non-publishing, ledger-conditioned audit of a successor."""
+    return (
+        "Do not finish or publish this improvement yet. Act as an adversarial "
+        "reviewer of the changed successor, not as its advocate. Re-read the exact "
+        "task and the smallest relevant ledger verdict, inspect the source diff and "
+        "memories/verification.json, and check that the selected work actually "
+        "addresses the named costly failure. Pick the matrix row most capable of "
+        "distinguishing the new tree from the old one, then run its exact public-path "
+        "interaction. Independently derive the expected result from the task or "
+        "ledger; do not accept the implementation's own output, its tests, or prose "
+        "in the verification record as the oracle. For an ordering, precedence, "
+        "fallback, parsing, or default rule, exercise the conflict or malformed case "
+        "that separates the competing interpretations. Inspect produced artifacts, "
+        "not just exit status. Report concrete defects and the exact repairs needed. "
+        "If no defect is found, report what command and observation independently "
+        "support the capability. Do not make unrelated changes in this stage."
+    )
+
+
+def improvement_completion_finalization() -> str:
+    """Return the repair-and-proof stage after successor critique."""
+    return (
+        "Now use the preceding independent review to repair the successor before "
+        "publication. If it found a defect, fix the implementation and rerun the "
+        "same distinguishing interaction that exposed it; a nearby happy path is "
+        "not a substitute. If it found no defect, do not invent unrelated work. "
+        "Run a proportionate startup or syntax check, inspect the resulting behavior, "
+        "and update memories/verification.json so every claimed observation records "
+        "only interactions actually run in this final tree. Ensure its audit names "
+        "the ledger-supported costly failure and its matrix retains an adversarial "
+        "row. Then give the final summary, claiming only those observed results."
+    )
+
+
 def probe_completion_review() -> str:
     """Return the non-publishing adversarial critique of a probe draft."""
     return (

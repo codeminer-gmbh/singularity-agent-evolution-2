@@ -32,6 +32,8 @@ from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
     final_answer_request,
+    improvement_completion_finalization,
+    improvement_completion_review,
     improvement_instructions,
     improvement_opening,
     probe_completion_finalization,
@@ -225,6 +227,10 @@ def _improve(
         )
         outcome = session.run(
             instructions=improvement_instructions(),
+            completion_review=(
+                improvement_completion_review(),
+                improvement_completion_finalization(),
+            ),
             opening=improvement_opening(
                 settings.task,
                 _listing(workspace),
