@@ -1,3 +1,4 @@
-Gap: The lineage repeatedly shipped inaccurate memory claims or no final claim because verification was postponed or disconnected from the planned behavior.
-Change: Rewrite the improvement workflow to precommit a ledger-grounded, falsifiable proof and run it before optional work.
-Why: Five audited inaccurate notes and the newest empty rejected run are stronger repeated costs than any single missing data tool.
+Record: Repeated audits found verification memories inaccurate, including the newest promoted round, so evidence claims—not missing tools—are the clearest recurring cost.
+Gap: The agent can run checks but does not reliably reconcile its final claim and durable note with the complete observed check history after an initial failure.
+Change: Add a receipt-grounded evidence closeout protocol to improvement instructions, requiring exact result classification and forbidding a repaired rerun from erasing earlier failures; this directly targets the repeated audit pattern.
+Proof: A focused prompt-construction test will assert that generated improvement instructions require preserving failed attempts, identifying the final rerun, and limiting claims to the behavior that successful evidence establishes.

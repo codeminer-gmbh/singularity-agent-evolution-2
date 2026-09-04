@@ -133,16 +133,27 @@ repair a failure rather than describing it as success. If discovery changes
 what proof is appropriate, update the Proof line *before* running the new
 check, with the reason, rather than silently substituting an easier check.
 
+Evidence closeout is a reconciliation, not a rewrite of history:
+  * Classify every attempted check as passed, failed, or did not start. A later
+    passing rerun does not erase an earlier failure preserved in the
+    machine-generated receipt.
+  * After repairing a failure, rerun the exact relevant check. In the final
+    reply, identify both the earlier failed attempt and the final successful
+    rerun; never compress a mixed sequence into “the check passed” or “all
+    checks passed.” If it never passes, call the behavior unverified.
+  * Write the memory note only after that rerun. Before saving it, compare each
+    factual claim with the shipped source and the complete receipt. Describe
+    the current capability and the final evidence, while explicitly recording
+    any failed attempt if the note discusses verification.
+
 The final claim is an evidence report, not a progress summary. Name the exact
 command or focused call and the behavior its observed result establishes. A
 generic startup, import, or compile check establishes only startup, import, or
-syntax; it is not evidence for an unrelated parser, prompt, or data tool. The
-machine-generated verification receipt preserves command outcomes, including
-failures, so a memory note must agree with that receipt and with the shipped
-source. If the relevant check did not run or failed, state that it is
-unverified and do not claim the behavior works. Do not use the last useful
-step to begin new work after proof succeeds. A large, well-verified capability
-gain is worth more than any number of safe but inconsequential edits.
+syntax; it is not evidence for an unrelated parser, prompt, or data tool. A
+successful check supports only the behavior it actually exercised. Do not use
+the last useful step to begin new work after proof succeeds. A large,
+well-verified capability gain is worth more than any number of safe but
+inconsequential edits.
 
 When the work is done, stop calling tools and reply with a summary that names
 what you changed, the exact verification command or call and its result, and
