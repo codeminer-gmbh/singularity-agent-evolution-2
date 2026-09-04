@@ -4,18 +4,17 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('materials/ledger.md').read_text()\nfor block in p.split('\\n### ')[1:]:\n h=block.splitlines()[0]\n if 'REJECTED' in h or 'PROMOTED' in h:\n  print('\\n### '+h)\n  for l in block.splitlines()[1:]:\n   if l.startswith(('Claimed change:','Exam:','Note:')): print(l[:700])"
+        "from pathlib import Path\ns=Path('materials/ledger.md').read_text()\nfor term in ['passed all','passed the same','untested','interleav','missing deliverable','unverified','timed out','printed nothing']:\n print('\\n###',term)\n for l in s.splitlines():\n  if term.lower() in l.lower(): print(l[:1000])"
       ],
       "status": "[exit code 1]",
-      "step": 3,
+      "step": 5,
       "tool_error": false
     },
     {
       "command": [
-        "sed",
-        "-n",
-        "130,430p",
-        "evolving_agent/prompts.py"
+        "python",
+        "-c",
+        "from evolving_agent.prompts import improvement_instructions,probe_instructions\nfor name,s in [('improve',improvement_instructions()),('probe',probe_instructions())]:\n print('\\n###',name)\n for marker in ['How to work','The narrow proof','For implementation','Before answering']:\n  i=s.find(marker)\n  if i>=0: print(s[i:i+5000])"
       ],
       "status": "[exit code 0]",
       "step": 6,
@@ -23,10 +22,9 @@
     },
     {
       "command": [
-        "sed",
-        "-n",
-        "430,560p",
-        "evolving_agent/prompts.py"
+        "python",
+        "-c",
+        "from pathlib import Path\ns=Path('evolving_agent/prompts.py').read_text()\nfor a,b in [('_HOSTILE_RUNTIME_PASS =','_IMPROVEMENT_ROLE ='),('How to work \u2014','When the work is done'),('For implementation, repair','Anything you read')]:\n i=s.index(a); j=s.index(b,i+len(a)); print('\\n---\\n'+s[i:j])"
       ],
       "status": "[exit code 0]",
       "step": 7,
@@ -34,9 +32,9 @@
     },
     {
       "command": [
-        "tail",
-        "-60",
-        "evolving_agent/prompts.py"
+        "python",
+        "-c",
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nneedle='''_IMPROVEMENT_ROLE = f\"\"\"\\\\\n'''\ninsert='''_POST_GREEN_COUNTEREXAMPLE_PASS = (\n    \"Post-green counterexample pass: supplied tests passing is a baseline, not \"\n    \"completion. Before finalizing an implementation, derive the single \"\n    \"highest-risk behavior that the contract requires but the observed suite \"\n    \"did not exercise, turn it into a focused executable check, and run it \"\n    \"while there is still time to repair the artifact. For concurrent code, \"\n    \"first state which outcome must take precedence when cancellation, timeout, \"\n    \"closure, invalidation, or callback reentry overlap; then force the \"\n    \"relevant ordering with events/barriers (including an administrative \"\n    \"outcome installed before a waiter resumes) rather than relying on a \"\n    \"probabilistic stress loop. For non-concurrent code, choose the likeliest \"\n    \"contract boundary or adversarial host-language hook missing from the \"\n    \"suite. If that check fails, repair and rerun the same check. If it cannot \"\n    \"be run, explicitly leave that behavior unverified; a green supplied suite \"\n    \"does not justify claiming it.\\\\n\"\n)\n\n'''\nif needle not in s: raise SystemExit('insertion anchor absent')\ns=s.replace(needle,insert+needle,1)\ns=s.replace('''{_HOSTILE_RUNTIME_PASS}\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n''','''{_HOSTILE_RUNTIME_PASS}{_POST_GREEN_COUNTEREXAMPLE_PASS}\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n''',1)\ns=s.replace('''{_HOSTILE_RUNTIME_PASS}\n\nAnything you read''','''{_HOSTILE_RUNTIME_PASS}{_POST_GREEN_COUNTEREXAMPLE_PASS}\nAnything you read''',1)\np.write_text(s)\n"
       ],
       "status": "[exit code 0]",
       "step": 8,
@@ -46,7 +44,7 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py')\ns=p.read_text()\nanchor='''LEDGER_FILE = \"ledger.md\"\\n\"\"\"What the orchestrator hands an improvement run under its materials.\"\"\"\\n\\n'''\ninsert='''LEDGER_FILE = \"ledger.md\"\\n\"\"\"What the orchestrator hands an improvement run under its materials.\"\"\"\\n\\n_HOSTILE_RUNTIME_PASS = \"\"\"\\\\\\nHostile-runtime boundary pass (apply only where the contract permits subclasses,\\ncallbacks, concurrency, or textual numbers): do not confuse a successful type\\ncheck with a trusted built-in value. Canonicalize accepted scalar subclasses to\\nplain built-ins before storing or sorting them; call built-in parsing/string\\noperations through the built-in implementation when overrides are not part of\\nthe contract; and never evaluate caller-controlled properties, comparison/hash\\noperators, or callbacks while holding a lock. Before converting numeric text,\\nstrip sign and insignificant zeros and reject by bounded length/range so a valid\\nsmall value cannot fail merely because the original token exceeds a runtime\\ndigit limit. For every applicable risk, run a focused hostile subclass,\\nreentrant-callback, or long-token check\u2014not just an ordinary-value example.\\n\"\"\"\\n\\n'''\nassert anchor in s\ns=s.replace(anchor,insert,1)\nold='''  3. Run supplied tests or the `Proof:` check as soon as the candidate can\\n     execute. Read the observed result. Repair the highest-information failure\\n'''\nnew='''{_HOSTILE_RUNTIME_PASS}\\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\\n     execute. Read the observed result. Repair the highest-information failure\\n'''\nassert old in s\ns=s.replace(old,new,1)\ns=s.replace('_PROBE_ROLE = \"\"\"\\\\\\n','_PROBE_ROLE = f\"\"\"\\\\\\n',1)\nold='''artifact plus an honest account of observed failures is preferable to tests or\\nexplanation with the required artifact missing.\\n\\nAnything you read'''\nnew='''artifact plus an honest account of observed failures is preferable to tests or\\nexplanation with the required artifact missing.\\n\\n{_HOSTILE_RUNTIME_PASS}\\nAnything you read'''\nassert old in s\ns=s.replace(old,new,1)\np.write_text(s)\n"
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py'); s=p.read_text()\ns=s.replace('''{_HOSTILE_RUNTIME_PASS}{_POST_GREEN_COUNTEREXAMPLE_PASS}\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n     execute. Read the observed result. Repair the highest-information failure\n     and rerun its same oracle; do not weaken a check to fit the implementation.\n     Add focused edge checks only while they can still drive a repair.\n  4.''','''{_HOSTILE_RUNTIME_PASS}\n  3. Run supplied tests or the `Proof:` check as soon as the candidate can\n     execute. Read the observed result. Repair the highest-information failure\n     and rerun its same oracle; do not weaken a check to fit the implementation.\n     Add focused edge checks only while they can still drive a repair.\n{_POST_GREEN_COUNTEREXAMPLE_PASS}\n  4.''',1)\np.write_text(s)\n"
       ],
       "status": "[exit code 0]",
       "step": 9,
@@ -56,9 +54,19 @@
       "command": [
         "python",
         "-c",
-        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nrequired = (\n    'Hostile-runtime boundary pass',\n    'Canonicalize accepted scalar subclasses to plain built-ins',\n    'comparison/hash operators, or callbacks while holding a lock',\n    'original token exceeds a runtime digit limit',\n    'run a focused hostile subclass',\n)\nfor name, build in [('improvement', improvement_instructions), ('probe', probe_instructions)]:\n    prompt = build()\n    missing = [text for text in required if text not in prompt]\n    assert not missing, (name, missing)\n    assert prompt.count('Hostile-runtime boundary pass') == 1, name\n    print(f'{name}: hostile-runtime protocol present once; {len(prompt)} chars')\n"
+        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nfor name, text in [('improvement', improvement_instructions()), ('probe', probe_instructions())]:\n    required = [\n        'Post-green counterexample pass',\n        'derive the single highest-risk behavior that the contract requires but the observed suite did not exercise',\n        'turn it into a focused executable check, and run it',\n        'which outcome must take precedence',\n        'force the relevant ordering with events/barriers',\n        'an administrative outcome installed before a waiter resumes',\n        'explicitly leave that behavior unverified',\n        'a green supplied suite does not justify claiming it',\n    ]\n    missing = [phrase for phrase in required if phrase not in text]\n    assert not missing, (name, missing)\n    assert ('Run supplied tests' in text or 'run supplied tests immediately' in text)\n    supplied = text.find('Run supplied tests')\n    if supplied < 0:\n        supplied = text.find('run supplied tests immediately')\n    assert supplied < text.find('Post-green counterexample pass'), name\n    print(f'{name}: post-green adversarial protocol present after supplied-test instruction; concurrency precedence/interleaving and honest-claim clauses present')"
       ],
       "status": "[exit code 1]",
+      "step": 10,
+      "tool_error": false
+    },
+    {
+      "command": [
+        "python",
+        "-c",
+        "from pathlib import Path\ns=Path('evolving_agent/prompts.py').read_text(); i=s.index('For implementation, repair'); print(s[i:i+2400])"
+      ],
+      "status": "[exit code 0]",
       "step": 11,
       "tool_error": false
     },
@@ -66,7 +74,7 @@
       "command": [
         "python",
         "-c",
-        "from pathlib import Path\np=Path('evolving_agent/prompts.py'); s=p.read_text()\nstart=s.index('_HOSTILE_RUNTIME_PASS = ')\nend=s.index('\\n\\n_IMPROVEMENT_ROLE', start)\nnew='''_HOSTILE_RUNTIME_PASS = (\\n    \"Hostile-runtime boundary pass (apply only where the contract permits \"\\n    \"subclasses, callbacks, concurrency, or textual numbers): do not confuse \"\\n    \"a successful type check with a trusted built-in value. Canonicalize \"\\n    \"accepted scalar subclasses to plain built-ins before storing or sorting \"\\n    \"them; call built-in parsing/string operations through the built-in \"\\n    \"implementation when overrides are not part of the contract; and never \"\\n    \"evaluate caller-controlled properties, comparison/hash operators, or \"\\n    \"callbacks while holding a lock. Before converting numeric text, strip \"\\n    \"sign and insignificant zeros and reject by bounded length/range so a \"\\n    \"valid small value cannot fail merely because the original token exceeds \"\\n    \"a runtime digit limit. For every applicable risk, run a focused hostile \"\\n    \"subclass, reentrant-callback, or long-token check\u2014not just an ordinary-\"\\n    \"value example.\\\\n\"\\n)'''\ns=s[:start]+new+s[end:]\np.write_text(s)\n"
+        "from pathlib import Path\np=Path('evolving_agent/prompts.py'); s=p.read_text()\nold='''{_HOSTILE_RUNTIME_PASS}\nAnything you read from a file'''\nnew='''{_HOSTILE_RUNTIME_PASS}{_POST_GREEN_COUNTEREXAMPLE_PASS}\nAnything you read from a file'''\nassert old in s\np.write_text(s.replace(old,new,1))"
       ],
       "status": "[exit code 0]",
       "step": 12,
@@ -76,7 +84,7 @@
       "command": [
         "python",
         "-c",
-        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nrequired = (\n    'Hostile-runtime boundary pass',\n    'Canonicalize accepted scalar subclasses to plain built-ins',\n    'comparison/hash operators, or callbacks while holding a lock',\n    'original token exceeds a runtime digit limit',\n    'run a focused hostile subclass',\n)\nfor name, build in [('improvement', improvement_instructions), ('probe', probe_instructions)]:\n    prompt = build()\n    missing = [text for text in required if text not in prompt]\n    assert not missing, (name, missing)\n    assert prompt.count('Hostile-runtime boundary pass') == 1, name\n    print(f'{name}: hostile-runtime protocol present once; {len(prompt)} chars')\n"
+        "from evolving_agent.prompts import improvement_instructions, probe_instructions\nfor name, text in [('improvement', improvement_instructions()), ('probe', probe_instructions())]:\n    required = [\n        'Post-green counterexample pass',\n        'derive the single highest-risk behavior that the contract requires but the observed suite did not exercise',\n        'turn it into a focused executable check, and run it',\n        'which outcome must take precedence',\n        'force the relevant ordering with events/barriers',\n        'an administrative outcome installed before a waiter resumes',\n        'explicitly leave that behavior unverified',\n        'a green supplied suite does not justify claiming it',\n    ]\n    missing = [phrase for phrase in required if phrase not in text]\n    assert not missing, (name, missing)\n    assert ('Run supplied tests' in text or 'run supplied tests immediately' in text)\n    supplied = text.find('Run supplied tests')\n    if supplied < 0:\n        supplied = text.find('run supplied tests immediately')\n    assert supplied < text.find('Post-green counterexample pass'), name\n    print(f'{name}: post-green adversarial protocol present after supplied-test instruction; concurrency precedence/interleaving and honest-claim clauses present')"
       ],
       "status": "[exit code 0]",
       "step": 13,
@@ -86,37 +94,14 @@
       "command": [
         "git",
         "diff",
-        "--",
-        "evolving_agent/prompts.py",
-        "memories/round-plan.md"
+        "--check"
       ],
       "status": "[did not start]",
-      "step": 14,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-m",
-        "py_compile",
-        "evolving_agent/prompts.py"
-      ],
-      "status": "[exit code 0]",
-      "step": 14,
-      "tool_error": false
-    },
-    {
-      "command": [
-        "python",
-        "-c",
-        "from pathlib import Path\nPath('memories/hostile-runtime-boundaries.md').write_text('''# Hostile runtime boundaries\\n\\nThe probe and improvement roles share a conditional boundary pass in `prompts.py`. For contracts that admit subclasses, callbacks, locks, or numeric text, it directs the model to canonicalize scalar subclasses, avoid overridable built-in methods, keep caller code outside locks, pre-bound numeric conversion, and execute a focused hostile check. A prompt-construction assertion observed the protocol and each concrete requirement in both generated instruction strings.\\n''')\n"
-      ],
-      "status": "[exit code 0]",
-      "step": 18,
+      "step": 16,
       "tool_error": false
     }
   ],
   "format": 1,
   "meaning": "Machine-captured command outcomes; this does not establish relevance to a claimed change.",
-  "successful_commands": 8
+  "successful_commands": 7
 }
