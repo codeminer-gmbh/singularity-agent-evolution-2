@@ -1,43 +1,50 @@
 {
   "audit": {
-    "costly_failure": "The most costly supported failure is completion without a distinguishing end-to-end verification: the ledger says the lineage repeatedly made close-but-wrong precedence/default choices or shipped unverified behavior, and no prior candidate was accepted.",
-    "evidence": "Smallest relevant ledger fact: the archive strictness candidate was rejected because its implementation kept the first duplicate member while the required observable behavior kept the last. Observable failure: a plausible implementation and its claim survived without the exact conflict interaction being run. Untested boundary: declaration/encounter ordering when duplicate archive paths collide. Distinguishing input: an archive containing two entries for the same output path, first='first' then='last', for which the delivered output must be 'last'."
+    "costly_failure": "The lineage's most costly supported failure is publishing a claimed source-code deliverable that was never mechanically shown to contain an implementation; the exact docstring-only failure recurred after earlier process-only verification changes, and no candidate was accepted.",
+    "evidence": "Smallest ledger fact in my own words: the latest retry again returned a source file that was only a docstring. Observable failure: an existing requested artifact with no executable code was described as complete. Untested boundary: completion review did not distinguish file existence and prose content from an actual implementation. Distinguishing input: output/solution.py containing only a module docstring for a requested stateful streaming parser must be rejected, while a class with state-changing feed calls must pass."
   },
   "matrix": [
     {
-      "requirement": "The public improvement path must not publish its first plausible draft without an independent tool-capable review.",
-      "input": "A scripted improvement run whose ordinary phase writes output/result.txt='first' and verification.json claiming first is correct, then reports completion.",
-      "expected": "run_improvement starts the independent review stage with tools still available; that stage inspects the artifact rather than accepting the draft.",
-      "interaction": "python -m unittest tests.test_improvement_completion_review -v",
-      "observed": "PASS. The scripted reviewer received a transcript containing the independent-review and smallest-ledger-verdict requirements, called read_file on output/result.txt, and observed 'first'."
+      "requirement": "A docstring-only requested Python artifact must not be published even when both model-authored completion reports overlook the defect.",
+      "input": "Public run writes output/solution.py containing only: A robust streaming parser would be implemented here; draft and semantic reviewer then claim completion/no defect.",
+      "expected": "The post-review mechanical check names the lack of executable implementation and starts a tool-enabled repair pass rather than publishing the claim.",
+      "interaction": "python -m unittest tests.test_deliverable_substance_gate -v",
+      "observed": "PASS: test_docstring_only_python_forces_tool_enabled_repair observed the repair transcript contain 'has no executable implementation'; the scripted model was called 7 times, proving an extra repair phase followed the two overlooking reviews."
     },
     {
-      "requirement": "The ledger-derived ordering boundary must be tested with the exact distinguishing conflict, not a nearby happy path.",
-      "input": "Decision table conflict row: first duplicate payload='first'; later duplicate payload='last'; required precedence=later encounter wins.",
-      "expected": "The review identifies actual='first' versus expected='last' and does not report a pass.",
-      "interaction": "python -m unittest tests.test_improvement_completion_review -v",
-      "observed": "PASS. The fake reviewer only advanced after seeing the wrong 'first' artifact, then supplied a failed independent-review report naming expected 'last'."
+      "requirement": "The repair pass must be able to edit and execute the deliverable, and publication must use its corrected answer.",
+      "input": "After the docstring-only failure, write a StreamParser with persistent total state and run two feed calls, b'ab' then b'c'.",
+      "expected": "The command observes totals 2 then 3, the checker reports no remaining issue, and run_probe returns the repaired evidence-bearing answer.",
+      "interaction": "python -m unittest tests.test_deliverable_substance_gate -v",
+      "observed": "PASS: the public run succeeded, the delivered file independently contained class StreamParser, source_delivery_problems returned an empty tuple, and the returned answer said the two-chunk state test passed."
     },
     {
-      "requirement": "A failed independent review must trigger repair, rerun of the same interaction, and durable refreshed evidence before publication.",
-      "input": "The failed duplicate-order report followed by a finalizer that writes output/result.txt='last', rereads it, and rewrites memories/verification.json.",
-      "expected": "The public run finishes successfully only after result.txt and the durable verification record both contain the corrected 'last' result.",
-      "interaction": "python -m unittest tests.test_improvement_completion_review -v",
-      "observed": "PASS. run_improvement returned success after the finalizer's write/read/write calls; the test independently read the delivered artifact and verification file and found 'last' in both, while preserving the failed review in the final transcript."
+      "requirement": "Malformed and explicit-placeholder source are adversarial failures, while a real implementation makes the default repair path irrelevant.",
+      "input": "placeholder.py imports json and defines parse that only raises NotImplementedError; broken.py contains 'def parse(:'; the repaired solution.py contains executable class methods.",
+      "expected": "The first is reported as having no implementation, the second as invalid Python, and the repaired source has no reported problem.",
+      "interaction": "python -m unittest tests.test_deliverable_substance_gate -v",
+      "observed": "PASS: test_placeholders_and_syntax_errors_are_distinguished_from_code matched both distinct diagnostics; the public-path test separately asserted an empty result for substantive repaired source."
     },
     {
-      "requirement": "The new improvement completion stages must preserve existing probe reviews, step-limit finalization, and review-step behavior.",
-      "input": "All existing adversarial finalization, exhausted-budget review, independent oracle, limit finalization, and probe-contract cases plus the new improvement case.",
-      "expected": "Every regression test passes.",
+      "requirement": "The new completion postcondition must preserve all prior completion, budget, independent-review, and non-software probe behavior.",
+      "input": "The full suite of 12 public-path and session tests, including probes with no output artifact.",
+      "expected": "All tests pass without an unnecessary repair phase for valid or absent Python deliverables.",
       "interaction": "python -m unittest discover -s tests -v",
-      "observed": "PASS: 10 tests ran in 0.244s and all passed, including the new public improvement repair case and the nine existing completion/probe cases."
+      "observed": "PASS: all 12 tests ran in 0.211s, including prior adversarial finalization, exhausted-budget, independent oracle, limit, and probe-contract cases."
     },
     {
       "requirement": "The successor source and tests remain syntactically loadable.",
-      "input": "main.py, every evolving_agent module, and every test module.",
-      "expected": "Python byte-compilation completes with exit code 0 and no diagnostics.",
+      "input": "main.py, every evolving_agent module including deliverables.py, and every test module.",
+      "expected": "Byte-compilation exits 0 without diagnostics.",
       "interaction": "python -m compileall -q main.py evolving_agent tests",
       "observed": "PASS: exit code 0 with no stdout or stderr."
+    },
+    {
+      "requirement": "An unrepaired prose-only Python file cannot be converted into a successful publication by the text-only fallback.",
+      "input": "Public run_probe with NeverRepairModel: writes output/solution.py containing only a docstring, then repeatedly claims completion without repairing it.",
+      "expected": "After two bounded repair prompts, run_probe returns succeeded=False and an honest incomplete-deliverable answer; it does not invoke a text finalizer to claim success.",
+      "interaction": "python -m unittest tests.test_deliverable_substance_gate -v",
+      "observed": "PASS: test_unrepaired_stub_cannot_be_published_by_text_finalizer saw six model calls, succeeded=False, the fixed incomplete-deliverable answer, and the structural defect in report.detail."
     }
   ]
 }

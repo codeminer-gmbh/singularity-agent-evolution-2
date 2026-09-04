@@ -22,7 +22,7 @@ in improvement mode that work is in the workspace and is kept.
 import json
 import logging
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -43,6 +43,7 @@ _OBSERVATION_LIMIT = 8_000
 _LOGGED_ARGUMENT_CHARACTERS = 200
 _COMPLETION_DRAFT_STEPS = 1
 _REVIEW_STAGE_STEPS = 4
+_POSTCONDITION_REPAIR_STEPS = 8
 
 # Completion is a working phase, not one exchange: an exhausted ordinary run
 # still needs one tool-free draft, and each review may run up to three tool
@@ -162,6 +163,7 @@ class ToolAgentSession:
         instructions: str,
         opening: str,
         completion_review: str | Sequence[str] | None = None,
+        completion_check: Callable[[], Sequence[str]] | None = None,
     ) -> SessionOutcome:
         """Take steps until the model answers, or a bound is reached.
 
@@ -175,6 +177,9 @@ class ToolAgentSession:
                 ordinary work exhausts its allowance, and each review stage
                 receives a bounded four-exchange allowance so it can use tools
                 before its required tool-free report.
+            completion_check: Optional mechanical inspection run after all review
+                stages. If it reports problems, the model receives one focused,
+                tool-enabled repair pass before publication.
 
         Returns:
             How the session ended and what it reported.
@@ -197,6 +202,7 @@ class ToolAgentSession:
         else:
             review_stages = tuple(completion_review)
         review_index = 0
+        postcondition_repairs = 0
         # Reviews are not allowed to steal ordinary work steps. A draft can
         # still be completed after the last ordinary tool call, and each stage
         # has room for distinguishing tool checks plus its tool-free report.
@@ -205,6 +211,7 @@ class ToolAgentSession:
             self._max_steps
             + (_COMPLETION_DRAFT_STEPS if review_stages else 0)
             + len(review_stages) * _REVIEW_STAGE_STEPS
+            + (_POSTCONDITION_REPAIR_STEPS if completion_check is not None else 0)
         )
         while steps < step_limit:
             if self._deadline.expired():
@@ -234,6 +241,44 @@ class ToolAgentSession:
                     )
                     review_index += 1
                     continue
+                if completion_check is not None:
+                    problems = tuple(completion_check())
+                    if problems and postcondition_repairs < 2:
+                        # Preserve the proposed answer as context, then make the
+                        # absence of an implementation impossible to wave away in
+                        # prose. The artifact is inspected again when the repair
+                        # reports completion.
+                        if reply.output:
+                            conversation.extend(dict(item) for item in reply.output)
+                        else:
+                            conversation.append({"role": "assistant", "content": reply.text})
+                        listed = "\n".join(f"  * {problem}" for problem in problems)
+                        conversation.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    "A mechanical inspection of the actual deliverables "
+                                    "found publication-blocking defects:\n"
+                                    f"{listed}\n\n"
+                                    "Repair those files now with a real executable "
+                                    "implementation of the original task. Use the tools "
+                                    "to run a task-level distinguishing test, inspect its "
+                                    "result, and only then give the corrected final answer. "
+                                    "A docstring, pseudocode, pass, ellipsis, or "
+                                    "NotImplementedError is not an implementation."
+                                ),
+                            }
+                        )
+                        postcondition_repairs += 1
+                        continue
+                    if problems:
+                        return SessionOutcome(
+                            finished=False,
+                            summary="",
+                            steps=steps,
+                            reason="deliverable postconditions still failed after repair",
+                            conversation=tuple(_recent(conversation)),
+                        )
                 _LOG.info("Step %s: done after %s steps", steps, steps)
                 return SessionOutcome(
                     finished=True,

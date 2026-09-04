@@ -27,6 +27,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from evolving_agent.deliverables import source_delivery_problems
 from evolving_agent.evidence import verification_problems
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
@@ -150,10 +151,21 @@ def run_probe(settings: AgentSettings) -> RunReport:
                 materials_listing=_materials_listing(settings),
                 output_available=settings.output is not None,
             ),
+            completion_check=lambda: source_delivery_problems(settings.output),
         )
     except (ModelUnavailableError, McpError) as unreachable:
         return RunReport(succeeded=False, answer="", detail=str(unreachable))
     _record_tool_calls(settings, session)
+    delivery_problems = source_delivery_problems(settings.output)
+    if delivery_problems:
+        # A text-only finalizer cannot repair files. Do not let it turn a failed
+        # mechanical postcondition into a confident publication claim after the
+        # bounded repair attempts are exhausted.
+        return RunReport(
+            succeeded=False,
+            answer="I could not complete the requested source-code deliverable.",
+            detail="deliverable postconditions failed: " + "; ".join(delivery_problems),
+        )
     if outcome.finished and outcome.summary.strip():
         return RunReport(
             succeeded=True,
