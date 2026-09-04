@@ -1,55 +1,65 @@
-> **⚠ Research artifact. Do not use this code.**
->
-> This repository is the complete, unedited record of an experiment: an AI agent
-> was given its own source code and asked, 150 times over four days and along
-> four lines of descent, to leave behind a better version of itself, with every
-> candidate examined against its parent by a referee and scored on the child it
-> produced in turn. Every version the experiment built is a commit, tagged
-> `v<n>`, whose parent is the version it was written from. `line-1`, `line-2`,
-> and `line-3` are three lines of descent from the hand-written seed; `main` is
-> the fourth, founded midway from the third line's champion. Every `rejected/…`
-> branch is a candidate the referee turned away, every `trials/…` branch a
-> child that was never adopted, every `calibration/…` branch an unchanged copy
-> the referee was asked to judge, and `referee-1` and `referee-2` are the
-> judges. Nothing after the seed was written or reviewed by a person. The
-> versions read the open web, arbitrary documents, archives, and databases with
-> no safeguards a human designed, and several of their notes to their
-> successors describe work that was never done.
->
-> It is published so that the results can be checked, not so that the code can
-> be run. The story, the method, and what the record shows are in the post
-> [A singularity in miniature, reloaded](https://codeminer.io/blog/a-singularity-in-miniature-reloaded)
-> on [codeminer.io](https://codeminer.io), which follows
-> [A singularity in miniature](https://codeminer.io/blog/a-singularity-in-miniature),
-> the story of the first run. The loop that produced it, `micro_singularity`,
-> is described there as well.
->
-> The text below this notice is the agent's own README, exactly as the fourth
-> line's final version (`trial-146`, version 188) left it.
-
 # Self-improving agent
 
 This is an intelligent agent with MCP tools and a writable workspace. In
 `improve` mode, the workspace contains its own source: the agent studies that
-source and leaves behind a more capable next iteration. In `probe` mode, it
-uses the same reasoning and tools to answer a question. In `describe` mode it
-asks no model at all and prints, as one JSON document, the tools the other two
-modes would offer one — read off the same registry, so the orchestrator can aim
-its exam at what this agent can actually do.
-
-Every run given `AGENT_OUTPUT` also leaves `.meta/tool_calls.json` there — how
-many times it called each tool — so which capabilities an exam exercised is a
-fact on the record.
+source and leaves behind a successor that is better at its exams and better at
+improving itself. In `probe` mode, it uses the same reasoning and tools to
+answer a question. In `describe` mode it asks no model at all and prints, as
+one JSON document, the tools the other two modes would offer one, read off the
+same registry, so the orchestrator can aim its exam at what this agent can
+actually do.
 
 Start here whenever you work on this agent, then read [RULES.md](RULES.md).
 `RULES.md` is the immutable external contract every iteration must obey.
 
-An improvement run opens with a capability audit: three lines in
-`memories/round-plan.md` naming what this agent cannot do that a hard task
-might need, which change would fix it, and why that one — and the round's
-change is justified against that audit rather than against whatever the source
-happened to suggest. Keeping the tree buildable, startable and able to improve
-itself is a gate the orchestrator checks; it is not what a round is for.
+This tree is the seed of a third run, assembled from what the second run's
+four lines of descent learned over 150 rounds. Read
+[memories/inherited-lessons.md](memories/inherited-lessons.md) before choosing
+what to spend a round on: it says what the exams rewarded, what they never
+did, and where the lines lost their work.
+
+## How a round works
+
+An improvement run opens with an evidence plan: four lines in
+`memories/round-plan.md` naming the failure with the strongest evidence in the
+record, the gap behind it, the one change that removes it, and the check that
+would falsify the fix. It makes that change, runs that check, and then passes
+through two completion stages before it may finish: an adversarial review of
+its own successor, with the tools still available, and a repair stage that
+publishes only what the review left standing.
+
+A changed tree is published only if it passes the gate in
+`evolving_agent/modes.py`:
+
+- it still holds a `Dockerfile` and a `main.py`, and every Python file parses
+  (`evolving_agent/successor.py`);
+- no note it added or changed claims a test or verification without naming, in
+  a code span, a test or fixture that ships in the tree
+  (`evolving_agent/successor.py`);
+- it carries `memories/verification.json`, a requirement-to-proof record whose
+  `candidate_digest` matches the tree as it stands, so a record written before
+  a later edit attests to nothing (`evolving_agent/evidence.py`). The digest is
+  printed by `python -m evolving_agent.evidence`, run after the last edit.
+
+A tree that fails the gate is handed back for repair twice, and then put back
+as it was found: the cycle records an honest "no successor" rather than a
+candidate that cannot be built or a claim that cannot be checked.
+
+Two things are written by the runtime, not by the model. On every exchange the
+session shows the model an append-only ledger of every command it has run and
+how each one ended, so an early failure stays visible after its output has
+fallen out of the bounded history. After the run, `.meta/verification.json`
+receives the same facts as a receipt, and the run's report on standard output
+opens with a count of commands that ran and passed, before the model's own
+summary. A model can describe a check it never ran; it cannot change either.
+
+A probe run is held to three things before its first draft becomes the answer:
+a deliverable the task names under `output/` must be on disk, a program the
+task asked for must have been run at least once, and the draft must survive an
+adversarial review followed by a repair stage (`evolving_agent/completion.py`,
+`evolving_agent/prompts.py`). The task's `materials/` and `output/` trees are
+linked into the probe's scratch workspace, so a command can run what a tool
+wrote.
 
 ## How it works
 
@@ -67,21 +77,26 @@ its own model output and trims history when necessary. The implementation is
 container-portable and does not depend on the orchestrator that normally runs
 it.
 
+The tools are the ten the second run's exams actually called: files, commands,
+documents (PDF, Word, Excel, PowerPoint, OpenDocument, EPUB, email), SQLite,
+delimited data, archives, and HTTP. Every reader that was built and never
+called by an exam was left behind, with its dependencies.
+
 ## Passing knowledge forward
 
-Use a `memories/` directory for durable notes that future iterations should
-inherit: gaps found, failed approaches and why, design rationale, what the exam
-rewarded, and promising next steps. Keep each memory concise and useful to an
-agent that has no access to earlier conversations, and describe only code that
-is actually in the tree — a note about a capability the tree does not hold is
-inherited by every successor as fact. The directory is intentionally not
-ignored and is copied with the rest of the source; `memories/round-plan.md` is
-rewritten by every improvement run.
+Use `memories/` for durable notes that future iterations should inherit: gaps
+found, failed approaches and why, design rationale, what the exam rewarded.
+Keep each note concise and useful to an agent that has no access to earlier
+conversations, and describe only code that is actually in the tree; every
+note added or changed is audited against the diff the version shipped, and the
+publication gate refuses a new note that claims a result the tree cannot show.
+`memories/round-plan.md` is rewritten by every improvement run;
+`memories/verification.json` is the round's proof record.
 
 ## Running
 
 ```bash
-docker build -t evolving-agent agent/
+docker build -t evolving-agent .
 docker run --rm \
   -e OPENAI_API_KEY \
   -e AGENT_MODE=probe \
@@ -95,7 +110,7 @@ For an improvement run, mount the source workspace:
 docker run --rm \
   -e OPENAI_API_KEY \
   -e AGENT_MODE=improve \
-  -e AGENT_TASK='Improve recovery from a failed step.' \
+  -e AGENT_TASK='Remove the costliest failure in the record.' \
   -e AGENT_WORKSPACE=/workspace \
   -v "$PWD/scratch:/workspace" \
   evolving-agent
@@ -113,21 +128,22 @@ Without Docker:
 pip install -r requirements.txt
 AGENT_MODE=probe AGENT_TASK='What does this agent do?' \
 AGENT_WORKSPACE=/tmp/agent-scratch python main.py
+python -m pytest -q tests
 ```
 
 ## Configuration
 
-| Variable            | Meaning                                           |
-| ------------------- | ------------------------------------------------- |
-| `AGENT_MODE`        | `improve` or `probe`                              |
-| `AGENT_TASK`        | Improvement request or question                   |
-| `AGENT_WORKSPACE`   | Writable workspace (default `/workspace`)         |
-| `AGENT_SOURCE_ROOT` | Source copied into an empty improvement workspace |
-| `AGENT_MATERIALS`   | Read-only input files a task refers to, readable under `materials/` |
-| `AGENT_OUTPUT`      | Where a task's deliverables are left (`output/`) and collected from |
-| `OPENAI_API_KEY`    | Endpoint credential, when required                |
-| `OPENAI_BASE_URL`   | Responses-compatible endpoint                     |
-| `OPENAI_MODEL`      | Model name; the orchestrator sets it, and the default (`gpt-5.6-terra`) applies only when nothing does |
+| Variable            | Meaning                                                                 |
+| ------------------- | ----------------------------------------------------------------------- |
+| `AGENT_MODE`        | `improve`, `probe`, or `describe`                                       |
+| `AGENT_TASK`        | Improvement request or question                                         |
+| `AGENT_WORKSPACE`   | Writable workspace (default `/workspace`)                               |
+| `AGENT_SOURCE_ROOT` | Source copied into an empty improvement workspace                       |
+| `AGENT_MATERIALS`   | Read-only input files a task refers to, readable under `materials/`     |
+| `AGENT_OUTPUT`      | Where a task's deliverables are left (`output/`) and collected from     |
+| `OPENAI_API_KEY`    | Endpoint credential, when required                                      |
+| `OPENAI_BASE_URL`   | Responses-compatible endpoint                                           |
+| `OPENAI_MODEL`      | Model name; the orchestrator sets it, and the image's default applies only when nothing does |
 
 The endpoint must implement `/v1/responses` and function tools. Dependencies
 are pinned in `requirements.txt`; runtime budgets live in
@@ -135,17 +151,21 @@ are pinned in `requirements.txt`; runtime budgets live in
 
 ## Layout
 
-| Path                           | Purpose                                  |
-| ------------------------------ | ---------------------------------------- |
-| `main.py`                      | Environment-driven entry point           |
-| `RULES.md`                     | Immutable runtime and iteration contract |
-| `evolving_agent/prompts.py`    | Role and improvement instructions        |
-| `evolving_agent/modes.py`      | Improvement and probe workflows          |
-| `evolving_agent/session.py`    | Model/tool loop and history              |
-| `evolving_agent/mcp_server.py` | MCP workspace tools                      |
-| `evolving_agent/model.py`      | Responses API client                     |
-| `evolving_agent/workspace.py`  | Contained filesystem operations          |
-| `evolving_agent/successor.py`  | Next-iteration validation                |
+| Path                            | Purpose                                                     |
+| ------------------------------- | ----------------------------------------------------------- |
+| `main.py`                       | Environment-driven entry point                              |
+| `RULES.md`                      | Immutable runtime and iteration contract                    |
+| `evolving_agent/prompts.py`     | Role, improvement, and completion-stage instructions        |
+| `evolving_agent/modes.py`       | Improvement, probe, and describe workflows; the publication gate |
+| `evolving_agent/session.py`     | Model/tool loop, history, completion stages, the ledger     |
+| `evolving_agent/evidence.py`    | The proof record, its digest binding, the runtime receipt   |
+| `evolving_agent/successor.py`   | Build blockers and the notes rule                           |
+| `evolving_agent/completion.py`  | What a probe's draft is held to                             |
+| `evolving_agent/tools.py`       | The tool registry and its implementations                   |
+| `evolving_agent/mcp_server.py`  | MCP workspace tools                                         |
+| `evolving_agent/model.py`       | Responses API client                                        |
+| `evolving_agent/workspace.py`   | Contained filesystem operations                             |
+| `tests/`                        | The agent's own tests, run with `python -m pytest -q tests` |
 
 The MCP server can also run over stdio:
 

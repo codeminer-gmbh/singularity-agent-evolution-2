@@ -26,9 +26,7 @@ from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
 from evolving_agent.delimited import (
     MAX_DELIMITED_OFFSET, MAX_DELIMITED_ROWS, DelimitedError, inspect_delimited,
 )
-from evolving_agent.documents import DocumentError, MAX_TEXT_CHARACTERS, ocr_document, read_document
-from evolving_agent.geodata import GeodataError, MAX_GEODATA_FEATURES, inspect_geodata
-from evolving_agent.parquet import MAX_PARQUET_OFFSET, MAX_PARQUET_ROWS, ParquetError, inspect_parquet
+from evolving_agent.documents import MAX_TEXT_CHARACTERS, DocumentError, read_document
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _MAX_LISTING_CHARACTERS = 8_000
@@ -157,7 +155,7 @@ class WorkspaceTools:
             ToolDefinition(
                 name="read_document",
                 description=(
-                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel XLSX, OpenDocument ODS, PowerPoint PPTX, or EPUB "
+                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel XLSX, OpenDocument ODS/ODT, PowerPoint PPTX, EPUB, or RFC 822 EML email "
                     "file. Paths may be under materials/ or output/. Output is bounded; "
                     "use max_characters to request a smaller excerpt."
                 ),
@@ -171,21 +169,6 @@ class WorkspaceTools:
                             "maximum": MAX_TEXT_CHARACTERS,
                             "description": "Maximum extracted characters (default 120000).",
                         },
-                    },
-                    "required": ["path"],
-                },
-            ),
-            ToolDefinition(
-                name="ocr_document",
-                description=(
-                    "Recognize text in a scanned PDF or PNG, JPEG, TIFF, BMP, or WebP image. "
-                    "Uses bounded local OCR; paths may be under materials/ or output/."
-                ),
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Image or PDF path relative to the workspace root."},
-                        "max_characters": {"type": "integer", "minimum": 1, "maximum": MAX_TEXT_CHARACTERS, "description": "Maximum recognized characters (default 120000)."},
                     },
                     "required": ["path"],
                 },
@@ -220,42 +203,6 @@ class WorkspaceTools:
                         "path": {"type": "string", "description": "Delimited data path, including materials/ or output/."},
                         "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_DELIMITED_ROWS, "description": "Preview records, default 200."},
                         "offset": {"type": "integer", "minimum": 0, "maximum": MAX_DELIMITED_OFFSET, "description": "Data records to skip after header, default 0."},
-                    },
-                    "required": ["path"],
-                },
-            ),
-            ToolDefinition(
-                name="inspect_parquet",
-                description=(
-                    "Read Apache Parquet schema, metadata, and a bounded TSV preview. "
-                    "Optionally select columns, skip rows, and apply ANDed simple filters "
-                    "(eq, ne, lt, le, gt, ge, in, is_null) without loading the full file."
-                ),
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Parquet file path, including materials/ or output/."},
-                        "columns": {"type": "array", "items": {"type": "string"}, "description": "Optional columns to return."},
-                        "filters": {"type": "array", "items": {"type": "object", "properties": {"column": {"type": "string"}, "op": {"type": "string", "enum": ["eq", "ne", "lt", "le", "gt", "ge", "in", "is_null"]}, "value": {}}, "required": ["column", "op"]}, "description": "Optional ANDed filter objects."},
-                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_PARQUET_ROWS, "description": "Preview rows, default 200."},
-                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_PARQUET_OFFSET, "description": "Matching rows to skip, default 0."},
-                    },
-                    "required": ["path"],
-                },
-            ),
-            ToolDefinition(
-                name="inspect_geodata",
-                description=(
-                    "Read vector geodata metadata and a bounded feature preview from GeoJSON, "
-                    "Shapefile, GeoPackage, KML, and other GDAL/Fiona-supported files. "
-                    "Reports layers, property schema, bounds, CRS, geometry types, and preview features."
-                ),
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "description": "Vector geodata file path, including materials/ or output/."},
-                        "layer": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}], "description": "Optional GeoPackage/dataset layer name or index."},
-                        "max_features": {"type": "integer", "minimum": 1, "maximum": MAX_GEODATA_FEATURES, "description": "Preview features, default 20."},
                     },
                     "required": ["path"],
                 },
@@ -331,8 +278,9 @@ class WorkspaceTools:
                     "Run one command in the workspace and return its exit "
                     "code and output. There is no shell: give the program and "
                     'its arguments as a list, e.g. ["python", "-m", '
-                    '"unittest", "discover"]. The container has no network '
-                    "Command networking depends on the deployment; use http_fetch for bounded HTTP or HTTPS requests."
+                    '"unittest", "discover"]. Whether commands can reach the '
+                    "network depends on the deployment; http_fetch is the "
+                    "bounded way to make an HTTP or HTTPS request."
                 ),
                 input_schema={
                     "type": "object",
@@ -374,11 +322,8 @@ class WorkspaceTools:
             "read_file": self._read_file,
             "write_file": self._write_file,
             "read_document": self._read_document,
-            "ocr_document": self._ocr_document,
             "query_sqlite": self._query_sqlite,
             "inspect_delimited": self._inspect_delimited,
-            "inspect_parquet": self._inspect_parquet,
-            "inspect_geodata": self._inspect_geodata,
             "extract_archive": self._extract_archive,
             "http_fetch": self._http_fetch,
             "delete_path": self._delete_path,
@@ -449,18 +394,6 @@ class WorkspaceTools:
         except DocumentError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
-    def _ocr_document(self, arguments: Mapping[str, Any]) -> str:
-        path = _text_argument(arguments, "path")
-        maximum = _bounded_integer_argument(
-            arguments, "max_characters", minimum=1, maximum=MAX_TEXT_CHARACTERS,
-            default=MAX_TEXT_CHARACTERS,
-        )
-        try:
-            tree, relative = self._located(path)
-            return ocr_document(tree.resolve(relative), max_characters=maximum)
-        except (WorkspaceError, DocumentError) as error:
-            raise ToolFailureError(str(error)) from error
-
     def _query_sqlite(self, arguments: Mapping[str, Any]) -> str:
         """Run a bounded read-only query against a task SQLite database."""
         path = _text_argument(arguments, "path")
@@ -482,32 +415,6 @@ class WorkspaceTools:
                 offset=arguments.get("offset", 0),
             )
         except DelimitedError as unreadable:
-            raise ToolFailureError(str(unreadable)) from unreadable
-
-    def _inspect_parquet(self, arguments: Mapping[str, Any]) -> str:
-        """Inspect a columnar task dataset using bounded batch reads."""
-        path = _text_argument(arguments, "path")
-        tree, relative = self._located(path)
-        columns = arguments.get("columns")
-        filters = arguments.get("filters")
-        try:
-            return inspect_parquet(
-                tree.resolve(relative), columns=columns, filters=filters,
-                max_rows=arguments.get("max_rows", 200), offset=arguments.get("offset", 0),
-            )
-        except ParquetError as unreadable:
-            raise ToolFailureError(str(unreadable)) from unreadable
-
-    def _inspect_geodata(self, arguments: Mapping[str, Any]) -> str:
-        """Inspect bounded metadata and features from a vector geodata source."""
-        path = _text_argument(arguments, "path")
-        tree, relative = self._located(path)
-        try:
-            return inspect_geodata(
-                tree.resolve(relative), layer=arguments.get("layer"),
-                max_features=arguments.get("max_features", 20),
-            )
-        except GeodataError as unreadable:
             raise ToolFailureError(str(unreadable)) from unreadable
 
     def _extract_archive(self, arguments: Mapping[str, Any]) -> str:
@@ -609,19 +516,6 @@ class WorkspaceTools:
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
 
-    def _command_path(self, argument: str) -> str:
-        """Resolve a standalone virtual-tree command argument to its real path."""
-        for prefix, tree in (("materials", self._materials), ("output", self._output)):
-            if tree is None:
-                continue
-            if argument == prefix:
-                return str(tree.root)
-            marker = prefix + "/"
-            if argument.startswith(marker):
-                # Keep command access consistent with file-tool containment.
-                return str(tree.resolve(argument[len(marker):]))
-        return argument
-
     def _run_command(self, arguments: Mapping[str, Any]) -> str:
         """Run one command and report how it ended and what it printed.
 
@@ -632,11 +526,8 @@ class WorkspaceTools:
         """
         command = _command_argument(arguments)
         try:
-            resolved_command = tuple(
-                self._command_path(argument) for argument in command
-            )
             result = self._commands.run(
-                resolved_command, timeout_seconds=_timeout_argument(arguments)
+                command, timeout_seconds=_timeout_argument(arguments)
             )
         except (TypeError, ValueError) as unusable:
             raise ToolFailureError(str(unusable)) from unusable
@@ -758,15 +649,6 @@ def _format_http_response(url: str, status: int, headers: Any, body: bytes) -> s
         text = body.decode("utf-8", errors="replace")
     shown_headers = "\n".join(f"{name}: {value}" for name, value in list(headers.items())[:20])
     return f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\nHeaders:\n{shown_headers}\n\n{text}"
-
-
-def _bounded_integer_argument(
-    arguments: Mapping[str, Any], name: str, *, minimum: int, maximum: int, default: int
-) -> int:
-    value = arguments.get(name, default)
-    if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
-        raise ToolFailureError(f"{name} must be an integer from {minimum} through {maximum}.")
-    return value
 
 
 def _text_argument(

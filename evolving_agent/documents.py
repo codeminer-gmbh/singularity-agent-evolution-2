@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from email import policy
+from email.parser import BytesParser
 from html.parser import HTMLParser
 from pathlib import Path
-import subprocess
-import tempfile
 from typing import Callable, Iterable
 from urllib.parse import unquote
 import posixpath
@@ -15,7 +15,6 @@ import zipfile
 from docx import Document
 from openpyxl import load_workbook
 from pypdf import PdfReader
-from PIL import Image, UnidentifiedImageError
 from pptx import Presentation
 
 MAX_DOCUMENT_BYTES = 48 * 1024 * 1024
@@ -34,11 +33,8 @@ MAX_ODS_CONTENT_BYTES = 128 * 1024 * 1024
 MAX_EBOOK_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 MAX_EBOOK_CHAPTERS = 1_000
 MAX_EBOOK_CHAPTER_BYTES = 8 * 1024 * 1024
-MAX_OCR_PAGES = 50
-MAX_OCR_PIXELS = 8_000_000
-MAX_OCR_DIMENSION = 4_000
-MAX_OCR_SECONDS_PER_PAGE = 30
-_OCR_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"})
+MAX_EMAIL_PARTS = 1_000
+MAX_EMAIL_TEXT_PART_BYTES = 8 * 1024 * 1024
 
 
 class DocumentError(Exception):
@@ -46,7 +42,7 @@ class DocumentError(Exception):
 
 
 def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Extract readable text from a PDF, DOCX, XLSX, ODS, PPTX, or EPUB document.
+    """Extract readable text from a PDF, DOCX, XLSX, ODS, ODT, PPTX, EPUB, or EML document.
 
     The returned text is deliberately bounded: office files are untrusted input
     and the caller is a language model with a finite context window.
@@ -68,14 +64,16 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         ".docx": _docx_text,
         ".xlsx": _xlsx_text,
         ".ods": _ods_text,
+        ".odt": _odt_text,
         ".pptx": _pptx_text,
         ".epub": _epub_text,
+        ".eml": _email_text,
     }
     extractor = extractors.get(suffix)
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), PowerPoint (.pptx), and EPUB (.epub)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), OpenDocument Text (.odt), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
         )
     try:
         text = extractor(path)
@@ -88,75 +86,84 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     return text or "[The document contains no extractable text.]"
 
 
-def ocr_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> str:
-    """Recognize text in a scanned PDF or a common raster image with Tesseract.
+def _email_header(message: object, name: str) -> str:
+    """Return one display-safe unfolded mail header, if supplied."""
+    value = message.get(name, "")  # type: ignore[attr-defined]
+    return " ".join(str(value).split())
 
-    PDF pages are rasterized at a bounded resolution in a private temporary
-    directory.  Images are inspected before OCR so decompression bombs and
-    impractically large pages are refused rather than handed to Tesseract.
+
+def _email_part_text(part: object) -> str:
+    """Decode one non-multipart text mail part without trusting its charset."""
+    payload = part.get_payload(decode=True)  # type: ignore[attr-defined]
+    if payload is None:
+        return ""
+    if not isinstance(payload, bytes):
+        return str(payload)
+    if len(payload) > MAX_EMAIL_TEXT_PART_BYTES:
+        raise DocumentError(
+            f"Email text part exceeds the {MAX_EMAIL_TEXT_PART_BYTES}-byte limit."
+        )
+    charset = part.get_content_charset()  # type: ignore[attr-defined]
+    try:
+        return payload.decode(charset or "utf-8", errors="replace")
+    except (LookupError, UnicodeError):
+        return payload.decode("utf-8", errors="replace")
+
+
+def _email_text(path: Path) -> str:
+    """Extract headers, preferred body text, and attachment inventory from EML.
+
+    Multipart email commonly carries equivalent plain-text and HTML alternatives.
+    Plain text is preferred when available; HTML is reduced to visible text only
+    otherwise. Attachments are described rather than decoded into the model's
+    context, where a caller can inspect a named attached file separately.
     """
-    if not path.is_file():
-        raise DocumentError(f"{path.name!r} is not a file.")
-    if path.stat().st_size > MAX_DOCUMENT_BYTES:
-        raise DocumentError(f"{path.name!r} exceeds the {MAX_DOCUMENT_BYTES}-byte document limit.")
-    if not isinstance(max_characters, int) or not 1 <= max_characters <= MAX_TEXT_CHARACTERS:
-        raise DocumentError(f"max_characters must be an integer from 1 through {MAX_TEXT_CHARACTERS}.")
-    suffix = path.suffix.lower()
-    if suffix == ".pdf":
-        try:
-            reader = PdfReader(str(path))
-            if reader.is_encrypted:
-                raise DocumentError(f"PDF {path.name!r} is encrypted and cannot be read without a password.")
-            pages = len(reader.pages)
-        except DocumentError:
-            raise
-        except Exception as error:
-            raise DocumentError(f"Could not parse PDF {path.name!r}: {error}") from error
-        if not 1 <= pages <= MAX_OCR_PAGES:
-            raise DocumentError(f"PDF has {pages} pages; OCR limit is {MAX_OCR_PAGES}.")
-        with tempfile.TemporaryDirectory(prefix="evolving-ocr-") as directory:
-            prefix = str(Path(directory) / "page")
-            _ocr_run(["pdftoppm", "-png", "-r", "150", "-scale-to", "2400", str(path), prefix], 90)
-            images = sorted(Path(directory).glob("page-*.png"))
-            if len(images) != pages:
-                raise DocumentError("PDF rendering did not produce every page for OCR.")
-            chunks = [_ocr_image(image, number) for number, image in enumerate(images, 1)]
-    elif suffix in _OCR_IMAGE_SUFFIXES:
-        chunks = [_ocr_image(path, 1)]
-    else:
-        raise DocumentError("OCR supports PDF and PNG, JPEG, TIFF, BMP, or WebP image files.")
-    text = "\n\n".join(chunks).strip()
-    if len(text) > max_characters:
-        return f"{text[:max_characters]}\n... [truncated at {max_characters} characters]"
-    return text or "[No text was recognized.]"
-
-
-def _ocr_image(path: Path, number: int) -> str:
     try:
-        with Image.open(path) as image:
-            width, height = image.size
-            if width > MAX_OCR_DIMENSION or height > MAX_OCR_DIMENSION or width * height > MAX_OCR_PIXELS:
-                raise DocumentError(f"OCR page {number} is too large ({width}x{height}); limit is {MAX_OCR_PIXELS} pixels.")
-            image.verify()
-    except DocumentError:
-        raise
-    except (OSError, UnidentifiedImageError) as error:
-        raise DocumentError(f"Could not read OCR image {number}: {error}") from error
-    text = _ocr_run(["tesseract", str(path), "stdout", "-l", "eng", "--psm", "3"], MAX_OCR_SECONDS_PER_PAGE)
-    return f"--- OCR Page {number} ---\n{text.strip()}"
+        with path.open("rb") as stream:
+            message = BytesParser(policy=policy.default).parse(stream)
+    except (OSError, ValueError, UnicodeError) as error:
+        raise DocumentError(f"Could not parse EML {path.name!r}: {error}") from error
 
+    headers = []
+    for name in ("From", "To", "Cc", "Reply-To", "Subject", "Date", "Message-ID"):
+        value = _email_header(message, name)
+        if value:
+            headers.append(f"{name}: {value}")
 
-def _ocr_run(command: list[str], timeout: int) -> str:
-    try:
-        completed = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, check=False)
-    except FileNotFoundError as error:
-        raise DocumentError(f"OCR engine is unavailable ({command[0]} is not installed).") from error
-    except subprocess.TimeoutExpired as error:
-        raise DocumentError(f"OCR timed out after {timeout} seconds.") from error
-    if completed.returncode:
-        detail = completed.stderr.strip()[:500]
-        raise DocumentError(f"OCR command failed: {detail or 'unknown error'}")
-    return completed.stdout
+    plain_parts: list[str] = []
+    html_parts: list[str] = []
+    attachments: list[str] = []
+    for number, part in enumerate(message.walk(), 1):
+        if number > MAX_EMAIL_PARTS:
+            raise DocumentError(f"EML has more than {MAX_EMAIL_PARTS} MIME parts.")
+        if part.is_multipart():
+            continue
+        content_type = part.get_content_type().lower()
+        filename = part.get_filename()
+        disposition = part.get_content_disposition()
+        if filename or disposition == "attachment":
+            label = str(filename) if filename else "unnamed attachment"
+            attachments.append(f"- {label} ({content_type})")
+            continue
+        if content_type == "text/plain":
+            text = _email_part_text(part).strip()
+            if text:
+                plain_parts.append(text)
+        elif content_type == "text/html":
+            parser = _EpubTextParser()
+            parser.feed(_email_part_text(part))
+            parser.close()
+            text = parser.text()
+            if text:
+                html_parts.append(text)
+
+    chunks = ["--- Email Headers ---", "\n".join(headers) or "[No standard headers found.]"]
+    body = plain_parts or html_parts
+    if body:
+        chunks.extend(("--- Email Body ---", "\n\n".join(body)))
+    if attachments:
+        chunks.extend(("--- Attachments ---", "\n".join(attachments)))
+    return "\n\n".join(chunks)
 
 
 def _pdf_text(path: Path) -> str:
@@ -268,6 +275,71 @@ def _ods_text(path: Path) -> str:
                 chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
                 break
     return "\n".join(chunks)
+
+
+def _odt_text(path: Path) -> str:
+    """Extract paragraphs and headings from an OpenDocument Text package.
+
+    ODT is a ZIP/XML format like ODS, but its visible prose lives in
+    ``content.xml``.  Read only that declared, bounded member; embedded
+    images and other package objects are neither needed for text extraction
+    nor safe to expand speculatively.
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            infos = archive.infolist()
+            if len(infos) > MAX_ODS_MEMBERS:
+                raise DocumentError(f"OpenDocument text has {len(infos)} package members; limit is {MAX_ODS_MEMBERS}.")
+            content = next((info for info in infos if info.filename == "content.xml"), None)
+            if content is None:
+                raise DocumentError("OpenDocument text has no content.xml member.")
+            if content.file_size > MAX_ODS_CONTENT_BYTES:
+                raise DocumentError(f"OpenDocument text content expands to {content.file_size} bytes; limit is {MAX_ODS_CONTENT_BYTES}.")
+            xml = archive.read(content)
+    except DocumentError:
+        raise
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
+        raise DocumentError(f"Could not parse OpenDocument text {path.name!r}: {error}") from error
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as error:
+        raise DocumentError(f"Could not parse OpenDocument text {path.name!r}: {error}") from error
+
+    paragraphs = root.findall(f".//{_ODS_TEXT}h") + root.findall(f".//{_ODS_TEXT}p")
+    # ElementTree finds each class separately, so restore document order rather
+    # than presenting all headings before all ordinary paragraphs.
+    wanted = {id(element) for element in paragraphs}
+    chunks: list[str] = []
+    for element in root.iter():
+        if id(element) not in wanted:
+            continue
+        text = _odt_inline_text(element).strip()
+        if text:
+            if element.tag == f"{_ODS_TEXT}h":
+                chunks.append(f"--- Heading ---\n{text}")
+            else:
+                chunks.append(text)
+    return "\n".join(chunks)
+
+
+def _odt_inline_text(element: ET.Element) -> str:
+    """Render ODT inline whitespace elements while retaining ordinary text."""
+    pieces: list[str] = [element.text or ""]
+    for child in element:
+        if child.tag == f"{_ODS_TEXT}s":
+            try:
+                count = max(1, int(child.get(f"{_ODS_TEXT}c", "1")))
+            except ValueError:
+                count = 1
+            pieces.append(" " * min(count, 1_000))
+        elif child.tag == f"{_ODS_TEXT}tab":
+            pieces.append("\t")
+        elif child.tag == f"{_ODS_TEXT}line-break":
+            pieces.append("\n")
+        else:
+            pieces.append(_odt_inline_text(child))
+        pieces.append(child.tail or "")
+    return "".join(pieces)
 
 
 def _ods_repeat(element: ET.Element, name: str) -> int:

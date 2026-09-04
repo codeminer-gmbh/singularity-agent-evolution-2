@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-_DEFAULT_MODEL_NAME = "gpt-5.6-terra"
+_DEFAULT_MODEL_NAME = "gpt-5.6-sol"
 """The model asked when nothing names one.
 
 The orchestrator names one on every container it starts, through
@@ -75,10 +75,10 @@ class ModeTiming:
 
 TIMING: Mapping[AgentMode, ModeTiming] = {
     AgentMode.IMPROVE: ModeTiming(
-        time_budget_seconds=5400, model_timeout_seconds=360, max_steps=40
+        time_budget_seconds=5400, model_timeout_seconds=360, max_steps=60
     ),
     AgentMode.PROBE: ModeTiming(
-        time_budget_seconds=2400, model_timeout_seconds=240, max_steps=12
+        time_budget_seconds=2400, model_timeout_seconds=240, max_steps=40
     ),
     AgentMode.DESCRIBE: ModeTiming(
         time_budget_seconds=60, model_timeout_seconds=30, max_steps=0
@@ -93,7 +93,7 @@ way still runs to its timeout, and one more exchange may follow it. What a run
 cannot also overrun by is a command: the tools are given this budget and bound
 every command to what is left of it, so the only thing that outlives the budget
 is the exchange in flight and the one after it.
-``tests/agent/test_settings.py`` holds the numbers to that.
+``tests/test_settings.py`` holds the numbers to that.
 
 The model timeout is what a *reasoning* model has to answer one exchange in,
 not what a round trip costs, and it is the number this image has been wrong

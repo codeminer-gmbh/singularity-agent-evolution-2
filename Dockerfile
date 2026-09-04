@@ -2,7 +2,7 @@
 #
 # The agent's image, which each iteration may evolve while preserving RULES.md.
 #
-# It is an ordinary container: a Python base, one pinned dependency, the source,
+# It is an ordinary container: a Python base, a few pinned dependencies, the source,
 # and an entrypoint that reads its environment. Nothing in it knows about the
 # orchestrator that usually starts it, so `docker run` with the same variables
 # does the same thing on any machine.
@@ -23,9 +23,7 @@ FROM python:3.12-slim
 # daemon building a candidate offline has to have the wheels cached or mirrored.
 WORKDIR /opt/evolving-agent
 COPY requirements.txt requirements.txt
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr poppler-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Everything below is this image's own configuration. The run itself arrives in
 # the environment — AGENT_MODE, AGENT_TASK, AGENT_WORKSPACE — and so does the
@@ -43,7 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr p
 # successor that wants different ones changes them.
 ENV AGENT_SOURCE_ROOT=/opt/evolving-agent \
     AGENT_WORKSPACE=/workspace \
-    OPENAI_MODEL=gpt-5.6-terra \
+    OPENAI_MODEL=gpt-5.6-sol \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 

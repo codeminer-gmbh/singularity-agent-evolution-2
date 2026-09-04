@@ -1,3 +1,4 @@
-Cannot reliably leave truthful proof: the ledger reports two verification records audited inaccurate, so hard-task changes can be claimed without matching executed evidence.
-Add an execution-backed verification workflow that records command, exit status, and observed output directly instead of asking the model to transcribe results into verification.json.
-Choose this over another task-format tool because inaccurate proof is the line's repeated, explicitly audited failure and undermines every kind of improvement.
+Record: (the single failure pattern or unmet need with the strongest evidence in the ledger and the inherited notes)
+Gap: (what this agent cannot do, or cannot do reliably, that the failure needs)
+Change: (the one change that removes it, and why it outranks the alternatives)
+Proof: (the observable behaviour and the narrow check that would falsify the fix)

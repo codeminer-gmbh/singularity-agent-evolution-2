@@ -1,1 +1,0 @@
-`inspect_parquet` now exposes bounded Apache Parquet schema/metadata and batch-read TSV previews, with projection, offset, and ANDed simple predicates. It is registered in the shared tool registry and uses pinned `pyarrow==20.0.0`; verification generated a Parquet table and confirmed projected `amount > 10` results, compileall, and describe-mode registration.

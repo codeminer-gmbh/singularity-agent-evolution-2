@@ -2,49 +2,60 @@
 
 An improvement run is asked to leave a successor in the workspace; a probe run
 is asked a question and answers it on standard output. Both are the same
-machinery — a tool server, a model and a session between them — differing in
-what they are told and in what is done with the result. A describe run asks no
-model anything: it prints the tools the other two would offer one, so the
-orchestrator can aim its exam at what this agent can actually do.
+machinery, a tool server, a model and a session between them, differing in
+what they are told, in what stands between their first draft and their answer,
+and in what is done with the result. A describe run asks no model anything: it
+prints the tools the other two would offer one, so the orchestrator can aim its
+exam at what this agent can actually do.
 
-Every run that was given an output directory leaves a record of the tools it
-called there, under ``.meta/tool_calls.json``, so which capabilities an exam
-exercised is a fact on the record rather than something reconstructed from
-standard error afterwards.
-
-Two rules run through both. Whatever happens, the run ends with a report rather
-than an exception: a model that could not be reached, a tool server that broke,
-a session that ran out of steps and a successor that will not parse are all
-*results*, and the evidence the orchestrator keeps is only as good as the run's
-willingness to state them. And an improvement run never leaves a broken tree
-behind: it asks for a repair, and failing that puts back the source it started
-from, so the cycle carries an honest "no improvement" rather than a candidate
-that cannot be built.
+Two rules run through everything. Whatever happens, the run ends with a report
+rather than an exception: a model that could not be reached, a tool server that
+broke, a session that ran out of steps and a successor that will not parse are
+all *results*, and the evidence the orchestrator keeps is only as good as the
+run's willingness to state them. And an improvement run never leaves a broken
+or unproven tree behind: it asks for a repair, and failing that puts back the
+source it started from, so the cycle carries an honest "no improvement" rather
+than a candidate that cannot be built or a claim that cannot be checked.
 """
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from evolving_agent.evidence import verification_problems
+from evolving_agent.completion import (
+    missing_deliverables_message,
+    missing_output_paths,
+    unexercised_source_message,
+)
+from evolving_agent.evidence import (
+    candidate_digest,
+    verification_problems,
+    write_receipt,
+)
 from evolving_agent.mcp_client import McpClient, McpError, connect
 from evolving_agent.model import ModelClient, ModelUnavailableError
 from evolving_agent.prompts import (
     final_answer_request,
-    improvement_completion_finalization,
-    improvement_completion_review,
+    improvement_finalization,
     improvement_instructions,
     improvement_opening,
-    probe_completion_finalization,
-    probe_completion_review,
+    improvement_review,
+    probe_finalization,
     probe_instructions,
     probe_opening,
+    probe_review,
     repair_opening,
 )
-from evolving_agent.session import Deadline, SessionOutcome, ToolAgentSession
+from evolving_agent.session import (
+    CompletionStage,
+    Deadline,
+    SessionOutcome,
+    ToolAgentSession,
+)
 from evolving_agent.settings import AgentSettings
-from evolving_agent.successor import successor_problems
+from evolving_agent.successor import note_problems, note_snapshot, successor_problems
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _LOG = logging.getLogger(__name__)
@@ -52,8 +63,8 @@ _LOG = logging.getLogger(__name__)
 _MAX_REPAIR_ROUNDS = 2
 """How many times a broken successor is handed back to be fixed.
 
-Each round costs a share of the budget, and a model that has not fixed a syntax
-error in two passes is not about to on the third.
+Each round costs a share of the budget, and a model that has not fixed a
+problem in two passes is not about to on the third.
 """
 
 TOOL_CALLS_RECORD = ".meta/tool_calls.json"
@@ -71,7 +82,7 @@ MANIFEST_NOTES = (
 class RunReport:
     """What one run achieved, as the process reports it.
 
-    ``answer`` is what belongs on standard output — the whole of it, since a
+    ``answer`` is what belongs on standard output, the whole of it, since a
     probe's answer is read on its own as evidence. ``detail`` is for standard
     error and the operator.
     """
@@ -88,7 +99,7 @@ def run_improvement(settings: AgentSettings) -> RunReport:
         settings: The run as the environment described it.
 
     Returns:
-        Whether a usable successor was left behind, and what happened.
+        Whether a usable, proven successor was left behind, and what happened.
 
     """
     workspace = Workspace(settings.workspace)
@@ -96,27 +107,25 @@ def run_improvement(settings: AgentSettings) -> RunReport:
     restorable = workspace.is_empty()
     if restorable:
         copied = workspace.copy_tree_from(settings.source_root)
-        _LOG.info(
-            "Initialized the workspace with %s files of this agent's source.", copied
-        )
-    started_from = workspace.digest()
-    outcome, refusal = _improve(settings, workspace)
-    problems = _publication_problems(workspace)
+        _LOG.info("Initialized the workspace with %s files of this agent's source.", copied)
+    started_from = candidate_digest(workspace)
+    notes_before = note_snapshot(workspace)
+    gate = _PublicationGate(started_from, notes_before)
+    outcome, refusal, session = _improve(settings, workspace, gate)
+    problems = gate.problems(workspace)
     if problems:
-        return _restored(
-            settings, workspace, problems, restorable=restorable, refusal=refusal
-        )
-    if workspace.digest() == started_from:
+        return _restored(settings, workspace, problems, restorable=restorable, refusal=refusal)
+    if candidate_digest(workspace) == started_from:
         return RunReport(
             succeeded=False,
             answer="No successor was produced: the source is unchanged.",
-            detail=_detail(
-                "the run left its own source exactly as it found it", outcome, refusal
-            ),
+            detail=_detail("the run left its own source exactly as it found it", outcome, refusal),
         )
+    if session is not None:
+        write_receipt(workspace, session.observations)
     return RunReport(
         succeeded=refusal is None,
-        answer=_improvement_answer(outcome),
+        answer=_improvement_answer(outcome, session),
         detail=_detail("a successor was left in the workspace", outcome, refusal),
     )
 
@@ -133,23 +142,19 @@ def run_probe(settings: AgentSettings) -> RunReport:
     """
     workspace = Workspace(settings.workspace)
     workspace.prepare()
+    _link_side_trees(workspace, settings)
     deadline = Deadline(settings.time_budget_seconds)
     model = ModelClient(settings.model)
     try:
-        session = _session(
-            model, _tools(workspace, deadline, settings), deadline, settings
-        )
+        session = _session(model, _tools(workspace, deadline, settings), deadline, settings)
         outcome = session.run(
             instructions=probe_instructions(),
-            completion_review=(
-                probe_completion_review(),
-                probe_completion_finalization(),
-            ),
             opening=probe_opening(
                 settings.task,
                 materials_listing=_materials_listing(settings),
                 output_available=settings.output is not None,
             ),
+            completion=_probe_completion(settings),
         )
     except (ModelUnavailableError, McpError) as unreachable:
         return RunReport(succeeded=False, answer="", detail=str(unreachable))
@@ -202,9 +207,29 @@ def run_describe(settings: AgentSettings) -> RunReport:
     )
 
 
+class _PublicationGate:
+    """Everything a changed tree must satisfy before it is left as a successor.
+
+    Build problems are always disqualifying. The notes rule and the proof record
+    apply only once the tree differs from what the run started with: a run that
+    changed nothing owes no proof, and is reported as unchanged instead.
+    """
+
+    def __init__(self, started_from: str, notes_before: Mapping[str, str]) -> None:
+        self._started_from = started_from
+        self._notes_before = notes_before
+
+    def problems(self, workspace: Workspace) -> tuple[str, ...]:
+        """Return every reason the tree cannot be published, in a stable order."""
+        found = successor_problems(workspace)
+        if candidate_digest(workspace) == self._started_from:
+            return found
+        return found + note_problems(workspace, self._notes_before) + verification_problems(workspace)
+
+
 def _improve(
-    settings: AgentSettings, workspace: Workspace
-) -> tuple[SessionOutcome | None, str | None]:
+    settings: AgentSettings, workspace: Workspace, gate: _PublicationGate
+) -> tuple[SessionOutcome | None, str | None, ToolAgentSession | None]:
     """Run the improvement session, reporting a dependency that failed instead.
 
     A model that cannot be reached and a tool server that will not publish its
@@ -213,24 +238,17 @@ def _improve(
     put back by the caller.
 
     Returns:
-        What the session came to, and — when a dependency rather than the work
-        itself failed — why it could not run.
+        What the session came to, why it could not run when a dependency rather
+        than the work itself failed, and the session for its evidence.
 
     """
     deadline = Deadline(settings.time_budget_seconds)
     try:
         session = _session(
-            ModelClient(settings.model),
-            _tools(workspace, deadline, settings),
-            deadline,
-            settings,
+            ModelClient(settings.model), _tools(workspace, deadline, settings), deadline, settings
         )
         outcome = session.run(
             instructions=improvement_instructions(),
-            completion_review=(
-                improvement_completion_review(),
-                improvement_completion_finalization(),
-            ),
             opening=improvement_opening(
                 settings.task,
                 _listing(workspace),
@@ -238,13 +256,60 @@ def _improve(
                 settings.max_steps,
                 materials_listing=_materials_listing(settings),
             ),
+            completion=(improvement_review(), improvement_finalization()),
         )
-        repaired = _repaired(workspace, session, deadline, outcome)
+        repaired = _repaired(workspace, session, deadline, outcome, gate)
     except (ModelUnavailableError, McpError) as unavailable:
         _LOG.error("The improvement run could not proceed: %s", unavailable)
-        return None, str(unavailable)
+        return None, str(unavailable), None
     _record_tool_calls(settings, session)
-    return repaired, None
+    return repaired, None, session
+
+
+def _probe_completion(settings: AgentSettings) -> tuple[CompletionStage, ...]:
+    """Return what stands between a probe's first draft and its answer.
+
+    Two mechanical checks come first and speak only when they have something to
+    say: a deliverable the task names that is not on disk, and a program the
+    task asked for that no command has run. Then the adversarial review of the
+    draft, and the repair that publishes only what the review left standing.
+    """
+
+    def deliverables(session: ToolAgentSession) -> str | None:
+        del session
+        missing = missing_output_paths(settings.task, settings.output)
+        return missing_deliverables_message(missing) if missing else None
+
+    def exercised(session: ToolAgentSession) -> str | None:
+        return unexercised_source_message(settings.task, session.tool_calls)
+
+    return (deliverables, exercised, probe_review(), probe_finalization())
+
+
+def _link_side_trees(workspace: Workspace, settings: AgentSettings) -> None:
+    """Make a probe's side trees reachable from the commands it runs.
+
+    The tools reach ``materials/`` and ``output/`` by path prefix, but a command
+    runs in the workspace root and sees only what is there. The second
+    experiment's record has a whole line losing exams because it wrote a
+    deliverable under ``output/`` and then could not run it, and a tool that can
+    be written to but not executed is exactly the gap the verification
+    checkpoint exists to close. So a probe links each side tree it was given
+    into its scratch workspace. Links are never listed, digested or copied by
+    the workspace, and a probe's workspace is never packaged, so nothing else
+    sees them. An improvement run gets no links: its workspace becomes the
+    successor.
+    """
+    for name, target in (("materials", settings.materials), ("output", settings.output)):
+        if target is None:
+            continue
+        link = workspace.root / name
+        if link.exists() or link.is_symlink():
+            continue
+        try:
+            link.symlink_to(Path(target).resolve(), target_is_directory=True)
+        except OSError as unlinkable:
+            _LOG.warning("%s/ could not be linked into the workspace: %s", name, unlinkable)
 
 
 def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> None:
@@ -267,9 +332,7 @@ def _record_tool_calls(settings: AgentSettings, session: ToolAgentSession) -> No
         _LOG.warning("The tool-call record could not be written: %s", unwritable)
 
 
-def _tools(
-    workspace: Workspace, deadline: Deadline, settings: AgentSettings
-) -> McpClient:
+def _tools(workspace: Workspace, deadline: Deadline, settings: AgentSettings) -> McpClient:
     """Return the tool server one run works through, with its side trees.
 
     Raises:
@@ -292,41 +355,23 @@ def _materials_listing(settings: AgentSettings) -> str | None:
     if not entries:
         return None
     return "\n".join(
-        f"  materials/{entry.relative_path} ({entry.byte_size} bytes)"
-        for entry in entries
+        f"  materials/{entry.relative_path} ({entry.byte_size} bytes)" for entry in entries
     )
 
 
 def _session(
-    model: ModelClient,
-    tools: McpClient,
-    deadline: Deadline,
-    settings: AgentSettings,
+    model: ModelClient, tools: McpClient, deadline: Deadline, settings: AgentSettings
 ) -> ToolAgentSession:
     """Return the session one run takes its steps through.
 
     The capabilities are read from the server rather than declared here, and
-    they are what becomes the function definitions the model is offered — so
+    they are what becomes the function definitions the model is offered, so
     what the model is told it can do and what the agent can actually do are the
     same list.
     """
     return ToolAgentSession(
-        model,
-        tools,
-        tools.list_tools(),
-        deadline=deadline,
-        max_steps=settings.max_steps,
+        model, tools, tools.list_tools(), deadline=deadline, max_steps=settings.max_steps
     )
-
-
-def _publication_problems(workspace: Workspace) -> tuple[str, ...]:
-    """Return syntax/build blockers plus the durable proof required to publish.
-
-    A changed candidate is repaired or restored when its claimed improvement
-    has no inspectable requirement-to-proof record.  This keeps the evidence
-    protocol on the same public path as the existing successor gate.
-    """
-    return successor_problems(workspace) + verification_problems(workspace)
 
 
 def _repaired(
@@ -334,25 +379,21 @@ def _repaired(
     session: ToolAgentSession,
     deadline: Deadline,
     outcome: SessionOutcome,
+    gate: _PublicationGate,
 ) -> SessionOutcome:
-    """Hand a broken successor back to be fixed, while there is budget for it.
+    """Hand a tree that cannot be published back to be fixed, while there is budget.
 
     Returns:
-        How the last session ended — the original one when nothing was wrong.
+        How the last session ended; the original one when nothing was wrong.
 
     """
     for round_number in range(1, _MAX_REPAIR_ROUNDS + 1):
-        problems = _publication_problems(workspace)
+        problems = gate.problems(workspace)
         if not problems or deadline.expired():
             return outcome
-        _LOG.warning(
-            "Repair round %s: the successor has %s problem(s).",
-            round_number,
-            len(problems),
-        )
+        _LOG.warning("Repair round %s: the successor has %s problem(s).", round_number, len(problems))
         outcome = session.run(
-            instructions=improvement_instructions(),
-            opening=repair_opening(problems),
+            instructions=improvement_instructions(), opening=repair_opening(problems)
         )
     return outcome
 
@@ -395,38 +436,29 @@ def _restored(
     return RunReport(
         succeeded=False,
         answer="No successor was produced: the source was put back unchanged.",
-        detail=_with_refusal(
-            f"the successor was discarded and the source restored: {listed}", refusal
-        ),
+        detail=_with_refusal(f"the successor was discarded and the source restored: {listed}", refusal),
     )
 
 
-def _final_answer(
-    model: ModelClient, settings: AgentSettings, outcome: SessionOutcome
-) -> RunReport:
+def _final_answer(model: ModelClient, settings: AgentSettings, outcome: SessionOutcome) -> RunReport:
     """Ask once more for an answer when the session ran out before giving one.
 
     The agent's own budget stops it short of the limit the orchestrator holds
     the container to, so there is room for exactly this: one last exchange that
-    turns a run which was still working into a run that answered.
+    turns a run which was still working into a run that answered. The exchange
+    continues the run's own transcript, because the tool results in it are the
+    evidence the answer has to report.
     """
-    _LOG.warning(
-        "The session ended because %s; asking for a final answer.", outcome.reason
-    )
+    _LOG.warning("The session ended because %s; asking for a final answer.", outcome.reason)
+    conversation = list(outcome.conversation) or [
+        {"role": "system", "content": probe_instructions()},
+        {"role": "user", "content": probe_opening(settings.task)},
+    ]
+    conversation.append({"role": "user", "content": final_answer_request()})
     try:
-        # Continue the actual run: its opening records material/output paths and
-        # its tool results contain the evidence the final answer must report.
-        # Reconstruct only for synthetic/legacy outcomes with no transcript.
-        conversation = list(outcome.conversation) or [
-            {"role": "system", "content": probe_instructions()},
-            {"role": "user", "content": probe_opening(settings.task)},
-        ]
-        conversation.append({"role": "user", "content": final_answer_request()})
         reply = model.reply(conversation=conversation)
     except ModelUnavailableError as unreachable:
-        return RunReport(
-            succeeded=False, answer="", detail=f"{outcome.reason}; {unreachable}"
-        )
+        return RunReport(succeeded=False, answer="", detail=f"{outcome.reason}; {unreachable}")
     if not reply.text:
         # An empty artifact where a judgment was expected is worse than a run
         # that says it produced nothing, because only one of the two is legible.
@@ -447,16 +479,28 @@ def _listing(workspace: Workspace) -> str:
     entries = workspace.entries()
     if not entries:
         return "(the workspace is empty)"
-    return "\n".join(
-        f"  {entry.relative_path} ({entry.byte_size} bytes)" for entry in entries
-    )
+    return "\n".join(f"  {entry.relative_path} ({entry.byte_size} bytes)" for entry in entries)
 
 
-def _improvement_answer(outcome: SessionOutcome | None) -> str:
-    """Return what an improvement run prints about what it changed."""
-    if outcome is None or not outcome.summary.strip():
-        return "A successor was left in the workspace."
-    return outcome.summary.strip()
+def _improvement_answer(outcome: SessionOutcome | None, session: ToolAgentSession | None) -> str:
+    """Return what an improvement run prints about what it did.
+
+    The first line is the runtime's own fact, counted from the commands the
+    session observed: a model can describe a check it never ran, but it cannot
+    change this line. The model's closing report follows, for the reader who
+    wants the claim, with the fact above it for the reader who wants to check.
+    """
+    facts = "Runtime receipt: no commands were run."
+    if session is not None:
+        commands = [item for item in session.observations if item.name == "run_command"]
+        if commands:
+            passed = sum("[exit code 0]" in item.text and not item.is_error for item in commands)
+            facts = (
+                f"Runtime receipt: {len(commands)} commands run, {passed} exited 0, "
+                f"{len(commands) - passed} did not."
+            )
+    summary = outcome.summary.strip() if outcome is not None else ""
+    return f"{facts}\n\n{summary}" if summary else facts
 
 
 def _detail(headline: str, outcome: SessionOutcome | None, refusal: str | None) -> str:

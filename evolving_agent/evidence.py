@@ -1,37 +1,106 @@
-"""Validate the durable proof record an improvement leaves for its successor.
+"""The proof an improvement run leaves behind, and the receipt the runtime adds.
 
-The experiment cannot rerun a model's one-off commands.  A compact record of
-requirements, concrete inputs, expected results, interactions, and observed
-results makes the claimed capability reviewable by the next round instead of
-turning a final reply into the only evidence.
+Two files carry the evidence for a changed tree, and they are deliberately not
+the same kind of thing.
+
+``memories/verification.json`` is written by the model: an audit naming the
+costly failure the round set out to remove and the evidence for it, and a
+matrix of requirement, input, expected result, interaction, and observed result.
+It is bound to the tree it describes by a digest, so a record written before a
+later edit no longer attests to anything. The publication gate refuses a changed
+successor without a well-formed, bound record.
+
+``.meta/verification.json`` is written by the runtime after the session ends: a
+receipt of every command the run actually executed and how each one ended,
+compiled from the session's own observations rather than from anything the
+model said. A model can describe a check it never ran; the receipt cannot.
+
+The second experiment found that both are needed. A record alone was filled in
+from memory of what should have happened; a receipt alone says what ran but not
+what it was supposed to prove. Together, and bound to the tree, they make a
+claim reviewable by the next round.
 """
 
 import json
+import os
+import sys
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 VERIFICATION_RECORD = "memories/verification.json"
-"""Workspace-relative location of the evidence required for a changed tree."""
+"""Where an improvement run writes its requirement-to-proof record."""
 
-_REQUIRED_TOP_LEVEL = ("audit", "matrix")
+VERIFICATION_RECEIPT = ".meta/verification.json"
+"""Where the runtime leaves machine-captured command outcomes."""
+
+DIGEST_EXCLUSIONS = frozenset({VERIFICATION_RECORD, VERIFICATION_RECEIPT})
+"""What the candidate digest leaves out: the evidence files themselves.
+
+The record carries the digest, so it cannot be part of it; the receipt is
+written after the model has computed the digest, so it must not change it.
+"""
+
+DIGEST_COMMAND = "python -m evolving_agent.evidence"
+"""How a model obtains the digest to bind its record to."""
+
+_REQUIRED_TOP_LEVEL = ("audit", "matrix", "candidate_digest")
 _REQUIRED_AUDIT = ("costly_failure", "evidence")
 _REQUIRED_ROW = ("requirement", "input", "expected", "interaction", "observed")
 _MAX_RECORD_BYTES = 100_000
+_DIGEST_LENGTH = 64
+_DIGEST_ALPHABET = frozenset("0123456789abcdef")
+
+
+class CommandObservation:
+    """What one command call produced, as the session observed it.
+
+    A structural type rather than an import from the session module, so the
+    receipt can be written from any object that carries these attributes.
+    """
+
+    step: int
+    name: str
+    arguments: dict[str, Any]
+    is_error: bool
+    text: str
+
+
+def candidate_digest(workspace: Workspace) -> str:
+    """Return the digest a verification record must carry to be bound.
+
+    Args:
+        workspace: The tree the record describes.
+
+    Returns:
+        The digest over every source file except the evidence files.
+
+    """
+    return workspace.digest(exclude=DIGEST_EXCLUSIONS)
 
 
 def verification_problems(workspace: Workspace) -> tuple[str, ...]:
-    """Return stable reasons a changed successor lacks reviewable proof.
+    """Return every reason the tree's proof record cannot be accepted.
 
-    The record deliberately reports observations rather than a boolean
-    ``passed`` flag: a reviewer can distinguish a test that was run and failed
-    from one that was never run.  It is intentionally a publication check,
-    not a claim that JSON alone proves a capability.
+    The record reports observations rather than a ``passed`` flag, so a reviewer
+    can tell a check that ran and failed from one that never ran. This is a
+    publication check on the record's shape and binding; it does not, and
+    cannot, judge whether the matrix proves the capability it claims.
+
+    Args:
+        workspace: The tree an improvement run left behind.
+
+    Returns:
+        One sentence per problem, in a stable order; empty when the record is
+        well-formed and bound to the tree as it stands.
+
     """
     try:
         record_path = workspace.resolve(VERIFICATION_RECORD)
-    except WorkspaceError as invalid_workspace:
-        return (f"verification record cannot be located: {invalid_workspace}",)
+    except WorkspaceError as unusable:
+        return (f"{VERIFICATION_RECORD} cannot be located: {unusable}",)
     if not record_path.is_file():
         return (f"{VERIFICATION_RECORD} is missing",)
     try:
@@ -47,36 +116,149 @@ def verification_problems(workspace: Workspace) -> tuple[str, ...]:
     if not isinstance(record, dict):
         return (f"{VERIFICATION_RECORD} must contain a JSON object",)
     problems = _shape_problems(record)
+    if not problems and record["candidate_digest"] != candidate_digest(workspace):
+        problems.append(
+            f"{VERIFICATION_RECORD}.candidate_digest does not match the tree as it "
+            f"stands; run `{DIGEST_COMMAND}` after the last edit and record its output"
+        )
     return tuple(problems)
 
 
+def write_receipt(workspace: Workspace, observations: Iterable[CommandObservation]) -> None:
+    """Leave a receipt of every command the run executed and how it ended.
+
+    The receipt holds command arguments and status lines, not output: it stays
+    small and copies neither task data nor an accidental secret into the
+    successor. A failed command and a command that never started are evidence
+    too, which is the point of writing this from the observations rather than
+    from the model's summary.
+
+    Args:
+        workspace: The tree the receipt is left in.
+        observations: What the session observed, in order.
+
+    """
+    commands = []
+    for observed in observations:
+        if observed.name != "run_command":
+            continue
+        command = observed.arguments.get("command")
+        if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
+            command = None
+        commands.append(
+            {
+                "step": observed.step,
+                "command": command,
+                "status": command_status(observed),
+            }
+        )
+    receipt = {
+        "format": 2,
+        "meaning": (
+            "Machine-captured command outcomes, in order. A status here is a fact "
+            "about what ran; it does not establish relevance to any claimed change."
+        ),
+        "commands": commands,
+        "passed": sum(item["status"].startswith("PASSED") for item in commands),
+        "failed": sum(item["status"].startswith("FAILED") for item in commands),
+    }
+    target = workspace.root / VERIFICATION_RECEIPT
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as unwritable:
+        # The receipt is what the run offers, not what it owes; a successor
+        # without one is still a successor.
+        sys.stderr.write(f"The verification receipt could not be written: {unwritable}\n")
+
+
+def command_status(observed: CommandObservation) -> str:
+    """Classify one command observation from its status line, never from prose."""
+    if observed.is_error:
+        return "DID NOT START (tool error)"
+    for line in observed.text.splitlines():
+        if line == "[exit code 0]":
+            return "PASSED (exit code 0)"
+        if line.startswith("[exit code "):
+            return "FAILED " + line
+        if line == "[timed out]":
+            return "FAILED (timed out)"
+    return "DID NOT START (no exit status returned)"
+
+
 def _shape_problems(record: dict[object, object]) -> list[str]:
-    problems: list[str] = []
-    for key in _REQUIRED_TOP_LEVEL:
-        if key not in record:
-            problems.append(f"{VERIFICATION_RECORD} is missing top-level {key!r}")
+    """Return what is missing or malformed in a record, before binding is judged."""
+    problems = [
+        f"{VERIFICATION_RECORD} is missing top-level {key!r}"
+        for key in _REQUIRED_TOP_LEVEL
+        if key not in record
+    ]
     audit = record.get("audit")
     if not isinstance(audit, dict):
         problems.append(f"{VERIFICATION_RECORD}.audit must be an object")
     else:
-        for key in _REQUIRED_AUDIT:
-            if not _nonempty_text(audit.get(key)):
-                problems.append(f"{VERIFICATION_RECORD}.audit.{key} must be nonempty text")
+        problems.extend(
+            f"{VERIFICATION_RECORD}.audit.{key} must be nonempty text"
+            for key in _REQUIRED_AUDIT
+            if not _nonempty_text(audit.get(key))
+        )
     matrix = record.get("matrix")
     if not isinstance(matrix, list) or not matrix:
         problems.append(f"{VERIFICATION_RECORD}.matrix must be a nonempty array")
-        return problems
-    for number, row in enumerate(matrix, start=1):
-        if not isinstance(row, dict):
-            problems.append(f"{VERIFICATION_RECORD}.matrix[{number}] must be an object")
-            continue
-        for key in _REQUIRED_ROW:
-            if not _nonempty_text(row.get(key)):
-                problems.append(
-                    f"{VERIFICATION_RECORD}.matrix[{number}].{key} must be nonempty text"
-                )
+    else:
+        for number, row in enumerate(matrix, start=1):
+            if not isinstance(row, dict):
+                problems.append(f"{VERIFICATION_RECORD}.matrix[{number}] must be an object")
+                continue
+            problems.extend(
+                f"{VERIFICATION_RECORD}.matrix[{number}].{key} must be nonempty text"
+                for key in _REQUIRED_ROW
+                if not _nonempty_text(row.get(key))
+            )
+    digest = record.get("candidate_digest")
+    if "candidate_digest" in record and not _is_digest(digest):
+        problems.append(
+            f"{VERIFICATION_RECORD}.candidate_digest must be the lowercase SHA-256 "
+            f"hex digest printed by `{DIGEST_COMMAND}`"
+        )
     return problems
 
 
 def _nonempty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == _DIGEST_LENGTH
+        and set(value) <= _DIGEST_ALPHABET
+    )
+
+
+def main(argv: list[str]) -> int:
+    """Print the candidate digest of a tree, for a model to bind its record to.
+
+    Args:
+        argv: An optional single argument, the tree to digest; the current
+            directory when none is given, which is where an improvement run's
+            commands execute.
+
+    Returns:
+        The process exit status.
+
+    """
+    if len(argv) > 1:
+        sys.stderr.write(f"usage: {DIGEST_COMMAND} [DIRECTORY]\n")
+        return 2
+    root = Path(argv[0]) if argv else Path(os.getcwd())
+    try:
+        sys.stdout.write(candidate_digest(Workspace(root)) + "\n")
+    except (OSError, WorkspaceError) as unusable:
+        sys.stderr.write(f"The tree could not be digested: {unusable}\n")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

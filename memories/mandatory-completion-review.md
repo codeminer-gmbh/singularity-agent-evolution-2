@@ -1,3 +1,0 @@
-# Separated completion critique and repair
-
-Probe sessions do not publish their first draft. `run_probe` now drives two mandatory stages through `ToolAgentSession`: a defect-only adversarial critique, followed by a separate repair/finalization pass that receives the preserved draft, tool evidence, and critique. Tools remain available in both stages, and the finalizer is explicitly required to run distinguishing counterexamples and remove unrequested scratch artifacts before publication. `tests/test_adversarial_finalization.py` exercises the public probe path with `http:/broken`: the critic observes the bad validator accepting it, the finalizer repairs the validator, reruns that case, and deletes a scratch file.
