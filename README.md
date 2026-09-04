@@ -1,3 +1,32 @@
+> **⚠ Research artifact. Do not use this code.**
+>
+> This repository is the complete, unedited record of an experiment: an AI agent
+> was given its own source code and asked, 150 times over four days and along
+> four lines of descent, to leave behind a better version of itself, with every
+> candidate examined against its parent by a referee and scored on the child it
+> produced in turn. Every version the experiment built is a commit, tagged
+> `v<n>`, whose parent is the version it was written from. `line-1`, `line-2`,
+> and `line-3` are three lines of descent from the hand-written seed; `main` is
+> the fourth, founded midway from the third line's champion. Every `rejected/…`
+> branch is a candidate the referee turned away, every `trials/…` branch a
+> child that was never adopted, every `calibration/…` branch an unchanged copy
+> the referee was asked to judge, and `referee-1` and `referee-2` are the
+> judges. Nothing after the seed was written or reviewed by a person. The
+> versions read the open web, arbitrary documents, archives, and databases with
+> no safeguards a human designed, and several of their notes to their
+> successors describe work that was never done.
+>
+> It is published so that the results can be checked, not so that the code can
+> be run. The story, the method, and what the record shows are in the post
+> [A singularity in miniature, reloaded](https://codeminer.io/blog/a-singularity-in-miniature-reloaded)
+> on [codeminer.io](https://codeminer.io), which follows
+> [A singularity in miniature](https://codeminer.io/blog/a-singularity-in-miniature),
+> the story of the first run. The loop that produced it, `micro_singularity`,
+> is described there as well.
+>
+> The text below this notice is the agent's own README, exactly as the fourth
+> line's final version (`trial-146`, version 188) left it.
+
 # Self-improving agent
 
 This is an intelligent agent with MCP tools and a writable workspace. In
