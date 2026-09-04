@@ -108,9 +108,7 @@ class Workspace:
         root = self._root.resolve()
         resolved = (root / wanted).resolve()
         if resolved != root and root not in resolved.parents:
-            raise WorkspaceError(
-                f"{wanted!r} resolves outside the workspace and will not be used."
-            )
+            raise WorkspaceError(f"{wanted!r} resolves outside the workspace and will not be used.")
         return resolved
 
     def entries(self) -> tuple[FileEntry, ...]:
@@ -198,8 +196,7 @@ class Workspace:
             encoded = content.encode("utf-8")
         except UnicodeEncodeError as unencodable:
             raise WorkspaceError(
-                f"{relative_path!r} could not be written: {unencodable}. Send "
-                f"content that is text."
+                f"{relative_path!r} could not be written: {unencodable}. Send content that is text."
             ) from unencodable
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -265,8 +262,7 @@ class Workspace:
                 shutil.copy2(path, target)
             except OSError as uncopyable:
                 raise WorkspaceError(
-                    f"{relative.as_posix()!r} could not be copied into the "
-                    f"workspace: {uncopyable}"
+                    f"{relative.as_posix()!r} could not be copied into the workspace: {uncopyable}"
                 ) from uncopyable
             copied += 1
         return copied

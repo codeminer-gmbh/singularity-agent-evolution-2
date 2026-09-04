@@ -93,9 +93,7 @@ class CommandRunner:
         self._output_limit = output_limit
         self._budget = budget
 
-    def run(
-        self, command: Sequence[str], *, timeout_seconds: int | None = None
-    ) -> CommandResult:
+    def run(self, command: Sequence[str], *, timeout_seconds: int | None = None) -> CommandResult:
         """Run one command to completion or to its bound.
 
         Args:
@@ -185,11 +183,7 @@ class CommandRunner:
             anything under.
 
         """
-        wanted = (
-            self._default_timeout_seconds
-            if timeout_seconds is None
-            else timeout_seconds
-        )
+        wanted = self._default_timeout_seconds if timeout_seconds is None else timeout_seconds
         allowed = min(wanted, self._max_timeout_seconds)
         if self._budget is not None:
             allowed = min(allowed, int(self._budget.remaining()))
@@ -199,10 +193,7 @@ class CommandRunner:
         """Return one captured stream, cut to the length a model is given."""
         if len(stream) <= self._output_limit:
             return stream
-        return (
-            f"{stream[: self._output_limit]}\n"
-            f"... [truncated at {self._output_limit} characters]"
-        )
+        return f"{stream[: self._output_limit]}\n... [truncated at {self._output_limit} characters]"
 
 
 def _require_argv(command: Sequence[str]) -> tuple[str, ...]:

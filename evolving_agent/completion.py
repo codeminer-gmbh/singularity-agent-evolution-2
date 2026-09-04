@@ -69,9 +69,7 @@ def missing_output_paths(task: str, output_root: Path | None) -> tuple[Path, ...
     """
     if output_root is None:
         return ()
-    return tuple(
-        path for path in named_output_paths(task) if not (output_root / path).is_file()
-    )
+    return tuple(path for path in named_output_paths(task) if not (output_root / path).is_file())
 
 
 def missing_deliverables_message(missing: Iterable[Path]) -> str:
@@ -92,9 +90,7 @@ def asks_for_executable_source(task: str) -> bool:
     ignores discussion of code, algorithm explanations, and reports.
     """
     return bool(
-        _SOURCE_SUFFIX.search(task)
-        or _SOURCE_REQUEST.search(task)
-        or _CODE_REQUEST.search(task)
+        _SOURCE_SUFFIX.search(task) or _SOURCE_REQUEST.search(task) or _CODE_REQUEST.search(task)
     )
 
 

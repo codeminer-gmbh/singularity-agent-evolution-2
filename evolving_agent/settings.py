@@ -77,12 +77,8 @@ TIMING: Mapping[AgentMode, ModeTiming] = {
     AgentMode.IMPROVE: ModeTiming(
         time_budget_seconds=5400, model_timeout_seconds=360, max_steps=60
     ),
-    AgentMode.PROBE: ModeTiming(
-        time_budget_seconds=3000, model_timeout_seconds=240, max_steps=40
-    ),
-    AgentMode.DESCRIBE: ModeTiming(
-        time_budget_seconds=60, model_timeout_seconds=30, max_steps=0
-    ),
+    AgentMode.PROBE: ModeTiming(time_budget_seconds=3000, model_timeout_seconds=240, max_steps=40),
+    AgentMode.DESCRIBE: ModeTiming(time_budget_seconds=60, model_timeout_seconds=30, max_steps=0),
 }
 """What each mode runs under.
 
@@ -159,17 +155,13 @@ def from_environment(environ: Mapping[str, str] | None = None) -> AgentSettings:
     mode = _mode(source.get("AGENT_MODE", "").strip())
     task = source.get("AGENT_TASK", "").strip()
     if not task and mode is not AgentMode.DESCRIBE:
-        raise ConfigurationError(
-            "AGENT_TASK is empty; there is nothing for this run to work on."
-        )
+        raise ConfigurationError("AGENT_TASK is empty; there is nothing for this run to work on.")
     timing = TIMING[mode]
     return AgentSettings(
         mode=mode,
         task=task,
         workspace=Path(source.get("AGENT_WORKSPACE", "").strip() or _DEFAULT_WORKSPACE),
-        source_root=Path(
-            source.get("AGENT_SOURCE_ROOT", "").strip() or _DEFAULT_SOURCE_ROOT
-        ),
+        source_root=Path(source.get("AGENT_SOURCE_ROOT", "").strip() or _DEFAULT_SOURCE_ROOT),
         model=ModelAccess(
             base_url=source.get("OPENAI_BASE_URL", "").strip() or None,
             model_name=source.get("OPENAI_MODEL", "").strip() or _DEFAULT_MODEL_NAME,

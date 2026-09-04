@@ -1,0 +1,43 @@
+# The gates this tree is held to. Run all of them before finishing a round:
+#
+#   ruff format . && ruff check . && mypy && python -m pytest -q tests
+#
+# The image installs ruff, mypy and pytest, so an improvement run can run them
+# with run_command. A successor that leaves any of them failing has made the
+# next round's work harder, which is the opposite of the job.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["."]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "N", "C4", "RET", "PL", "ANN", "D"]
+ignore = [
+    "D203",   # one blank line before a class docstring: conflicts with D211
+    "D213",   # summary on the second line: conflicts with D212
+    "D107",   # __init__ is documented on the class
+    "ANN401", # Any is the honest type for JSON and provider payloads
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests are documented by their names and read as scripts; test doubles take
+# whatever the code under test passes them.
+"tests/*" = ["D", "ANN", "PLR0911", "PLR2004"]
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 15
+max-returns = 8
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["evolving_agent", "main.py"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

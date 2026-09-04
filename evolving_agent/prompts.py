@@ -168,7 +168,10 @@ How to work, artifact first, then increasingly strong evidence:
      the end is the first thing a budget overrun deletes. Read the observed
      result. Repair the highest-information failure and rerun the same check;
      do not weaken a check to fit the code.
-  4. Reserve the end for the proof record, the note, and an honest report.
+  4. Run the gates `README.md` names on the successor: format, lint, types,
+     and its own tests. A successor that fails them has made the next round's
+     work harder, whatever else it gained.
+  5. Reserve the end for the proof record, the note, and an honest report.
      Stop optional work before it threatens either.
 
 Evidence closeout is a reconciliation, not a rewrite of history. On every

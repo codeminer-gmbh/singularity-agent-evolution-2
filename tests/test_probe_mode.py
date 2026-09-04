@@ -24,7 +24,14 @@ def _text(text: str) -> ModelReply:
     return ModelReply(text=text, tool_calls=(), output=())
 
 
-def _settings(task: str, workspace: Path, *, materials: Path | None = None, output: Path | None = None, max_steps: int = 2) -> AgentSettings:
+def _settings(
+    task: str,
+    workspace: Path,
+    *,
+    materials: Path | None = None,
+    output: Path | None = None,
+    max_steps: int = 2,
+) -> AgentSettings:
     return AgentSettings(
         mode=AgentMode.PROBE,
         task=task,
@@ -63,7 +70,9 @@ def _last_user_message(conversation: tuple[dict, ...]) -> str:
     """Return the last message put to the model, ignoring the runtime's ledger."""
     for item in reversed(conversation):
         content = str(item.get("content", ""))
-        if item.get("role") == "user" and not content.startswith("Machine-maintained verification ledger"):
+        if item.get("role") == "user" and not content.startswith(
+            "Machine-maintained verification ledger"
+        ):
             return content
     raise AssertionError("no user message in the conversation")
 
@@ -117,9 +126,24 @@ def test_code_handed_in_without_ever_running_is_challenged_first(tmp_path: Path)
     report = _run(
         "Deliver output/solution.py with a function that doubles its argument.",
         [
-            _tool("w", "write_file", {"path": "output/solution.py", "content": "def double(x):\n    return 2 * x\n"}),
+            _tool(
+                "w",
+                "write_file",
+                {"path": "output/solution.py", "content": "def double(x):\n    return 2 * x\n"},
+            ),
             _text("Delivered solution.py."),
-            _tool("r", "run_command", {"command": [sys.executable, "-c", "import sys; sys.path.insert(0, 'output'); from solution import double; assert double(3) == 6; print('ok')"]}),
+            _tool(
+                "r",
+                "run_command",
+                {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import sys; sys.path.insert(0, 'output'); "
+                        "from solution import double; assert double(3) == 6; print('ok')",
+                    ]
+                },
+            ),
             _text("Exercised: double(3) == 6."),
             _text("No defect found."),
             _text("Delivered output/solution.py; double(3) returned 6 when run."),
@@ -154,7 +178,12 @@ def test_review_keeps_the_tools_and_replaces_a_guess_with_evidence(tmp_path: Pat
 
     assert report.succeeded, report.detail
     assert report.answer == "Verified during review: OMEGA-913."
-    tool_results = [item for turn in Scripted.conversations for item in turn if item.get("type") == "function_call_output"]
+    tool_results = [
+        item
+        for turn in Scripted.conversations
+        for item in turn
+        if item.get("type") == "function_call_output"
+    ]
     assert any("OMEGA-913" in str(item.get("output")) for item in tool_results)
 
 
@@ -178,50 +207,95 @@ def test_a_limit_stop_is_finished_from_the_transcript(tmp_path: Path) -> None:
                     tool_calls=(ToolCall(identifier, "read_file", arguments),),
                     output=(
                         {"type": "reasoning", "id": f"rs-{identifier}", "summary": []},
-                        {"type": "function_call", "call_id": identifier, "name": "read_file", "arguments": arguments},
+                        {
+                            "type": "function_call",
+                            "call_id": identifier,
+                            "name": "read_file",
+                            "arguments": arguments,
+                        },
                     ),
                 )
             seen = any(
-                item.get("type") == "function_call_output" and "ORCHID-742" in str(item.get("output"))
+                item.get("type") == "function_call_output"
+                and "ORCHID-742" in str(item.get("output"))
                 for item in conversation
             )
-            return _text("The file's code is ORCHID-742." if seen else "I cannot answer without the tool result.")
+            return _text(
+                "The file's code is ORCHID-742."
+                if seen
+                else "I cannot answer without the tool result."
+            )
 
     NeverStops.conversations = []
     with patch("evolving_agent.modes.ModelClient", NeverStops):
-        report = run_probe(_settings("Read fact.txt and report its code.", tmp_path / "w", materials=materials, max_steps=1))
+        report = run_probe(
+            _settings(
+                "Read fact.txt and report its code.",
+                tmp_path / "w",
+                materials=materials,
+                max_steps=1,
+            )
+        )
 
     assert report.succeeded, report.detail
     assert report.answer == "The file's code is ORCHID-742."
     assert "because the step limit" in report.detail
 
 
-def test_a_counterexample_found_in_review_is_repaired_and_scratch_is_not_delivered(tmp_path: Path) -> None:
+def test_a_counterexample_found_in_review_is_repaired_and_scratch_is_not_delivered(
+    tmp_path: Path,
+) -> None:
     output = tmp_path / "output"
     output.mkdir()
-    loose = "import re,sys\nsys.exit(0 if re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', sys.argv[1]) else 1)\n"
+    loose = (
+        "import re,sys\nsys.exit(0 if re.match(r'^[A-Za-z][A-Za-z0-9+.-]*:', sys.argv[1]) else 1)\n"
+    )
     strict = (
         "import sys,urllib.parse\nu=urllib.parse.urlsplit(sys.argv[1])\n"
         "sys.exit(0 if u.scheme in {'http','https'} and bool(u.netloc) else 1)\n"
     )
     report = _run(
-        "Deliver output/validator.py that accepts absolute HTTP(S) URLs and rejects malformed ones. Do not deliver scratch files.",
+        "Deliver output/validator.py that accepts absolute HTTP(S) URLs and rejects "
+        "malformed ones. Do not deliver scratch files.",
         [
             _tool("bad", "write_file", {"path": "output/validator.py", "content": loose}),
-            _tool("scratch", "write_file", {"path": "output/debug_test.py", "content": "# known failure\n"}),
-            _tool("happy", "run_command", {"command": [sys.executable, "output/validator.py", "https://example.test/a"]}),
+            _tool(
+                "scratch",
+                "write_file",
+                {"path": "output/debug_test.py", "content": "# known failure\n"},
+            ),
+            _tool(
+                "happy",
+                "run_command",
+                {"command": [sys.executable, "output/validator.py", "https://example.test/a"]},
+            ),
             _text("Delivered validator.py; it accepts URLs with a scheme."),
-            _tool("counterexample", "run_command", {"command": [sys.executable, "output/validator.py", "http:/broken"]}),
-            _text("DEFECT: http:/broken exits 0 although HTTP requires an authority; debug_test.py is an unrequested scratch file."),
+            _tool(
+                "counterexample",
+                "run_command",
+                {"command": [sys.executable, "output/validator.py", "http:/broken"]},
+            ),
+            _text(
+                "DEFECT: http:/broken exits 0 although HTTP requires an authority; "
+                "debug_test.py is an unrequested scratch file."
+            ),
             ModelReply(
                 text="",
                 tool_calls=(
-                    ToolCall("fix", "write_file", json.dumps({"path": "output/validator.py", "content": strict})),
+                    ToolCall(
+                        "fix",
+                        "write_file",
+                        json.dumps({"path": "output/validator.py", "content": strict}),
+                    ),
                     ToolCall("clean", "delete_path", '{"path": "output/debug_test.py"}'),
                 ),
                 output=(),
             ),
-            _tool("retest", "run_command", {"command": [sys.executable, "output/validator.py", "http:/broken"]}),
+            _tool(
+                "retest",
+                "run_command",
+                {"command": [sys.executable, "output/validator.py", "http:/broken"]},
+            ),
             _text("Corrected validator delivered; http:/broken was observed rejected."),
         ],
         tmp_path,
@@ -233,7 +307,17 @@ def test_a_counterexample_found_in_review_is_repaired_and_scratch_is_not_deliver
     assert report.answer.startswith("Corrected validator delivered")
     assert (output / "validator.py").is_file()
     assert not (output / "debug_test.py").exists()
-    assert subprocess.run([sys.executable, str(output / "validator.py"), "http:/broken"], check=False).returncode != 0
-    assert subprocess.run([sys.executable, str(output / "validator.py"), "https://example.test/a"], check=False).returncode == 0
+    assert (
+        subprocess.run(
+            [sys.executable, str(output / "validator.py"), "http:/broken"], check=False
+        ).returncode
+        != 0
+    )
+    assert (
+        subprocess.run(
+            [sys.executable, str(output / "validator.py"), "https://example.test/a"], check=False
+        ).returncode
+        == 0
+    )
     transcript = "\n".join(str(item) for turn in Scripted.conversations for item in turn)
     assert "[exit code 1]" in transcript and "[exit code 0]" in transcript

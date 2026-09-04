@@ -23,3 +23,8 @@ pypdf==5.9.0
 python-docx==1.2.0
 openpyxl==3.1.5
 python-pptx==1.0.2
+
+# The gates in pyproject.toml, so an improvement run can hold its own successor
+# to them with run_command before it finishes.
+ruff==0.15.17
+mypy==1.20.2

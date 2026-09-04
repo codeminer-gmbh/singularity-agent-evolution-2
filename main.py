@@ -81,9 +81,7 @@ def main(argv: Sequence[str]) -> int:
         sys.stderr.write(f"{unusable}\n")
         return _MISCONFIGURED
     _configure_logging()
-    _LOG.info(
-        "Starting in %s mode, workspace %s.", settings.mode.value, settings.workspace
-    )
+    _LOG.info("Starting in %s mode, workspace %s.", settings.mode.value, settings.workspace)
     try:
         report = _run(settings)
     except ConfigurationError as unusable:

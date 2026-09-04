@@ -28,10 +28,20 @@ def inspect_delimited(path: Path, *, max_rows: int = 200, offset: int = 0) -> st
     if not path.is_file():
         raise DelimitedError(f"{path.name!r} is not a delimited data file.")
     if path.stat().st_size > MAX_DELIMITED_BYTES:
-        raise DelimitedError(f"The file exceeds the {MAX_DELIMITED_BYTES}-byte delimited-data limit.")
-    if isinstance(max_rows, bool) or not isinstance(max_rows, int) or not 1 <= max_rows <= MAX_DELIMITED_ROWS:
+        raise DelimitedError(
+            f"The file exceeds the {MAX_DELIMITED_BYTES}-byte delimited-data limit."
+        )
+    if (
+        isinstance(max_rows, bool)
+        or not isinstance(max_rows, int)
+        or not 1 <= max_rows <= MAX_DELIMITED_ROWS
+    ):
         raise DelimitedError(f"max_rows must be a whole number from 1 to {MAX_DELIMITED_ROWS}.")
-    if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= MAX_DELIMITED_OFFSET:
+    if (
+        isinstance(offset, bool)
+        or not isinstance(offset, int)
+        or not 0 <= offset <= MAX_DELIMITED_OFFSET
+    ):
         raise DelimitedError(f"offset must be a whole number from 0 to {MAX_DELIMITED_OFFSET}.")
     try:
         with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as source:
@@ -53,7 +63,7 @@ def inspect_delimited(path: Path, *, max_rows: int = 200, offset: int = 0) -> st
                     break
     except (OSError, csv.Error, UnicodeError) as error:
         raise DelimitedError(f"Could not read delimited data: {error}") from error
-    types = {name: _infer_type([row.get(name, "") for row in rows]) for name in columns}
+    types = {name: _infer_type([str(row.get(name, "")) for row in rows]) for name in columns}
     result: dict[str, Any] = {
         "format": "delimiter-separated text",
         "delimiter": dialect.delimiter,
@@ -66,11 +76,14 @@ def inspect_delimited(path: Path, *, max_rows: int = 200, offset: int = 0) -> st
     }
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if len(text) > MAX_DELIMITED_TEXT_CHARACTERS:
-        return text[:MAX_DELIMITED_TEXT_CHARACTERS] + f"\n... [truncated at {MAX_DELIMITED_TEXT_CHARACTERS} characters]"
+        return (
+            text[:MAX_DELIMITED_TEXT_CHARACTERS]
+            + f"\n... [truncated at {MAX_DELIMITED_TEXT_CHARACTERS} characters]"
+        )
     return text
 
 
-def _dialect(sample: str, suffix: str) -> csv.Dialect:
+def _dialect(sample: str, suffix: str) -> type[csv.Dialect]:
     if suffix in {".tsv", ".tab"}:
         return csv.excel_tab
     try:
@@ -90,10 +103,12 @@ def _columns(header: list[str]) -> list[str]:
     return result
 
 
-def _record(columns: list[str], values: list[str]) -> dict[str, str]:
-    record = {column: values[index] if index < len(values) else "" for index, column in enumerate(columns)}
+def _record(columns: list[str], values: list[str]) -> dict[str, str | list[str]]:
+    record: dict[str, str | list[str]] = {
+        column: values[index] if index < len(values) else "" for index, column in enumerate(columns)
+    }
     if len(values) > len(columns):
-        record["__extra_fields__"] = values[len(columns):]
+        record["__extra_fields__"] = values[len(columns) :]
     return record
 
 

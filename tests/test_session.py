@@ -43,11 +43,15 @@ class CommandTools:
     def call(self, name, arguments):
         self.calls.append((name, dict(arguments)))
         code = int(arguments["command"][-1])
-        return ToolOutcome(f"$ {' '.join(arguments['command'])}\n[exit code {code}]\n--- stdout ---\n", False)
+        return ToolOutcome(
+            f"$ {' '.join(arguments['command'])}\n[exit code {code}]\n--- stdout ---\n", False
+        )
 
 
 def _session(model, tools, max_steps=8) -> ToolAgentSession:
-    return ToolAgentSession(model, tools, tools.list_tools(), deadline=Deadline(60), max_steps=max_steps)
+    return ToolAgentSession(
+        model, tools, tools.list_tools(), deadline=Deadline(60), max_steps=max_steps
+    )
 
 
 def test_a_failed_command_stays_in_the_ledger_after_a_passing_rerun() -> None:
@@ -69,14 +73,14 @@ def test_a_failed_command_stays_in_the_ledger_after_a_passing_rerun() -> None:
     assert '"result": "PASSED (exit code 0)"' in ledger
     assert ledger.index("FAILED") < ledger.index("PASSED")
     # The first exchange had nothing to reconcile, so no ledger was shown.
-    assert all(item.get("role") != "user" or "ledger" not in str(item.get("content"))
-               for item in model.conversations[0])
+    assert all(
+        item.get("role") != "user" or "ledger" not in str(item.get("content"))
+        for item in model.conversations[0]
+    )
 
 
 def test_completion_stages_run_in_order_and_callables_may_decline() -> None:
-    model = ScriptedModel(
-        [_text_reply("draft"), _text_reply("reviewed"), _text_reply("final")]
-    )
+    model = ScriptedModel([_text_reply("draft"), _text_reply("reviewed"), _text_reply("final")])
     session = _session(model, CommandTools())
     seen: list[str] = []
 

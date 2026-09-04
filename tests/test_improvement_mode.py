@@ -103,21 +103,44 @@ def test_a_reviewed_repaired_and_bound_successor_is_published(tmp_path: Path) ->
         def step(self, call, conversation):
             root = self.workspace
             if call == 1:
-                return _tool("edit", "write_file", {"path": "behavior.py", "content": "import sys\nprint(sys.argv[1])  # wrong\n"})
+                return _tool(
+                    "edit",
+                    "write_file",
+                    {"path": "behavior.py", "content": "import sys\nprint(sys.argv[1])  # wrong\n"},
+                )
             if call == 2:
-                return _tool("draft-proof", "write_file", {"path": VERIFICATION_RECORD, "content": _record(root, "printed first (not rerun)")})
+                return _tool(
+                    "draft-proof",
+                    "write_file",
+                    {
+                        "path": VERIFICATION_RECORD,
+                        "content": _record(root, "printed first (not rerun)"),
+                    },
+                )
             if call == 3:
                 return _text("Implemented precedence and recorded the proof.")
             if call == 4:
-                return _tool("critic", "run_command", {"command": ["python", "behavior.py", "first", "last"]})
+                return _tool(
+                    "critic", "run_command", {"command": ["python", "behavior.py", "first", "last"]}
+                )
             if call == 5:
                 return _text("DEFECT: the conflict printed first; the rule requires last.")
             if call == 6:
-                return _tool("repair", "write_file", {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"})
+                return _tool(
+                    "repair",
+                    "write_file",
+                    {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"},
+                )
             if call == 7:
-                return _tool("retest", "run_command", {"command": ["python", "behavior.py", "first", "last"]})
+                return _tool(
+                    "retest", "run_command", {"command": ["python", "behavior.py", "first", "last"]}
+                )
             if call == 8:
-                return _tool("proof", "write_file", {"path": VERIFICATION_RECORD, "content": _record(root, "exit 0, printed last")})
+                return _tool(
+                    "proof",
+                    "write_file",
+                    {"path": VERIFICATION_RECORD, "content": _record(root, "exit 0, printed last")},
+                )
             return _text("Repaired precedence; python behavior.py first last printed last.")
 
     report, settings = _run(Reviewing, tmp_path)
@@ -137,7 +160,11 @@ def test_a_changed_tree_without_a_proof_record_is_put_back(tmp_path: Path) -> No
     class Unproven(Scripted):
         def step(self, call, conversation):
             if call == 1:
-                return _tool("edit", "write_file", {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"})
+                return _tool(
+                    "edit",
+                    "write_file",
+                    {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"},
+                )
             return _text("Changed behaviour; no proof recorded.")
 
     report, settings = _run(Unproven, tmp_path)
@@ -147,8 +174,11 @@ def test_a_changed_tree_without_a_proof_record_is_put_back(tmp_path: Path) -> No
     assert f"{VERIFICATION_RECORD} is missing" in report.detail
     assert (settings.workspace / "behavior.py").read_text() == "import sys\nprint(sys.argv[1])\n"
     repair_requests = [
-        turn[-1]["content"] for turn in Unproven.conversations
-        if str(turn[-1].get("content", "")).startswith("The workspace is not a publishable successor yet")
+        turn[-1]["content"]
+        for turn in Unproven.conversations
+        if str(turn[-1].get("content", "")).startswith(
+            "The workspace is not a publishable successor yet"
+        )
     ]
     assert len(repair_requests) == 2 and VERIFICATION_RECORD in repair_requests[0]
 
@@ -158,9 +188,17 @@ def test_a_record_written_before_the_last_edit_no_longer_binds(tmp_path: Path) -
         def step(self, call, conversation):
             root = self.workspace
             if call == 1:
-                return _tool("proof", "write_file", {"path": VERIFICATION_RECORD, "content": _record(root, "printed last")})
+                return _tool(
+                    "proof",
+                    "write_file",
+                    {"path": VERIFICATION_RECORD, "content": _record(root, "printed last")},
+                )
             if call == 2:
-                return _tool("edit", "write_file", {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"})
+                return _tool(
+                    "edit",
+                    "write_file",
+                    {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"},
+                )
             return _text("Done.")
 
     report, _ = _run(Stale, tmp_path)
@@ -174,11 +212,26 @@ def test_a_note_claiming_an_unshipped_test_blocks_publication(tmp_path: Path) ->
         def step(self, call, conversation):
             root = self.workspace
             if call == 1:
-                return _tool("edit", "write_file", {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"})
+                return _tool(
+                    "edit",
+                    "write_file",
+                    {"path": "behavior.py", "content": "import sys\nprint(sys.argv[-1])\n"},
+                )
             if call == 2:
-                return _tool("note", "write_file", {"path": "memories/precedence.md", "content": "Last value wins; the integration tests passed."})
+                return _tool(
+                    "note",
+                    "write_file",
+                    {
+                        "path": "memories/precedence.md",
+                        "content": "Last value wins; the integration tests passed.",
+                    },
+                )
             if call == 3:
-                return _tool("proof", "write_file", {"path": VERIFICATION_RECORD, "content": _record(root, "printed last")})
+                return _tool(
+                    "proof",
+                    "write_file",
+                    {"path": VERIFICATION_RECORD, "content": _record(root, "printed last")},
+                )
             return _text("Done.")
 
     report, _ = _run(Overclaiming, tmp_path)

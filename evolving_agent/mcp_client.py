@@ -96,9 +96,7 @@ class McpClient:
                 tool refusing the work.
 
         """
-        result = self._request(
-            "tools/call", {"name": name, "arguments": dict(arguments)}
-        )
+        result = self._request("tools/call", {"name": name, "arguments": dict(arguments)})
         parts = result.get("content")
         text = (
             "\n".join(
@@ -130,9 +128,7 @@ class McpClient:
         )
         failure = (answer or {}).get("error")
         if isinstance(failure, dict):
-            raise McpError(
-                f"The tool server refused {method!r}: {failure.get('message')}"
-            )
+            raise McpError(f"The tool server refused {method!r}: {failure.get('message')}")
         result = (answer or {}).get("result")
         if not isinstance(result, dict):
             raise McpError(f"The tool server's answer to {method!r} is not a result.")

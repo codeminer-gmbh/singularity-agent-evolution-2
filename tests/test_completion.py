@@ -21,7 +21,9 @@ def test_named_output_paths_are_explicit_and_safe() -> None:
     assert named_output_paths("write a report") == ()
 
 
-def test_missing_deliverables_are_reported_only_when_there_is_an_output_tree(tmp_path: Path) -> None:
+def test_missing_deliverables_are_reported_only_when_there_is_an_output_tree(
+    tmp_path: Path,
+) -> None:
     task = "Write output/a.txt and output/b.txt."
     (tmp_path / "a.txt").write_text("done")
 

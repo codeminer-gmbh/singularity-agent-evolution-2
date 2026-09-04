@@ -344,9 +344,7 @@ class ToolAgentSession:
             outcome = self._tools.call(call.name, arguments)
         except McpError as broken:
             _LOG.warning("Step %s: the tool boundary failed: %s", step, broken)
-            self.observations.append(
-                ToolObservation(step, call.name, arguments, True, str(broken))
-            )
+            self.observations.append(ToolObservation(step, call.name, arguments, True, str(broken)))
             return f"[error] {broken}"
         text = outcome.text[:_OBSERVATION_LIMIT] or "(no output)"
         self.observations.append(

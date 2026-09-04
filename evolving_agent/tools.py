@@ -11,20 +11,24 @@ refuses: "that path leaves the workspace" gets a corrected second attempt, an
 unhandled exception ends the run.
 """
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import tarfile
 import zipfile
 import zlib
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import IO, Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
-from typing import Any, BinaryIO
 
 from evolving_agent.commands import CommandRunner
-from evolving_agent.databases import DatabaseError, MAX_QUERY_ROWS, query_sqlite
+from evolving_agent.databases import MAX_QUERY_ROWS, DatabaseError, query_sqlite
 from evolving_agent.delimited import (
-    MAX_DELIMITED_OFFSET, MAX_DELIMITED_ROWS, DelimitedError, inspect_delimited,
+    MAX_DELIMITED_OFFSET,
+    MAX_DELIMITED_ROWS,
+    DelimitedError,
+    inspect_delimited,
 )
 from evolving_agent.documents import MAX_TEXT_CHARACTERS, DocumentError, read_document
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -43,6 +47,11 @@ _MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_HTTP_TIMEOUT_SECONDS = 30
 _MAX_HTTP_REDIRECTS = 5
 _HTTP_CHUNK_BYTES = 64 * 1024
+_MAX_HTTP_HEADERS = 20
+_MAX_HEADER_NAME_CHARACTERS = 128
+_MAX_HEADER_VALUE_CHARACTERS = 4096
+_UNIX_FILE_TYPE_MASK = 0o170000
+_UNIX_SYMLINK_TYPE = 0o120000
 
 MATERIALS_PREFIX = "materials/"
 """How a path names the read-only input files a task was given."""
@@ -155,14 +164,18 @@ class WorkspaceTools:
             ToolDefinition(
                 name="read_document",
                 description=(
-                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel XLSX, OpenDocument ODS/ODT, PowerPoint PPTX, EPUB, or RFC 822 EML email "
+                    "Extract text, tables, and speaker notes from PDF, Word DOCX, Excel "
+                    "XLSX, OpenDocument ODS/ODT, PowerPoint PPTX, EPUB, or RFC 822 EML email "
                     "file. Paths may be under materials/ or output/. Output is bounded; "
                     "use max_characters to request a smaller excerpt."
                 ),
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Document path relative to the workspace root."},
+                        "path": {
+                            "type": "string",
+                            "description": "Document path relative to the workspace root.",
+                        },
                         "max_characters": {
                             "type": "integer",
                             "minimum": 1,
@@ -183,9 +196,17 @@ class WorkspaceTools:
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "SQLite database path relative to the workspace root."},
+                        "path": {
+                            "type": "string",
+                            "description": "SQLite database path relative to the workspace root.",
+                        },
                         "query": {"type": "string", "description": "One read-only SQL query."},
-                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_QUERY_ROWS, "description": "Maximum result rows (default 200)."},
+                        "max_rows": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": MAX_QUERY_ROWS,
+                            "description": "Maximum result rows (default 200).",
+                        },
                     },
                     "required": ["path", "query"],
                 },
@@ -200,9 +221,22 @@ class WorkspaceTools:
                 input_schema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Delimited data path, including materials/ or output/."},
-                        "max_rows": {"type": "integer", "minimum": 1, "maximum": MAX_DELIMITED_ROWS, "description": "Preview records, default 200."},
-                        "offset": {"type": "integer", "minimum": 0, "maximum": MAX_DELIMITED_OFFSET, "description": "Data records to skip after header, default 0."},
+                        "path": {
+                            "type": "string",
+                            "description": "Delimited data path, including materials/ or output/.",
+                        },
+                        "max_rows": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": MAX_DELIMITED_ROWS,
+                            "description": "Preview records, default 200.",
+                        },
+                        "offset": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": MAX_DELIMITED_OFFSET,
+                            "description": "Data records to skip after header, default 0.",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -225,7 +259,9 @@ class WorkspaceTools:
                         },
                         "destination": {
                             "type": "string",
-                            "description": "Directory under the workspace or output/ to receive files.",
+                            "description": (
+                                "Directory under the workspace or output/ to receive files."
+                            ),
                         },
                         "members": {
                             "type": "array",
@@ -250,10 +286,16 @@ class WorkspaceTools:
                         "headers": {
                             "type": "object",
                             "additionalProperties": {"type": "string"},
-                            "description": "Optional request headers, for example Accept."
+                            "description": "Optional request headers, for example Accept.",
                         },
-                        "timeout_seconds": {"type": "integer", "description": "Network timeout, from 1 to 30 seconds."},
-                        "max_bytes": {"type": "integer", "description": "Maximum response bytes to read, from 1 to 2097152."}
+                        "timeout_seconds": {
+                            "type": "integer",
+                            "description": "Network timeout, from 1 to 30 seconds.",
+                        },
+                        "max_bytes": {
+                            "type": "integer",
+                            "description": "Maximum response bytes to read, from 1 to 2097152.",
+                        },
                     },
                     "required": ["url"],
                 },
@@ -292,9 +334,7 @@ class WorkspaceTools:
                         },
                         "timeout_seconds": {
                             "type": "integer",
-                            "description": (
-                                "How long the command may run before it is stopped."
-                            ),
+                            "description": ("How long the command may run before it is stopped."),
                         },
                     },
                     "required": ["command"],
@@ -332,9 +372,7 @@ class WorkspaceTools:
         handler = handlers.get(name)
         if handler is None:
             published = ", ".join(sorted(handlers))
-            raise ToolFailureError(
-                f"There is no tool called {name!r}. Tools: {published}."
-            )
+            raise ToolFailureError(f"There is no tool called {name!r}. Tools: {published}.")
         try:
             return handler(arguments)
         except WorkspaceError as refused:
@@ -376,9 +414,7 @@ class WorkspaceTools:
         """Write one whole file and report what was written."""
         path = _text_argument(arguments, "path")
         tree, relative = self._located(path, writing=True)
-        written = tree.write_text(
-            relative, _text_argument(arguments, "content", allow_empty=True)
-        )
+        written = tree.write_text(relative, _text_argument(arguments, "content", allow_empty=True))
         return f"Wrote {written} bytes to {path}."
 
     def _read_document(self, arguments: Mapping[str, Any]) -> str:
@@ -411,7 +447,8 @@ class WorkspaceTools:
         tree, relative = self._located(path)
         try:
             return inspect_delimited(
-                tree.resolve(relative), max_rows=arguments.get("max_rows", 200),
+                tree.resolve(relative),
+                max_rows=arguments.get("max_rows", 200),
                 offset=arguments.get("offset", 0),
             )
         except DelimitedError as unreadable:
@@ -449,12 +486,18 @@ class WorkspaceTools:
         url = _http_url_argument(arguments)
         headers = _http_headers_argument(arguments)
         timeout = _http_bound_argument(arguments, "timeout_seconds", _MAX_HTTP_TIMEOUT_SECONDS, 20)
-        maximum = _http_bound_argument(arguments, "max_bytes", _MAX_HTTP_RESPONSE_BYTES, _MAX_HTTP_RESPONSE_BYTES)
+        maximum = _http_bound_argument(
+            arguments, "max_bytes", _MAX_HTTP_RESPONSE_BYTES, _MAX_HTTP_RESPONSE_BYTES
+        )
         opener = build_opener(_NoRedirect())
         for _ in range(_MAX_HTTP_REDIRECTS + 1):
             request = Request(
                 url,
-                headers={"User-Agent": "evolving-agent/1.0", "Accept-Encoding": "gzip, deflate", **headers},
+                headers={
+                    "User-Agent": "evolving-agent/1.0",
+                    "Accept-Encoding": "gzip, deflate",
+                    **headers,
+                },
             )
             try:
                 response = opener.open(request, timeout=timeout)
@@ -462,11 +505,16 @@ class WorkspaceTools:
                 if error.code not in (301, 302, 303, 307, 308):
                     body = _read_http_body(error, maximum)
                     return _format_http_response(
-                        error.geturl(), error.code, error.headers, _decode_http_body(body, error.headers, maximum)
+                        error.geturl(),
+                        error.code,
+                        error.headers,
+                        _decode_http_body(body, error.headers, maximum),
                     )
                 location = error.headers.get("Location")
                 if not location:
-                    raise ToolFailureError(f"HTTP {error.code} response has no Location header.") from error
+                    raise ToolFailureError(
+                        f"HTTP {error.code} response has no Location header."
+                    ) from error
                 url = _http_url(urljoin(url, location))
                 continue
             except (URLError, OSError, ValueError) as unavailable:
@@ -474,10 +522,14 @@ class WorkspaceTools:
             with response:
                 body = _read_http_body(response, maximum)
                 return _format_http_response(
-                    response.geturl(), response.status, response.headers,
+                    response.geturl(),
+                    response.status,
+                    response.headers,
                     _decode_http_body(body, response.headers, maximum),
                 )
-        raise ToolFailureError(f"Too many redirects (maximum {_MAX_HTTP_REDIRECTS}) while fetching {url!r}.")
+        raise ToolFailureError(
+            f"Too many redirects (maximum {_MAX_HTTP_REDIRECTS}) while fetching {url!r}."
+        )
 
     def _delete_path(self, arguments: Mapping[str, Any]) -> str:
         """Remove one path and report that it is gone."""
@@ -503,15 +555,13 @@ class WorkspaceTools:
                 )
             if self._materials is None:
                 raise WorkspaceError(
-                    f"{stripped!r} names materials/, but this run was given no "
-                    "input files."
+                    f"{stripped!r} names materials/, but this run was given no input files."
                 )
             return self._materials, stripped[len(MATERIALS_PREFIX) :]
         if stripped.startswith(OUTPUT_PREFIX):
             if self._output is None:
                 raise WorkspaceError(
-                    f"{stripped!r} names output/, but this run has nowhere to "
-                    "leave deliverables."
+                    f"{stripped!r} names output/, but this run has nowhere to leave deliverables."
                 )
             return self._output, stripped[len(OUTPUT_PREFIX) :]
         return self._workspace, stripped
@@ -526,9 +576,7 @@ class WorkspaceTools:
         """
         command = _command_argument(arguments)
         try:
-            result = self._commands.run(
-                command, timeout_seconds=_timeout_argument(arguments)
-            )
+            result = self._commands.run(command, timeout_seconds=_timeout_argument(arguments))
         except (TypeError, ValueError) as unusable:
             raise ToolFailureError(str(unusable)) from unusable
         status = (
@@ -551,9 +599,11 @@ class WorkspaceTools:
 class _NoRedirect(HTTPRedirectHandler):
     """Expose redirects to the fetcher so every destination is revalidated."""
 
-    def redirect_request(self, request: Request, fp: object, code: int, msg: str, headers: object, newurl: str) -> None:
+    def redirect_request(  # noqa: PLR0913 - the signature is urllib's
+        self, request: Request, fp: object, code: int, msg: str, headers: object, newurl: str
+    ) -> None:
+        """Decline to follow, so the caller revalidates every destination itself."""
         del request, fp, code, msg, headers, newurl
-        return None
 
 
 def _http_url_argument(arguments: Mapping[str, Any]) -> str:
@@ -563,37 +613,56 @@ def _http_url_argument(arguments: Mapping[str, Any]) -> str:
 
 def _http_url(value: str) -> str:
     parsed = urlsplit(value.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
-        raise ToolFailureError("'url' must be an absolute HTTP or HTTPS URL without embedded credentials.")
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+    ):
+        raise ToolFailureError(
+            "'url' must be an absolute HTTP or HTTPS URL without embedded credentials."
+        )
     return value.strip()
 
 
 def _http_headers_argument(arguments: Mapping[str, Any]) -> dict[str, str]:
     """Return bounded optional request headers."""
     value = arguments.get("headers", {})
-    if not isinstance(value, Mapping) or len(value) > 20:
+    if not isinstance(value, Mapping) or len(value) > _MAX_HTTP_HEADERS:
         raise ToolFailureError("'headers' must be an object with at most 20 string headers.")
     headers: dict[str, str] = {}
     for name, header_value in value.items():
-        if not isinstance(name, str) or not isinstance(header_value, str) or not name or len(name) > 128 or len(header_value) > 4096 or "\r" in name + header_value or "\n" in name + header_value:
+        if (
+            not isinstance(name, str)
+            or not isinstance(header_value, str)
+            or not name
+            or len(name) > _MAX_HEADER_NAME_CHARACTERS
+            or len(header_value) > _MAX_HEADER_VALUE_CHARACTERS
+            or "\r" in name + header_value
+            or "\n" in name + header_value
+        ):
             raise ToolFailureError("Every request header must be a short single-line string.")
         headers[name] = header_value
     return headers
 
 
-def _http_bound_argument(arguments: Mapping[str, Any], name: str, ceiling: int, default: int) -> int:
+def _http_bound_argument(
+    arguments: Mapping[str, Any], name: str, ceiling: int, default: int
+) -> int:
     """Read one positive bounded HTTP integer option."""
     value = arguments.get(name, default)
     if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= ceiling:
         raise ToolFailureError(f"{name!r} must be a whole number from 1 to {ceiling}.")
-    return value
+    return int(value)
 
 
 def _read_http_body(response: Any, maximum: int) -> bytes:
     """Read at most the requested response budget, refusing an oversized body."""
     declared = response.headers.get("Content-Length")
     if declared and declared.isdigit() and int(declared) > maximum:
-        raise ToolFailureError(f"Response declares {declared} bytes, above the {maximum}-byte limit.")
+        raise ToolFailureError(
+            f"Response declares {declared} bytes, above the {maximum}-byte limit."
+        )
     body = bytearray()
     while chunk := response.read(min(_HTTP_CHUNK_BYTES, maximum - len(body) + 1)):
         body.extend(chunk)
@@ -648,12 +717,13 @@ def _format_http_response(url: str, status: int, headers: Any, body: bytes) -> s
     except (LookupError, UnicodeDecodeError):
         text = body.decode("utf-8", errors="replace")
     shown_headers = "\n".join(f"{name}: {value}" for name, value in list(headers.items())[:20])
-    return f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\nHeaders:\n{shown_headers}\n\n{text}"
+    return (
+        f"URL: {url}\nStatus: {status}\nContent-Type: {content_type}\n"
+        f"Headers:\n{shown_headers}\n\n{text}"
+    )
 
 
-def _text_argument(
-    arguments: Mapping[str, Any], name: str, *, allow_empty: bool = False
-) -> str:
+def _text_argument(arguments: Mapping[str, Any], name: str, *, allow_empty: bool = False) -> str:
     """Return one string argument.
 
     Raises:
@@ -678,9 +748,7 @@ def _command_argument(arguments: Mapping[str, Any]) -> Sequence[str]:
     """
     value = arguments.get("command")
     if isinstance(value, str) or not isinstance(value, list):
-        raise ToolFailureError(
-            "'command' must be a list of strings, e.g. ['python', '--version']."
-        )
+        raise ToolFailureError("'command' must be a list of strings, e.g. ['python', '--version'].")
     if not value:
         raise ToolFailureError("'command' needs at least the program to run.")
     if not all(isinstance(argument, str) for argument in value):
@@ -729,7 +797,7 @@ def _safe_member_path(member_name: str) -> str:
 class _CountingReader:
     """File-like wrapper which records compressed bytes consumed by tarfile."""
 
-    def __init__(self, raw: BinaryIO) -> None:
+    def __init__(self, raw: IO[bytes]) -> None:
         self._raw = raw
         self.count = 0
 
@@ -767,7 +835,9 @@ def _validate_stream_compression(expanded: int, compressed: int) -> None:
 
 
 def _extract_zip(
-    archive: object, destination: Workspace, destination_relative: str,
+    archive: Path,
+    destination: Workspace,
+    destination_relative: str,
     selected: frozenset[str] | None,
 ) -> tuple[int, int]:
     """Extract safe selected ZIP entries, enforcing declared and streamed limits."""
@@ -782,17 +852,25 @@ def _extract_zip(
                 continue
             if info.is_dir():
                 continue
-            if info.is_dir() or (info.external_attr >> 16) & 0o170000 == 0o120000:
+            if (info.external_attr >> 16) & _UNIX_FILE_TYPE_MASK == _UNIX_SYMLINK_TYPE:
                 raise WorkspaceError(f"Archive member {name!r} is a link and cannot be extracted.")
             _validate_zip_member_compression(info, name)
             count, total = _copy_archive_member(
-                destination, destination_relative, name, zipped.open(info), info.file_size, count, total
+                destination,
+                destination_relative,
+                name,
+                zipped.open(info),
+                info.file_size,
+                count,
+                total,
             )
     return count, total
 
 
 def _extract_tar(
-    archive: object, destination: Workspace, destination_relative: str,
+    archive: Path,
+    destination: Workspace,
+    destination_relative: str,
     selected: frozenset[str] | None,
 ) -> tuple[int, int]:
     """Extract safe selected TAR entries, including compressed TAR variants."""
@@ -802,10 +880,12 @@ def _extract_tar(
     # stream while extracting and enforce the same expansion ratio.
     with open(archive, "rb") as raw:
         compressed = _CountingReader(raw)
-        with tarfile.open(fileobj=compressed, mode="r|*") as tarred:
+        with tarfile.open(fileobj=cast(IO[bytes], compressed), mode="r|*") as tarred:
             for seen, info in enumerate(tarred, start=1):
                 if seen > _MAX_ARCHIVE_MEMBERS:
-                    raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit.")
+                    raise WorkspaceError(
+                        f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-member limit."
+                    )
                 name = _safe_member_path(info.name)
                 if selected is not None and name not in selected:
                     continue
@@ -817,21 +897,36 @@ def _extract_tar(
                 if reader is None:
                     raise WorkspaceError(f"Archive member {name!r} could not be read.")
                 count, total = _copy_archive_member(
-                    destination, destination_relative, name, reader, info.size, count, total,
+                    destination,
+                    destination_relative,
+                    name,
+                    reader,
+                    info.size,
+                    count,
+                    total,
                     compressed_bytes=compressed,
                 )
     return count, total
 
 
 def _copy_archive_member(
-    destination: Workspace, destination_relative: str, member_name: str,
-    reader: BinaryIO, expected_size: int, count: int, total: int,
-    *, compressed_bytes: "_CountingReader | None" = None,
+    destination: Workspace,
+    destination_relative: str,
+    member_name: str,
+    reader: IO[bytes],
+    expected_size: int,
+    count: int,
+    total: int,
+    *,
+    compressed_bytes: "_CountingReader | None" = None,
 ) -> tuple[int, int]:
     """Copy a bounded member after resolving its target beneath the destination."""
     if count >= _MAX_ARCHIVE_MEMBERS:
         raise WorkspaceError(f"Archive exceeds the {_MAX_ARCHIVE_MEMBERS}-file extraction limit.")
-    if expected_size > _MAX_ARCHIVE_MEMBER_BYTES or total + expected_size > _MAX_ARCHIVE_EXTRACTED_BYTES:
+    if (
+        expected_size > _MAX_ARCHIVE_MEMBER_BYTES
+        or total + expected_size > _MAX_ARCHIVE_EXTRACTED_BYTES
+    ):
         raise WorkspaceError("Archive exceeds the permitted extracted-data limit.")
     relative = f"{destination_relative.rstrip('/')}/{member_name}"
     target = destination.resolve(relative)
@@ -844,11 +939,16 @@ def _copy_archive_member(
         with reader, target.open("wb") as output:
             while chunk := reader.read(_ARCHIVE_CHUNK_BYTES):
                 written += len(chunk)
-                if written > _MAX_ARCHIVE_MEMBER_BYTES or total + written > _MAX_ARCHIVE_EXTRACTED_BYTES:
+                if (
+                    written > _MAX_ARCHIVE_MEMBER_BYTES
+                    or total + written > _MAX_ARCHIVE_EXTRACTED_BYTES
+                ):
                     raise WorkspaceError("Archive exceeds the permitted extracted-data limit.")
                 if compressed_bytes is not None:
                     _validate_stream_compression(total + written, compressed_bytes.count)
                 output.write(chunk)
     except OSError as unwritable:
-        raise WorkspaceError(f"Archive member {member_name!r} could not be written: {unwritable}") from unwritable
+        raise WorkspaceError(
+            f"Archive member {member_name!r} could not be written: {unwritable}"
+        ) from unwritable
     return count + 1, total + written

@@ -87,13 +87,9 @@ class WorkspaceMcpServer:
         try:
             message = json.loads(line)
         except json.JSONDecodeError as malformed:
-            return json.dumps(
-                _error(None, _PARSE_ERROR, f"The message is not JSON: {malformed}")
-            )
+            return json.dumps(_error(None, _PARSE_ERROR, f"The message is not JSON: {malformed}"))
         if not isinstance(message, dict):
-            return json.dumps(
-                _error(None, _INVALID_REQUEST, "A message must be a JSON object.")
-            )
+            return json.dumps(_error(None, _INVALID_REQUEST, "A message must be a JSON object."))
         answer = self.handle(message)
         return None if answer is None else json.dumps(answer)
 
@@ -132,9 +128,7 @@ class WorkspaceMcpServer:
         except Exception as unexpected:
             # A server that died of one call would take the whole run with it,
             # and the client would see a closed pipe rather than a reason.
-            return _failure(
-                _INTERNAL_ERROR, f"{method!r} failed unexpectedly: {unexpected}"
-            )
+            return _failure(_INTERNAL_ERROR, f"{method!r} failed unexpectedly: {unexpected}")
 
     def _result(self, method: str, params: Mapping[str, Any]) -> dict[str, Any]:
         """Return the result of one method call.

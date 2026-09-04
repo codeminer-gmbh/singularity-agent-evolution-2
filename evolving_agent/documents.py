@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
+import posixpath
+import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Callable, Iterable
 from email import policy
 from email.parser import BytesParser
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any
 from urllib.parse import unquote
-import posixpath
-import xml.etree.ElementTree as ET
-import zipfile
 
 from docx import Document
 from openpyxl import load_workbook
-from pypdf import PdfReader
 from pptx import Presentation
+from pypdf import PdfReader
 
 MAX_DOCUMENT_BYTES = 48 * 1024 * 1024
 MAX_PDF_PAGES = 200
@@ -37,6 +38,10 @@ MAX_EMAIL_PARTS = 1_000
 MAX_EMAIL_TEXT_PART_BYTES = 8 * 1024 * 1024
 
 
+_GROUP_SHAPE_TYPE = 6
+"""python-pptx's MSO_SHAPE_TYPE.GROUP, named here so no import ties this to one release."""
+
+
 class DocumentError(Exception):
     """A document cannot be safely or usefully read."""
 
@@ -51,9 +56,7 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
         raise DocumentError(f"{path.name!r} is not a document file.")
     size = path.stat().st_size
     if size > MAX_DOCUMENT_BYTES:
-        raise DocumentError(
-            f"{path.name!r} exceeds the {MAX_DOCUMENT_BYTES}-byte document limit."
-        )
+        raise DocumentError(f"{path.name!r} exceeds the {MAX_DOCUMENT_BYTES}-byte document limit.")
     if not isinstance(max_characters, int) or not 1 <= max_characters <= MAX_TEXT_CHARACTERS:
         raise DocumentError(
             f"max_characters must be an integer from 1 through {MAX_TEXT_CHARACTERS}."
@@ -73,7 +76,9 @@ def read_document(path: Path, *, max_characters: int = MAX_TEXT_CHARACTERS) -> s
     if extractor is None:
         raise DocumentError(
             f"Unsupported document type {suffix or '(no extension)'!r}. "
-            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument Spreadsheet (.ods), OpenDocument Text (.odt), PowerPoint (.pptx), EPUB (.epub), and RFC 822 email (.eml)."
+            "Supported types are PDF (.pdf), Word (.docx), Excel (.xlsx), OpenDocument "
+            "Spreadsheet (.ods), OpenDocument Text (.odt), PowerPoint (.pptx), EPUB (.epub), "
+            "and RFC 822 email (.eml)."
         )
     try:
         text = extractor(path)
@@ -100,9 +105,7 @@ def _email_part_text(part: object) -> str:
     if not isinstance(payload, bytes):
         return str(payload)
     if len(payload) > MAX_EMAIL_TEXT_PART_BYTES:
-        raise DocumentError(
-            f"Email text part exceeds the {MAX_EMAIL_TEXT_PART_BYTES}-byte limit."
-        )
+        raise DocumentError(f"Email text part exceeds the {MAX_EMAIL_TEXT_PART_BYTES}-byte limit.")
     charset = part.get_content_charset()  # type: ignore[attr-defined]
     try:
         return payload.decode(charset or "utf-8", errors="replace")
@@ -172,7 +175,9 @@ def _pdf_text(path: Path) -> str:
     except Exception as error:  # parser-specific errors vary by pypdf release
         raise DocumentError(f"Could not parse PDF {path.name!r}: {error}") from error
     if reader.is_encrypted:
-        raise DocumentError(f"PDF {path.name!r} is encrypted and cannot be read without a password.")
+        raise DocumentError(
+            f"PDF {path.name!r} is encrypted and cannot be read without a password."
+        )
     if len(reader.pages) > MAX_PDF_PAGES:
         raise DocumentError(f"PDF has {len(reader.pages)} pages; limit is {MAX_PDF_PAGES}.")
     chunks: list[str] = []
@@ -205,13 +210,15 @@ def _xlsx_text(path: Path) -> str:
         raise DocumentError(f"Could not parse XLSX {path.name!r}: {error}") from error
     try:
         if len(workbook.worksheets) > MAX_SHEETS:
-            raise DocumentError(f"Workbook has {len(workbook.worksheets)} sheets; limit is {MAX_SHEETS}.")
+            raise DocumentError(
+                f"Workbook has {len(workbook.worksheets)} sheets; limit is {MAX_SHEETS}."
+            )
         chunks: list[str] = []
         for sheet in workbook.worksheets:
             chunks.append(f"--- Sheet: {sheet.title} ---")
-            row_count = 0
-            for row in sheet.iter_rows(max_col=MAX_COLUMNS_PER_SHEET, values_only=True):
-                row_count += 1
+            for row_count, row in enumerate(
+                sheet.iter_rows(max_col=MAX_COLUMNS_PER_SHEET, values_only=True), start=1
+            ):
                 if row_count > MAX_ROWS_PER_SHEET:
                     chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
                     break
@@ -237,26 +244,38 @@ def _ods_text(path: Path) -> str:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
             if len(infos) > MAX_ODS_MEMBERS:
-                raise DocumentError(f"OpenDocument spreadsheet has {len(infos)} package members; limit is {MAX_ODS_MEMBERS}.")
+                raise DocumentError(
+                    f"OpenDocument spreadsheet has {len(infos)} package members; "
+                    f"limit is {MAX_ODS_MEMBERS}."
+                )
             content = next((info for info in infos if info.filename == "content.xml"), None)
             if content is None:
                 raise DocumentError("OpenDocument spreadsheet has no content.xml member.")
             if content.file_size > MAX_ODS_CONTENT_BYTES:
-                raise DocumentError(f"OpenDocument spreadsheet content expands to {content.file_size} bytes; limit is {MAX_ODS_CONTENT_BYTES}.")
+                raise DocumentError(
+                    f"OpenDocument spreadsheet content expands to {content.file_size} bytes; "
+                    f"limit is {MAX_ODS_CONTENT_BYTES}."
+                )
             xml = archive.read(content)
     except DocumentError:
         raise
     except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as error:
-        raise DocumentError(f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}") from error
+        raise DocumentError(
+            f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}"
+        ) from error
     try:
         root = ET.fromstring(xml)
     except ET.ParseError as error:
-        raise DocumentError(f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}") from error
+        raise DocumentError(
+            f"Could not parse OpenDocument spreadsheet {path.name!r}: {error}"
+        ) from error
 
     chunks: list[str] = []
     tables = root.findall(f".//{_ODS_TABLE}table")
     if len(tables) > MAX_SHEETS:
-        raise DocumentError(f"OpenDocument spreadsheet has {len(tables)} sheets; limit is {MAX_SHEETS}.")
+        raise DocumentError(
+            f"OpenDocument spreadsheet has {len(tables)} sheets; limit is {MAX_SHEETS}."
+        )
     for table in tables:
         name = table.get(f"{_ODS_TABLE}name", "Untitled")
         chunks.append(f"--- Sheet: {name} ---")
@@ -271,7 +290,11 @@ def _ods_text(path: Path) -> str:
                 values = _ods_row_values(row)
                 if values:
                     chunks.append("\t".join(values))
-            if emitted < repeat_rows or row_index + 1 < len(rows) and row_count >= MAX_ROWS_PER_SHEET:
+            if (
+                emitted < repeat_rows
+                or row_index + 1 < len(rows)
+                and row_count >= MAX_ROWS_PER_SHEET
+            ):
                 chunks.append(f"... [sheet truncated at {MAX_ROWS_PER_SHEET} rows]")
                 break
     return "\n".join(chunks)
@@ -289,12 +312,18 @@ def _odt_text(path: Path) -> str:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
             if len(infos) > MAX_ODS_MEMBERS:
-                raise DocumentError(f"OpenDocument text has {len(infos)} package members; limit is {MAX_ODS_MEMBERS}.")
+                raise DocumentError(
+                    f"OpenDocument text has {len(infos)} package members; "
+                    f"limit is {MAX_ODS_MEMBERS}."
+                )
             content = next((info for info in infos if info.filename == "content.xml"), None)
             if content is None:
                 raise DocumentError("OpenDocument text has no content.xml member.")
             if content.file_size > MAX_ODS_CONTENT_BYTES:
-                raise DocumentError(f"OpenDocument text content expands to {content.file_size} bytes; limit is {MAX_ODS_CONTENT_BYTES}.")
+                raise DocumentError(
+                    f"OpenDocument text content expands to {content.file_size} bytes; "
+                    f"limit is {MAX_ODS_CONTENT_BYTES}."
+                )
             xml = archive.read(content)
     except DocumentError:
         raise
@@ -445,21 +474,39 @@ def _pptx_text(path: Path) -> str:
     return "\n".join(chunks)
 
 
-def _walk_shapes(shapes: Iterable[object]) -> Iterable[object]:
+def _walk_shapes(shapes: Iterable[Any]) -> Iterable[Any]:
     """Yield shapes in visual tree order, including shapes inside groups."""
     for shape in shapes:
         yield shape
         # GroupShape is iterable; normal shapes are not. Avoid relying on an
         # implementation-specific type so this remains compatible with
         # python-pptx releases.
-        if getattr(shape, "shape_type", None) == 6:  # MSO_SHAPE_TYPE.GROUP
+        if getattr(shape, "shape_type", None) == _GROUP_SHAPE_TYPE:
             yield from _walk_shapes(shape)
 
 
 class _EpubTextParser(HTMLParser):
     """Collect visible text from tolerant XHTML/HTML EPUB chapters."""
 
-    _BLOCK_TAGS = frozenset({"address", "article", "blockquote", "br", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "section", "tr"})
+    _BLOCK_TAGS = frozenset(
+        {
+            "address",
+            "article",
+            "blockquote",
+            "br",
+            "div",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "li",
+            "p",
+            "section",
+            "tr",
+        }
+    )
     _SKIP_TAGS = frozenset({"script", "style"})
 
     def __init__(self) -> None:
@@ -503,24 +550,45 @@ def _epub_text(path: Path) -> str:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
             if len(infos) > MAX_EBOOK_MEMBERS:
-                raise DocumentError(f"EPUB has {len(infos)} package members; limit is {MAX_EBOOK_MEMBERS}.")
+                raise DocumentError(
+                    f"EPUB has {len(infos)} package members; limit is {MAX_EBOOK_MEMBERS}."
+                )
             expanded = sum(info.file_size for info in infos)
             if expanded > MAX_EBOOK_UNCOMPRESSED_BYTES:
-                raise DocumentError(f"EPUB expands to {expanded} bytes; limit is {MAX_EBOOK_UNCOMPRESSED_BYTES}.")
+                raise DocumentError(
+                    f"EPUB expands to {expanded} bytes; limit is {MAX_EBOOK_UNCOMPRESSED_BYTES}."
+                )
             names = {info.filename for info in infos}
             if "META-INF/container.xml" not in names:
                 raise DocumentError("EPUB has no META-INF/container.xml package descriptor.")
             container = ET.fromstring(archive.read("META-INF/container.xml"))
-            rootfile = next((node.get("full-path") for node in container.iter() if node.tag.endswith("rootfile") and node.get("full-path")), None)
+            rootfile = next(
+                (
+                    node.get("full-path")
+                    for node in container.iter()
+                    if node.tag.endswith("rootfile") and node.get("full-path")
+                ),
+                None,
+            )
             if not rootfile or rootfile not in names:
                 raise DocumentError("EPUB package descriptor does not name a readable OPF file.")
             package = ET.fromstring(archive.read(rootfile))
-            manifest = {node.get("id"): node.get("href") for node in package.iter() if node.tag.endswith("item") and node.get("id") and node.get("href")}
-            spine = [node.get("idref") for node in package.iter() if node.tag.endswith("itemref") and node.get("idref")]
+            manifest = {
+                node.get("id"): node.get("href")
+                for node in package.iter()
+                if node.tag.endswith("item") and node.get("id") and node.get("href")
+            }
+            spine = [
+                node.get("idref")
+                for node in package.iter()
+                if node.tag.endswith("itemref") and node.get("idref")
+            ]
             if not spine:
                 raise DocumentError("EPUB package has no reading-order spine.")
             if len(spine) > MAX_EBOOK_CHAPTERS:
-                raise DocumentError(f"EPUB has {len(spine)} spine chapters; limit is {MAX_EBOOK_CHAPTERS}.")
+                raise DocumentError(
+                    f"EPUB has {len(spine)} spine chapters; limit is {MAX_EBOOK_CHAPTERS}."
+                )
             chunks: list[str] = []
             for number, item_id in enumerate(spine, 1):
                 href = manifest.get(item_id)
@@ -531,7 +599,9 @@ def _epub_text(path: Path) -> str:
                     continue
                 info = archive.getinfo(member)
                 if info.file_size > MAX_EBOOK_CHAPTER_BYTES:
-                    raise DocumentError(f"EPUB chapter {number} exceeds the {MAX_EBOOK_CHAPTER_BYTES}-byte limit.")
+                    raise DocumentError(
+                        f"EPUB chapter {number} exceeds the {MAX_EBOOK_CHAPTER_BYTES}-byte limit."
+                    )
                 parser = _EpubTextParser()
                 parser.feed(archive.read(member).decode("utf-8", errors="replace"))
                 parser.close()

@@ -224,7 +224,9 @@ class _PublicationGate:
         found = successor_problems(workspace)
         if candidate_digest(workspace) == self._started_from:
             return found
-        return found + note_problems(workspace, self._notes_before) + verification_problems(workspace)
+        return (
+            found + note_problems(workspace, self._notes_before) + verification_problems(workspace)
+        )
 
 
 def _improve(
@@ -391,7 +393,9 @@ def _repaired(
         problems = gate.problems(workspace)
         if not problems or deadline.expired():
             return outcome
-        _LOG.warning("Repair round %s: the successor has %s problem(s).", round_number, len(problems))
+        _LOG.warning(
+            "Repair round %s: the successor has %s problem(s).", round_number, len(problems)
+        )
         outcome = session.run(
             instructions=improvement_instructions(), opening=repair_opening(problems)
         )
@@ -436,11 +440,15 @@ def _restored(
     return RunReport(
         succeeded=False,
         answer="No successor was produced: the source was put back unchanged.",
-        detail=_with_refusal(f"the successor was discarded and the source restored: {listed}", refusal),
+        detail=_with_refusal(
+            f"the successor was discarded and the source restored: {listed}", refusal
+        ),
     )
 
 
-def _final_answer(model: ModelClient, settings: AgentSettings, outcome: SessionOutcome) -> RunReport:
+def _final_answer(
+    model: ModelClient, settings: AgentSettings, outcome: SessionOutcome
+) -> RunReport:
     """Ask once more for an answer when the session ran out before giving one.
 
     The agent's own budget stops it short of the limit the orchestrator holds

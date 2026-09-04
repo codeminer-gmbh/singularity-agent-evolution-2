@@ -45,11 +45,15 @@ def test_a_new_claim_needs_a_shipped_test_named_in_a_code_span(tmp_path: Path) -
     workspace = _tree(tmp_path)
     baseline = note_snapshot(workspace)
 
-    workspace.write_text("memories/parser.md", "Added empty-record handling. The integration tests passed.")
+    workspace.write_text(
+        "memories/parser.md", "Added empty-record handling. The integration tests passed."
+    )
     problems = note_problems(workspace, baseline)
     assert len(problems) == 1 and problems[0].startswith("memories/parser.md claims")
 
-    workspace.write_text("memories/parser.md", "Handles empty records; verified by `tests/test_parser.py`.")
+    workspace.write_text(
+        "memories/parser.md", "Handles empty records; verified by `tests/test_parser.py`."
+    )
     assert note_problems(workspace, baseline) == (problems[0],)
 
     workspace.write_text("tests/test_parser.py", "def test_empty(): pass\n")
@@ -62,6 +66,8 @@ def test_notes_without_claims_and_the_round_plan_are_never_gated(tmp_path: Path)
 
     workspace.write_text("memories/round-plan.md", "Proof: the tests passed, verified.")
     workspace.write_text("memories/README.md", "Everything here was verified.")
-    workspace.write_text("memories/design.md", "The parser streams records so a large file cannot fill memory.")
+    workspace.write_text(
+        "memories/design.md", "The parser streams records so a large file cannot fill memory."
+    )
 
     assert note_problems(workspace, baseline) == ()

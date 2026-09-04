@@ -229,9 +229,7 @@ class ModelClient:
         except OpenAIError as unreachable:
             raise ModelUnavailableError(self._failure(unreachable)) from unreachable
         if not answered.output:
-            raise ModelUnavailableError(
-                f"The model at {self.endpoint} answered with nothing."
-            )
+            raise ModelUnavailableError(f"The model at {self.endpoint} answered with nothing.")
         _LOG.debug("The model produced %s output item(s).", len(answered.output))
         return _reply_of(answered)
 
@@ -244,9 +242,7 @@ class ModelClient:
         the network and the service — sending the reader to the wrong one of
         those costs a cycle.
         """
-        if isinstance(refused, APIStatusError) and (
-            refused.status_code == _REQUEST_REFUSED
-        ):
+        if isinstance(refused, APIStatusError) and (refused.status_code == _REQUEST_REFUSED):
             return (
                 f"The model {self._access.model_name} at {self.endpoint} would not "
                 f"serve this request: {refused}"

@@ -12,7 +12,9 @@ _IMPROVEMENT_DEADLINE = 7200
     ("mode", "deadline"),
     [(AgentMode.PROBE, _PROBE_DEADLINE), (AgentMode.IMPROVE, _IMPROVEMENT_DEADLINE)],
 )
-def test_each_budget_leaves_room_for_the_exchanges_that_outlive_it(mode: AgentMode, deadline: int) -> None:
+def test_each_budget_leaves_room_for_the_exchanges_that_outlive_it(
+    mode: AgentMode, deadline: int
+) -> None:
     timing = TIMING[mode]
     # The exchange in flight and one more after it may run to their timeout.
     assert timing.time_budget_seconds + 2 * timing.model_timeout_seconds <= deadline
@@ -29,7 +31,12 @@ def test_the_probe_step_allowance_is_no_longer_the_seed_s_twelve() -> None:
 
 def test_a_run_is_read_from_the_environment() -> None:
     settings = from_environment(
-        {"AGENT_MODE": "probe", "AGENT_TASK": " what? ", "OPENAI_MODEL": "m", "AGENT_OUTPUT": "/out"}
+        {
+            "AGENT_MODE": "probe",
+            "AGENT_TASK": " what? ",
+            "OPENAI_MODEL": "m",
+            "AGENT_OUTPUT": "/out",
+        }
     )
 
     assert settings.mode is AgentMode.PROBE

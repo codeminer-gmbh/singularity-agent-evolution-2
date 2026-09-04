@@ -74,9 +74,7 @@ def successor_problems(workspace: Workspace) -> tuple[str, ...]:
         if required not in present
     ]
     problems.extend(
-        f"{required} is empty"
-        for required in REQUIRED_FILES
-        if present.get(required) == 0
+        f"{required} is empty" for required in REQUIRED_FILES if present.get(required) == 0
     )
     problems.extend(_unparsable(workspace, path) for path in present)
     return tuple(problem for problem in problems if problem)

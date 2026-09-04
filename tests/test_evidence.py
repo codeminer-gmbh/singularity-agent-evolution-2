@@ -67,7 +67,13 @@ def test_shape_problems_are_named_one_per_defect(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     workspace.write_text(
         VERIFICATION_RECORD,
-        json.dumps({"audit": {"costly_failure": " "}, "matrix": [{"requirement": "x"}], "candidate_digest": "nope"}),
+        json.dumps(
+            {
+                "audit": {"costly_failure": " "},
+                "matrix": [{"requirement": "x"}],
+                "candidate_digest": "nope",
+            }
+        ),
     )
 
     problems = verification_problems(workspace)
@@ -99,9 +105,23 @@ def test_the_digest_command_prints_what_the_gate_expects(tmp_path: Path) -> None
 def test_the_receipt_counts_from_status_lines_not_prose(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     observations = [
-        ToolObservation(1, "run_command", {"command": ["python", "t.py"]}, False, "$ python t.py\n[exit code 1]\n"),
-        ToolObservation(2, "run_command", {"command": ["python", "t.py"]}, False, "$ python t.py\n[exit code 0]\nall passed"),
-        ToolObservation(3, "run_command", {"command": ["sleep", "9"]}, False, "$ sleep 9\n[timed out]\n"),
+        ToolObservation(
+            1,
+            "run_command",
+            {"command": ["python", "t.py"]},
+            False,
+            "$ python t.py\n[exit code 1]\n",
+        ),
+        ToolObservation(
+            2,
+            "run_command",
+            {"command": ["python", "t.py"]},
+            False,
+            "$ python t.py\n[exit code 0]\nall passed",
+        ),
+        ToolObservation(
+            3, "run_command", {"command": ["sleep", "9"]}, False, "$ sleep 9\n[timed out]\n"
+        ),
         ToolObservation(4, "run_command", {}, True, "the arguments are not valid JSON"),
         ToolObservation(5, "read_file", {"path": "x"}, False, "content"),
     ]

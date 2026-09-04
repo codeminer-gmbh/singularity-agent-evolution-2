@@ -24,9 +24,9 @@ claim reviewable by the next round.
 import json
 import os
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from evolving_agent.workspace import Workspace, WorkspaceError
 
@@ -54,18 +54,27 @@ _DIGEST_LENGTH = 64
 _DIGEST_ALPHABET = frozenset("0123456789abcdef")
 
 
-class CommandObservation:
-    """What one command call produced, as the session observed it.
+class CommandObservation(Protocol):
+    """What one tool call produced, as the session observed it.
 
     A structural type rather than an import from the session module, so the
     receipt can be written from any object that carries these attributes.
     """
 
-    step: int
-    name: str
-    arguments: dict[str, Any]
-    is_error: bool
-    text: str
+    @property
+    def step(self) -> int: ...  # noqa: D102 - the attributes are described above
+
+    @property
+    def name(self) -> str: ...  # noqa: D102
+
+    @property
+    def arguments(self) -> Mapping[str, Any]: ...  # noqa: D102
+
+    @property
+    def is_error(self) -> bool: ...  # noqa: D102
+
+    @property
+    def text(self) -> str: ...  # noqa: D102
 
 
 def candidate_digest(workspace: Workspace) -> str:
@@ -97,31 +106,39 @@ def verification_problems(workspace: Workspace) -> tuple[str, ...]:
         well-formed and bound to the tree as it stands.
 
     """
-    try:
-        record_path = workspace.resolve(VERIFICATION_RECORD)
-    except WorkspaceError as unusable:
-        return (f"{VERIFICATION_RECORD} cannot be located: {unusable}",)
-    if not record_path.is_file():
-        return (f"{VERIFICATION_RECORD} is missing",)
-    try:
-        raw = record_path.read_bytes()
-    except OSError as unreadable:
-        return (f"{VERIFICATION_RECORD} could not be read: {unreadable}",)
-    if len(raw) > _MAX_RECORD_BYTES:
-        return (f"{VERIFICATION_RECORD} exceeds {_MAX_RECORD_BYTES} bytes",)
-    try:
-        record = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as malformed:
-        return (f"{VERIFICATION_RECORD} is not valid JSON: {malformed}",)
-    if not isinstance(record, dict):
-        return (f"{VERIFICATION_RECORD} must contain a JSON object",)
-    problems = _shape_problems(record)
-    if not problems and record["candidate_digest"] != candidate_digest(workspace):
+    loaded = _load_record(workspace)
+    if isinstance(loaded, str):
+        return (loaded,)
+    problems = _shape_problems(loaded)
+    if not problems and loaded["candidate_digest"] != candidate_digest(workspace):
         problems.append(
             f"{VERIFICATION_RECORD}.candidate_digest does not match the tree as it "
             f"stands; run `{DIGEST_COMMAND}` after the last edit and record its output"
         )
     return tuple(problems)
+
+
+def _load_record(workspace: Workspace) -> dict[object, object] | str:
+    """Return the record as parsed JSON, or the sentence saying why it could not be."""
+    try:
+        record_path = workspace.resolve(VERIFICATION_RECORD)
+    except WorkspaceError as unusable:
+        return f"{VERIFICATION_RECORD} cannot be located: {unusable}"
+    if not record_path.is_file():
+        return f"{VERIFICATION_RECORD} is missing"
+    try:
+        raw = record_path.read_bytes()
+    except OSError as unreadable:
+        return f"{VERIFICATION_RECORD} could not be read: {unreadable}"
+    if len(raw) > _MAX_RECORD_BYTES:
+        return f"{VERIFICATION_RECORD} exceeds {_MAX_RECORD_BYTES} bytes"
+    try:
+        record = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as malformed:
+        return f"{VERIFICATION_RECORD} is not valid JSON: {malformed}"
+    if not isinstance(record, dict):
+        return f"{VERIFICATION_RECORD} must contain a JSON object"
+    return record
 
 
 def write_receipt(workspace: Workspace, observations: Iterable[CommandObservation]) -> None:
@@ -138,20 +155,17 @@ def write_receipt(workspace: Workspace, observations: Iterable[CommandObservatio
         observations: What the session observed, in order.
 
     """
-    commands = []
+    commands: list[dict[str, object]] = []
+    statuses: list[str] = []
     for observed in observations:
         if observed.name != "run_command":
             continue
         command = observed.arguments.get("command")
         if not isinstance(command, list) or not all(isinstance(part, str) for part in command):
             command = None
-        commands.append(
-            {
-                "step": observed.step,
-                "command": command,
-                "status": command_status(observed),
-            }
-        )
+        status = command_status(observed)
+        statuses.append(status)
+        commands.append({"step": observed.step, "command": command, "status": status})
     receipt = {
         "format": 2,
         "meaning": (
@@ -159,8 +173,8 @@ def write_receipt(workspace: Workspace, observations: Iterable[CommandObservatio
             "about what ran; it does not establish relevance to any claimed change."
         ),
         "commands": commands,
-        "passed": sum(item["status"].startswith("PASSED") for item in commands),
-        "failed": sum(item["status"].startswith("FAILED") for item in commands),
+        "passed": sum(status.startswith("PASSED") for status in statuses),
+        "failed": sum(status.startswith("FAILED") for status in statuses),
     }
     target = workspace.root / VERIFICATION_RECEIPT
     try:
@@ -230,9 +244,7 @@ def _nonempty_text(value: object) -> bool:
 
 def _is_digest(value: object) -> bool:
     return (
-        isinstance(value, str)
-        and len(value) == _DIGEST_LENGTH
-        and set(value) <= _DIGEST_ALPHABET
+        isinstance(value, str) and len(value) == _DIGEST_LENGTH and set(value) <= _DIGEST_ALPHABET
     )
 
 

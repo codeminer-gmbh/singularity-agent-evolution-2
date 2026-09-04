@@ -128,8 +128,20 @@ Without Docker:
 pip install -r requirements.txt
 AGENT_MODE=probe AGENT_TASK='What does this agent do?' \
 AGENT_WORKSPACE=/tmp/agent-scratch python main.py
-python -m pytest -q tests
 ```
+
+## Gates
+
+The tree is held to four checks, configured in `pyproject.toml` and installed
+in the image, so an improvement run can run them on its own successor:
+
+```bash
+ruff format . && ruff check . && mypy && python -m pytest -q tests
+```
+
+Formatting, lint with docstring and annotation rules, strict typing, and the
+tests. A round that leaves any of them failing has made the next round's work
+harder; a round that adds behaviour adds the test that would notice it going.
 
 ## Configuration
 
