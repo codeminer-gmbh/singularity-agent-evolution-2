@@ -45,7 +45,10 @@ from evolving_agent.successor import (
     durable_note_snapshot,
     successor_problems,
 )
-from evolving_agent.verification import execution_verification_message
+from evolving_agent.verification import (
+    adversarial_verification_message,
+    execution_verification_message,
+)
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _LOG = logging.getLogger(__name__)
@@ -312,9 +315,10 @@ def _session(
     """
     session: ToolAgentSession | None = None
     execution_reminder_sent = False
+    adversarial_reminder_sent = False
 
     def completion_check() -> str | None:
-        nonlocal execution_reminder_sent
+        nonlocal execution_reminder_sent, adversarial_reminder_sent
         missing = missing_output_paths(settings.task, settings.output)
         if missing:
             # Artifact existence has precedence: source cannot be exercised until
@@ -326,6 +330,13 @@ def _session(
                 # Challenge an unsupported completion once, but do not trap a
                 # task whose environment genuinely cannot execute its target.
                 execution_reminder_sent = True
+                return reminder
+        if not adversarial_reminder_sent and session is not None:
+            reminder = adversarial_verification_message(settings.task, session.tool_calls)
+            if reminder:
+                # A successful ordinary run is not the same evidence as an attempt to
+                # falsify the implementation.  Ask once, after that first result exists.
+                adversarial_reminder_sent = True
                 return reminder
         return None
 

@@ -1,10 +1,10 @@
 """Conservative completion checkpoint for executable probe tasks.
 
-A prose instruction to test code is easy to acknowledge and skip.  This module
-identifies only tasks that plainly ask for executable source and supplies one
-specific reminder when the session has not used the command runner at all.
-It does not pretend that invoking a command proves correctness; the reminder
-asks for a discriminating behavioral check rather than a syntax-only smoke test.
+A prose instruction to test code is easy to acknowledge and skip. This module
+identifies only tasks that plainly ask for executable source. It first requests an
+actual run when none occurred, then separately challenges an ordinary or supplied
+test run with adversarial boundaries and, where practical, an independent oracle.
+Invoking a command is not treated as proof of correctness.
 """
 
 import re
@@ -53,4 +53,30 @@ def execution_verification_message(
         "compare several small cases with a simple independent oracle. A parse or "
         "syntax check alone is not behavioral evidence. Then inspect the decisive "
         "output and give the complete answer."
+    )
+
+
+def adversarial_verification_message(
+    task: str, tool_calls: Mapping[str, int]
+) -> str | None:
+    """Request a hidden-case challenge after an executable has been run once.
+
+    Passing supplied or ordinary examples is useful but repeatedly failed to expose
+    representation and boundary mistakes.  This checkpoint is deliberately a
+    separate completion turn: it occurs after the model has seen its first run, when
+    it can use that result to design a test which could falsify the implementation.
+    """
+    if not asks_for_executable_source(task) or tool_calls.get("run_command", 0) == 0:
+        return None
+    return (
+        "Adversarial verification checkpoint: an executable run has occurred, but "
+        "ordinary or supplied tests alone often miss the decisive hidden case. Before "
+        "finalizing, try to falsify the implementation: construct small edge cases for "
+        "the contract's exact boundaries and representation hazards (for example exact "
+        "arithmetic, overflow, empty/degenerate state, or equality), and where practical "
+        "compare many small cases with a simple independent oracle or alternate "
+        "implementation. Run that check and inspect the decisive output. Do not merely "
+        "repeat the same examples. If an independent check is genuinely impractical, "
+        "state why and report that limitation rather than claiming it was verified; "
+        "then give the complete answer."
     )

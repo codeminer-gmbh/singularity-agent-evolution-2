@@ -18,7 +18,14 @@ class ScriptedModel:
                 tool_calls=(ToolCall("call-1", "run_command", '{"command":["python","solution.py"]}'),),
                 output=({"type": "function_call", "call_id": "call-1"},),
             ),
-            ModelReply(text="Implemented and exercised.", tool_calls=()),
+            # Passing an ordinary run used to be enough to finalize here.
+            ModelReply(text="Implemented and ordinary example passed.", tool_calls=()),
+            ModelReply(
+                text="",
+                tool_calls=(ToolCall("call-2", "run_command", '{"command":["python","oracle_check.py"]}'),),
+                output=({"type": "function_call", "call_id": "call-2"},),
+            ),
+            ModelReply(text="Implemented; ordinary and differential checks passed.", tool_calls=()),
         ]
 
     def reply(self, *, conversation, tools=()):
@@ -35,7 +42,9 @@ class FakeTools:
 
     def call(self, name, arguments):
         self.called.append((name, arguments))
-        return ToolOutcome("ordinary=3 boundary=0; all assertions passed", False)
+        if len(self.called) == 1:
+            return ToolOutcome("ordinary=3 boundary=0; assertions passed", False)
+        return ToolOutcome("exhaustive small cases agree with independent oracle", False)
 
 
 def settings(tmp_path, task):
@@ -46,11 +55,11 @@ def settings(tmp_path, task):
         source_root=Path.cwd(),
         model=ModelAccess(None, "unused", 60, None),
         time_budget_seconds=60,
-        max_steps=5,
+        max_steps=7,
     )
 
 
-def test_executable_probe_challenges_unexercised_completion_then_accepts_run(tmp_path):
+def test_executable_probe_requires_run_then_separate_adversarial_challenge(tmp_path):
     model = ScriptedModel()
     tools = FakeTools()
 
@@ -59,12 +68,14 @@ def test_executable_probe_challenges_unexercised_completion_then_accepts_run(tmp
     )
 
     assert outcome.finished
-    assert outcome.summary == "Implemented and exercised."
-    assert outcome.steps == 3
-    assert tools.called[0][0] == "run_command"
-    second_exchange = model.conversations[1]
-    assert "no command has exercised it yet" in second_exchange[-1]["content"]
-    assert "syntax check alone" in second_exchange[-1]["content"]
+    assert outcome.summary == "Implemented; ordinary and differential checks passed."
+    assert outcome.steps == 5
+    assert [call[0] for call in tools.called] == ["run_command", "run_command"]
+    assert "no command has exercised it yet" in model.conversations[1][-1]["content"]
+    adversarial = model.conversations[3][-1]["content"]
+    assert "Adversarial verification checkpoint" in adversarial
+    assert "independent oracle" in adversarial
+    assert "Do not merely repeat" in adversarial
 
 
 def test_classifier_is_conservative_about_non_executable_writing():

@@ -1,3 +1,3 @@
-Ledger verdicts show the line most often loses executable coding tasks on subtle representation and contract errors despite plausible implementations, while later rounds changed prompt checklists rather than execution habits.
-Require probe work on code or rule-like artifacts to run the strongest available tests plus a small adversarial differential/oracle check before finalizing, improving exact parser, state-machine, and numeric tasks.
-This is higher value than another boundary checklist because the head already tried several prompt-policy variants, whereas mandatory discriminating execution attacks confident-but-wrong delivery directly.
+Ledger evidence: the line most often lost coding exams after passing the supplied tests because exact-representation, overflow, or boundary cases remained unchallenged (notably cycles 92, 123, 125, 140, and 145).
+Add a second executable-task completion checkpoint after any command run that asks for a small adversarial differential/oracle exercise or an explicit impracticability finding.
+This targets hidden-test correctness more directly than another format tool or prose-only checklist, since the current gate is satisfied by one ordinary/public test run.
