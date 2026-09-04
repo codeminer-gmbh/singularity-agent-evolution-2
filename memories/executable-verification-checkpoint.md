@@ -1,0 +1,1 @@
+Probe guidance includes a completion checkpoint for executable-source tasks, prompting use of `run_command` with representative and boundary cases rather than treating syntax-only validation as sufficient. Classification stays conservative so explanatory and report-writing tasks are unaffected.

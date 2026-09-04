@@ -45,6 +45,7 @@ from evolving_agent.successor import (
     durable_note_snapshot,
     successor_problems,
 )
+from evolving_agent.verification import execution_verification_message
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _LOG = logging.getLogger(__name__)
@@ -309,11 +310,26 @@ def _session(
     what the model is told it can do and what the agent can actually do are the
     same list.
     """
-    def completion_check() -> str | None:
-        missing = missing_output_paths(settings.task, settings.output)
-        return completion_repair_message(missing) if missing else None
+    session: ToolAgentSession | None = None
+    execution_reminder_sent = False
 
-    return ToolAgentSession(
+    def completion_check() -> str | None:
+        nonlocal execution_reminder_sent
+        missing = missing_output_paths(settings.task, settings.output)
+        if missing:
+            # Artifact existence has precedence: source cannot be exercised until
+            # it has actually been written, and this fact is fully observable.
+            return completion_repair_message(missing)
+        if not execution_reminder_sent and session is not None:
+            reminder = execution_verification_message(settings.task, session.tool_calls)
+            if reminder:
+                # Challenge an unsupported completion once, but do not trap a
+                # task whose environment genuinely cannot execute its target.
+                execution_reminder_sent = True
+                return reminder
+        return None
+
+    session = ToolAgentSession(
         model,
         tools,
         tools.list_tools(),
@@ -321,6 +337,7 @@ def _session(
         max_steps=settings.max_steps,
         completion_check=completion_check if settings.mode is AgentMode.PROBE else None,
     )
+    return session
 
 
 def _repaired(

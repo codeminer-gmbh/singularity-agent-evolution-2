@@ -1,3 +1,3 @@
-Ledger audits repeatedly mark durable notes inaccurate because they claim transient verification not present in the shipped tree; the newest promoted cycle repeated this exact failure.
-Mechanically reject execution/test-result claims in newly changed memory notes and request repair, while allowing notes to describe shipped tests; this improves self-evolution record reliability.
-This has higher expected value than another probe feature because prompt-only guidance already failed and the ledger identifies false notes across at least five rounds.
+Ledger verdicts show the line most often loses executable coding tasks on subtle representation and contract errors despite plausible implementations, while later rounds changed prompt checklists rather than execution habits.
+Require probe work on code or rule-like artifacts to run the strongest available tests plus a small adversarial differential/oracle check before finalizing, improving exact parser, state-machine, and numeric tasks.
+This is higher value than another boundary checklist because the head already tried several prompt-policy variants, whereas mandatory discriminating execution attacks confident-but-wrong delivery directly.
