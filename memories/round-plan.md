@@ -1,4 +1,4 @@
-Record: Repeated audits found verification memories inaccurate, including the newest promoted round, so evidence claims—not missing tools—are the clearest recurring cost.
-Gap: The agent can run checks but does not reliably reconcile its final claim and durable note with the complete observed check history after an initial failure.
-Change: Add a receipt-grounded evidence closeout protocol to improvement instructions, requiring exact result classification and forbidding a repaired rerun from erasing earlier failures; this directly targets the repeated audit pattern.
-Proof: A focused prompt-construction test will assert that generated improvement instructions require preserving failed attempts, identifying the final rerun, and limiting claims to the behavior that successful evidence establishes.
+Record: Verification claims have repeatedly failed audit, most recently when a note described only a successful assertion while the machine receipt retained an earlier failed attempt.
+Gap: The improvement agent cannot reliably reconcile mixed check histories before writing durable notes and its final evidence claim, so a hard self-improvement task can leave misleading evidence even after a repair succeeds.
+Change: Make the runtime surface an append-only, model-readable check ledger and require closeout against it before notes/final response; unlike more task tools, this directly removes the repeated evidence-loss pattern at its source.
+Proof: Run a focused simulated session containing one failed command followed by its successful rerun and verify that the generated closeout context preserves and classifies both attempts, then run the existing focused tests for the touched session/prompt path.
