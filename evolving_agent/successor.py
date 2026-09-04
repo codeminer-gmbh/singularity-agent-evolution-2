@@ -4,8 +4,11 @@ The orchestrator packages whatever the workspace holds and builds it. Nothing
 between here and that build reads the tree for the model, so a syntax error
 costs a whole cycle and fails a smoke test nobody learns anything from. The
 checks below are the ones the tree will face later, applied while there is still
-budget to fix them: it holds what a container needs, its Python parses, and the
-notes it leaves for its successor do not claim what the tree cannot show.
+budget to fix them: it holds what a container needs, its Python parses, the
+notes it leaves for its successor do not claim what the tree cannot show, and
+the tests it ships pass. The last of these is the one a model most readily
+reports as done when it is not: the first live round of this seed shipped a
+record saying every gate was green beside a suite with one red test.
 
 What the successor *does* is not judged here; that is what the experiment's
 tests and evaluators are for.
@@ -13,7 +16,10 @@ tests and evaluators are for.
 
 import ast
 import hashlib
+import os
 import re
+import subprocess
+import sys
 from collections.abc import Mapping
 
 from evolving_agent.workspace import Workspace, WorkspaceError
@@ -35,6 +41,14 @@ _NOTE_SUFFIX = ".md"
 
 _MAX_SCANNED_BYTES = 1_000_000
 _PYTHON_SUFFIX = ".py"
+
+TESTS_DIRECTORY = "tests"
+"""Where the tree keeps the tests a successor is held to."""
+
+_TEST_TIMEOUT_SECONDS = 600
+_NO_TESTS_COLLECTED = 5
+"""pytest's exit status when the directory exists but holds no test."""
+_REPORTED_TEST_LINES = 8
 
 _VERIFICATION_CLAIM = re.compile(
     r"\b(?:tested|verified|verifies|verify|verification|passed|exercised|ran)\b"
@@ -138,6 +152,57 @@ def note_problems(workspace: Workspace, baseline: Mapping[str, str]) -> tuple[st
                 "the shipped test, or keep the claim to the final reply"
             )
     return tuple(problems)
+
+
+def suite_problems(
+    workspace: Workspace, *, timeout_seconds: int = _TEST_TIMEOUT_SECONDS
+) -> tuple[str, ...]:
+    """Return why the tree's own tests do not pass, or nothing when they do.
+
+    The suite is run against the tree in the workspace, not against the program
+    that is running, so a successor is judged on what it ships. A tree with no
+    tests directory owes nothing here; a tree whose tests cannot even be
+    collected is reported like one whose tests fail.
+
+    Args:
+        workspace: The tree an improvement run left behind.
+        timeout_seconds: How long the suite may take before it counts as failing.
+
+    Returns:
+        One sentence with the end of pytest's report, or nothing.
+
+    """
+    if not (workspace.root / TESTS_DIRECTORY).is_dir():
+        return ()
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-q",
+        "-x",
+        "-p",
+        "no:cacheprovider",
+        TESTS_DIRECTORY,
+    ]
+    try:
+        completed = subprocess.run(  # noqa: S603 - a fixed command in the tree's own directory
+            command,
+            cwd=workspace.root,
+            env={**os.environ, "PYTHONPATH": str(workspace.root), "PYTHONDONTWRITEBYTECODE": "1"},
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return (f"the tree's tests did not finish within {timeout_seconds} seconds",)
+    except OSError as unrunnable:
+        return (f"the tree's tests could not be run: {unrunnable}",)
+    if completed.returncode in (0, _NO_TESTS_COLLECTED):
+        return ()
+    report = (completed.stdout or completed.stderr).strip().splitlines()
+    tail = " | ".join(line.strip() for line in report[-_REPORTED_TEST_LINES:] if line.strip())
+    return (f"the tree's own tests fail (python -m pytest -q tests): {tail}",)
 
 
 def _names_durable_evidence(text: str, present: set[str]) -> bool:

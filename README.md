@@ -40,6 +40,10 @@ A changed tree is published only if it passes the gate in
   `candidate_digest` matches the tree as it stands, so a record written before
   a later edit attests to nothing (`evolving_agent/evidence.py`). The digest is
   printed by `python -m evolving_agent.evidence`, run after the last edit.
+- its own tests pass, run against the tree as it stands
+  (`evolving_agent/successor.py`); the first live round of this seed shipped a
+  record saying every gate was green beside one red test, which is why this
+  is a gate and not an instruction.
 
 A tree that fails the gate is handed back for repair twice, and then put back
 as it was found: the cycle records an honest "no successor" rather than a

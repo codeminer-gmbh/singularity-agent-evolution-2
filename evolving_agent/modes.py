@@ -55,7 +55,12 @@ from evolving_agent.session import (
     ToolAgentSession,
 )
 from evolving_agent.settings import AgentSettings
-from evolving_agent.successor import note_problems, note_snapshot, successor_problems
+from evolving_agent.successor import (
+    note_problems,
+    note_snapshot,
+    successor_problems,
+    suite_problems,
+)
 from evolving_agent.workspace import Workspace, WorkspaceError
 
 _LOG = logging.getLogger(__name__)
@@ -210,9 +215,11 @@ def run_describe(settings: AgentSettings) -> RunReport:
 class _PublicationGate:
     """Everything a changed tree must satisfy before it is left as a successor.
 
-    Build problems are always disqualifying. The notes rule and the proof record
-    apply only once the tree differs from what the run started with: a run that
-    changed nothing owes no proof, and is reported as unchanged instead.
+    Build problems are always disqualifying. The notes rule, the proof record
+    and the tree's own tests apply only once the tree differs from what the run
+    started with: a run that changed nothing owes no proof, and is reported as
+    unchanged instead. The tests are run last, and only when everything cheaper
+    has passed.
     """
 
     def __init__(self, started_from: str, notes_before: Mapping[str, str]) -> None:
@@ -224,9 +231,8 @@ class _PublicationGate:
         found = successor_problems(workspace)
         if candidate_digest(workspace) == self._started_from:
             return found
-        return (
-            found + note_problems(workspace, self._notes_before) + verification_problems(workspace)
-        )
+        found += note_problems(workspace, self._notes_before) + verification_problems(workspace)
+        return found if found else suite_problems(workspace)
 
 
 def _improve(

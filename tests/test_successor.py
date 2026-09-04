@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from evolving_agent.successor import note_problems, note_snapshot, successor_problems
+from evolving_agent.successor import (
+    note_problems,
+    note_snapshot,
+    successor_problems,
+    suite_problems,
+)
 from evolving_agent.workspace import Workspace
 
 
@@ -71,3 +76,17 @@ def test_notes_without_claims_and_the_round_plan_are_never_gated(tmp_path: Path)
     )
 
     assert note_problems(workspace, baseline) == ()
+
+
+def test_the_tree_s_own_tests_must_pass(tmp_path: Path) -> None:
+    workspace = _tree(tmp_path)
+    assert suite_problems(workspace) == ()
+
+    workspace.write_text("tests/test_it.py", "def test_it():\n    assert 1 + 1 == 2\n")
+    assert suite_problems(workspace) == ()
+
+    workspace.write_text("tests/test_it.py", "def test_it():\n    assert 1 + 1 == 3\n")
+    problems = suite_problems(workspace)
+    assert len(problems) == 1
+    assert problems[0].startswith("the tree's own tests fail")
+    assert "test_it" in problems[0]
