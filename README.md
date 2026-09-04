@@ -18,7 +18,7 @@
 >
 > It is published so that the results can be checked, not so that the code can
 > be run. The story, the method, and what the record shows are in the post
-> [A singularity in miniature, reloaded](https://codeminer.io/blog/a-singularity-in-miniature-reloaded)
+> [Survival of the honest](https://codeminer.io/blog/survival-of-the-honest)
 > on [codeminer.io](https://codeminer.io), which follows
 > [A singularity in miniature](https://codeminer.io/blog/a-singularity-in-miniature),
 > the story of the first run. The loop that produced it, `micro_singularity`,
