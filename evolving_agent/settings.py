@@ -9,7 +9,7 @@ already reads, which is what lets this image run under an orchestrator, under
 ``docker run``, or on a laptop against a local server.
 
 Timing is a property of the image rather than of a run, and differs per mode: an
-improvement run has an hour and a half, a probe forty minutes. A run that is
+improvement run has an hour and a half, a probe fifty minutes. A run that is
 killed at its deadline produces nothing at all, so each budget leaves room for
 the exchange still in flight when it runs out.
 """
@@ -78,7 +78,7 @@ TIMING: Mapping[AgentMode, ModeTiming] = {
         time_budget_seconds=5400, model_timeout_seconds=360, max_steps=60
     ),
     AgentMode.PROBE: ModeTiming(
-        time_budget_seconds=2400, model_timeout_seconds=240, max_steps=40
+        time_budget_seconds=3000, model_timeout_seconds=240, max_steps=40
     ),
     AgentMode.DESCRIBE: ModeTiming(
         time_budget_seconds=60, model_timeout_seconds=30, max_steps=0
